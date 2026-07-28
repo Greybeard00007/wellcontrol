@@ -49,7 +49,7 @@ def shut_in(sim: Simulator, settle_s: float = 600.0) -> None:
     sim.pump.stop()
     sim.run(20, dt=0.1)
     sim.flow_path.close("annular")
-    sim.flow_path.open("choke_line_valve", "choke_line_to_manifold")
+    sim.flow_path.open("choke_line", "choke_line_to_manifold")
     sim.choke.command(0.0)
     sim.run(settle_s, dt=0.1)
 

@@ -287,11 +287,11 @@ One page, one poll loop; only the visible screen redraws. Everything is served f
 
 **`node --check` proves the script parses; it does not prove it runs.** A gauge path that does not exist throws on the first poll, blanks the screen, and looks exactly like a server fault. `tests/test_panel_render.py` extracts the real script, stubs just enough DOM, and drives every draw function with a payload built by a real `Session` — under both a shut-in start and a masked drilling one, since the downhole tracks must be *skipped* rather than drawn as nulls. A companion test breaks a gauge path on purpose so the harness is known to catch it.
 
-**There are two BOP panels because a rig has two.** A surface stack is worked from a red remote panel with a rotary selector per element; a subsea stack is watched on a screen, where what matters is each element's position and health on both pods. `gauges["is_subsea"]` picks which to draw, so the panel follows the well rather than a setting.
+**There are two BOP panels because a rig has two.** `gauges["is_subsea"]` picks which to draw, so the panel follows the well rather than a setting. See *The stack* below for what each one carries and why the engine had to grow a real stack before either could be built.
 
 Two engine additions exist because a screen would otherwise be decoration:
 
-- **`Accumulator`.** Every BOP element costs pressure to shift and the pumps put it back slowly. A student who cycles the stack because they are unsure can find they have nothing left to close with. Below the minimum the element simply does not move — consistent with the rest of the lineup model, where a thing that cannot work does not work rather than raising an error at the student.
+- **`Accumulator`.** Every BOP element costs pressure to shift and the pumps put it back slowly. A student who cycles the stack because they are unsure can find they have nothing left to close with. Below the minimum the element simply does not move — consistent with the rest of the lineup model, where a thing that cannot work does not work rather than raising an error at the student. It now carries the rest of the closing unit too; see *The stack*.
 - **`hookload_lbf`.** String weight less buoyancy, less the upward push of well pressure on the closed end of the pipe. That last term is why it belongs on the stripping screen: as surface pressure climbs the well tries to push the string out, and when hookload reaches zero the pipe has to be snubbed rather than stripped. Watching pressure gauges alone never shows it coming.
 
 **A JavaScript parse error takes every screen down at once, and nothing else notices.** It happened: a second `const open` in one block stopped the whole script parsing, so every gauge read a dash while the API, the tests and the HTML were all fine. `TestThePanelScriptParses` now runs the page's script through **`node --check`**, and a companion test feeds it the exact mistake that got through so the guard is known to work. Node was installed for this (`winget install OpenJS.NodeJS.LTS`); the test finds it on PATH or under the winget package directory, and skips rather than approximating if it is absent — a hand-rolled substitute is exactly the kind of thing that passes on the next variation of the bug.
@@ -304,7 +304,7 @@ Two things follow that are easy to get wrong when repainting from dark to orange
 
 **The panels are drawn the way a rig draws them**, from the references in `simulator_screens/`: round dials with needles for the pressures, the BOP stack in elevation with each element showing its own state, and gate-valve bowties on the P&ID that go green when open. A digital tile tells you the number; a needle tells you the *rate* and which way it is going without being read, and working a choke is a scan rather than a series of readings. The dial's label and unit sit in the gap at the bottom where the 270° sweep does not reach — the upper half has no clear band, since the number ring runs right across it, so a label placed there collides whatever the font size. One thing deliberately **not** copied from the reference app: its trend chart puts pit volume on a second y-axis, which the `dataviz` rules forbid and which the separate panels here avoid.
 
-Three more drawing details that were bugs first: **valves sharing a node pair are fanned along the line** (the three BOP elements all join annulus to stack, so only one was visible or clickable); **both schematics are sized by height**, since their viewBoxes are taller than wide and scaling on width alone made them a thousand pixels tall; and **depth labels are nudged apart with a leader line back to the true depth**, because the bit sits exactly on TD whenever it is on bottom.
+Three more drawing details that were bugs first: **valves sharing a node pair are fanned along the line** (every BOP element joins annulus to stack, so on the lineup schematic only one was visible or clickable); **both schematics are sized by height**, since their viewBoxes are taller than wide and scaling on width alone made them a thousand pixels tall; and **depth labels are nudged apart with a leader line back to the true depth**, because the bit sits exactly on TD whenever it is on bottom.
 
 ### Assessment (`sim/assessment.py`)
 
@@ -473,6 +473,98 @@ Done so far:
   Pit deviation and gain/loss are deliberately **one gauge**. In the engine
   `deviation_bbl` and `gain_bbl` are the same number, and the reference panel
   labels that single dial "Pit Deviation" with LOSS/GAIN across its face.
+- **BOP — both of them**, and this one needed the engine before it needed a
+  pixel. See *The stack* below.
+
+### The stack (`sim/flowpath.py`, `Accumulator`, the BOP face)
+
+**The screen was the reason, but the stack was the problem.** The engine had
+three elements called annular, upper rams and lower rams, and one valve a side
+called "the choke line". No rig has that. Asked what the fourth element on the
+reference photo should do, the answer was to configure the stack properly:
+*"the surface bop needs one annular at least 2 pipe rams and a blind shear ram
+… all flow cross with double HCRs on each kill/choke side … the subsea BOP
+needs to have 2 annulars, 2 VBRs, 2 shear rams and upper and lower choke and
+kill lines with double fail-safe valves on each."* So `default_valves` became
+`surface_stack()` and `subsea_stack()`, and `Simulator` builds whichever the
+well has.
+
+Four things in that are load-bearing rather than cosmetic:
+
+- **A double barrier is two valves in series, and a graph will not model that
+  by itself.** Two valves both joining the annulus to the choke line are in
+  *parallel*: either one opening gives a route, which is the opposite of what
+  a double barrier is for. Each outlet therefore has its own spool node
+  between its two valves — and each of a subsea stack's four outlets needs its
+  *own* spool, or the upper inner valve and the lower outer valve add up to a
+  path that does not exist on the stack. `_RETURN_ENTRIES` lists the spools
+  rather than the lines for the same reason: looking for the line is a way to
+  have a well that is closed in whatever the student does with the HCRs.
+- **Casing shear rams cut and do not seal** (`Valve.seals`). Closing them is
+  not shutting the well in, however final it feels, and a student who reaches
+  for them expecting a barrier has a sheared string in a live well. That is
+  one flag in the model and it is the entire difference between the two shear
+  rams on the drawing.
+- **A shear ram closed on pipe severs it** (`FlowPath.pipe_sheared`). Every
+  edge through the string and the bit goes, so the pump deadheads and nothing
+  can be circulated out again — re-opening the ram does not mend it. The well
+  may well be sealed; the exercise is over as a kill, which is the honest
+  consequence of reaching for them. *Approximation*: the string's hydrostatic
+  is left as it was rather than modelling the pipe dropping downhole.
+- **Naming a side, not a valve.** "Open the choke line" is one instruction on
+  the floor and two valves on either stack, so `FlowPath.open("choke_line")`
+  resolves the group and everything that *operates* one valve still names it
+  exactly. Setup code and scenario files stay stack-agnostic; `set_valve`
+  still raises on a group, so the panel cannot accidentally work four valves
+  with one press. Subsea it opens the **lower** outlet, which is below every
+  ram and so survives whatever else is closed.
+
+**The closing unit is most of what a BOP panel is**, and none of it existed.
+`Accumulator` gained the two regulators and their readbacks, the bypass, the
+master valve, supply air and a gallons flow counter. Each earns its place by
+being a way for the stack not to move while the accumulator gauge still reads
+3,000 psi:
+
+- **Set point and readback are different numbers.** The readback is capped by
+  what is in the bottles, so watching it fall away from the set point is how a
+  student sees the unit losing the stack before the accumulator gauge looks
+  alarming. Drawing one gauge for both would delete the lesson.
+- **A regulator wound below `minimum_operating_psi` stops its own elements**
+  and leaves the others alone — the rams are on the manifold regulator and the
+  annular on its own. **The master valve deadens everything.** **Air below the
+  minimum stops the charging pumps**, so the bottles never come back.
+- **The flow counter is the only instrument on the panel that says an element
+  moved.** A lamp says a switch was thrown. Zero it, operate, and the gallons
+  are what that function took.
+- **The pod selector is a real control**, with a `pod_failure` fault behind
+  it: the pod in use stops answering, nothing on the stack shifts, and the
+  answer is to change over — the same shape as the pump and choke faults.
+  Blank on a surface stack, which has no pods.
+
+**One command carries the whole unit** (`/closingunit`), with every field
+optional and moving on its own. Same reason the DCU's alarm set points are
+independent: a face that redraws four times a second must not drag one setting
+back while the student is working another.
+
+**The two faces share almost nothing, so both are driven in the harness.**
+`tests/test_panel_render.py` runs each with a real lineup for its own stack —
+a surface payload would never reach the subsea face, and "it did not throw" on
+one proves nothing about the other.
+
+Layout notes worth keeping if either face is touched again:
+
+- **The name plate sits on the element and must be narrower than it**, or the
+  rams are invisible and the two buttons are the only report. Plate lettering
+  is sized to the plate rather than the other way about, because the labels
+  come from the engine and "Upper variable bore rams" is three times the
+  length of "Annular".
+- **Surface is an elevation and subsea is a schematic**, which is what the two
+  references are. A surface stack is one cabinet you stand at; a subsea one is
+  a control system you read, and which outlet is still usable depends on what
+  is closed above it — only obvious from a drawing.
+- **An annular is drawn round and a ram square**, so the two are told apart
+  without reading the plate. They behave differently: an annular closes on
+  anything, a pipe ram seals only on the size it was dressed for.
 
 ### Controls, and the trap under them
 

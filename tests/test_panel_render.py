@@ -112,6 +112,15 @@ attempt("drawDcu", () => drawDcu(gauges));
 attempt("drawChokeBank", () => drawChokeBank());
 attempt("drawTripTank", () => drawTripTank());
 
+/* The BOP face draws itself from the lineup, so it needs one -- and it needs
+   *both* stacks driven, because the two faces share almost no code and a
+   payload from a surface well would never reach the subsea one. */
+lineupCache = __LINEUP__;
+attempt("drawBopPanel surface", () => { isSubsea = false; drawBopPanel(gauges); });
+lineupCache = __SUBSEA_LINEUP__;
+attempt("drawBopPanel subsea", () => { isSubsea = true; drawBopPanel(gauges); });
+isSubsea = false;
+
 trace = traceRows;
 attempt("drawTripTankChart", () => drawTripTankChart());
 attempt("drawCharts", () => drawCharts());
@@ -132,17 +141,27 @@ def _script(client) -> str:
     return page.split("<script>")[1].split("</script>")[0]
 
 
-def _payload(start: str) -> tuple[dict, list]:
+def _payload(start: str) -> tuple[dict, list, list]:
     session = Session.for_configuration(start=start)
     session.simulator.run(60.0, dt=0.05)
-    return session.gauges(), session.trace(limit=60)
+    return session.gauges(), session.trace(limit=60), session.lineup()
 
 
-def _run(node: str, tmp_path, script: str, gauges: dict, trace: list) -> list:
+#: A real subsea lineup, so the subsea BOP face is driven with the stack it is
+#: drawn for rather than with a surface one that happens to be to hand.
+def _subsea_lineup() -> list:
+    return Session.for_configuration(bop="subsea").lineup()
+
+
+def _run(
+    node: str, tmp_path, script: str, gauges: dict, trace: list, lineup: list
+) -> list:
     source = (
         HARNESS.replace("__SCRIPT__", script)
         .replace("__GAUGES__", json.dumps(gauges))
         .replace("__TRACE__", json.dumps(trace))
+        .replace("__LINEUP__", json.dumps(lineup))
+        .replace("__SUBSEA_LINEUP__", json.dumps(_subsea_lineup()))
     )
     path = tmp_path / "harness.mjs"
     path.write_text(source, encoding="utf-8")
@@ -168,8 +187,8 @@ class TestThePanelDraws:
         if node is None:
             pytest.skip("node not installed; winget install OpenJS.NodeJS.LTS")
 
-        gauges, trace = _payload(start)
-        failures = _run(node, tmp_path, _script(client), gauges, trace)
+        gauges, trace, lineup = _payload(start)
+        failures = _run(node, tmp_path, _script(client), gauges, trace, lineup)
         assert failures == [], failures
 
     def test_the_harness_would_catch_a_bad_gauge_path(self, client, tmp_path):
@@ -182,11 +201,11 @@ class TestThePanelDraws:
         if node is None:
             pytest.skip("node not installed")
 
-        gauges, trace = _payload("shut_in")
+        gauges, trace, lineup = _payload("shut_in")
         broken = _script(client).replace(
             "const pit = g.pits,", "const pit = g.no_such_key,"
         )
         assert "g.no_such_key" in broken, "the edit did not apply"
 
-        failures = _run(node, tmp_path, broken, gauges, trace)
+        failures = _run(node, tmp_path, broken, gauges, trace, lineup)
         assert any("drawDcu" in f for f in failures), failures

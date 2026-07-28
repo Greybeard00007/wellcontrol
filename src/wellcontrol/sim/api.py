@@ -222,7 +222,9 @@ class PauseCommand(BaseModel):
 
 
 class ZeroCommand(BaseModel):
-    instrument: str = Field(description="pits, trip_tank or strokes")
+    instrument: str = Field(
+        description="pits, trip_tank, strokes or flow_counter"
+    )
 
 
 class AlarmCommand(BaseModel):
@@ -243,6 +245,32 @@ class AlarmCommand(BaseModel):
 class ValveCommand(BaseModel):
     name: str
     state: str = Field(description="open or closed")
+
+
+class ClosingUnitCommand(BaseModel):
+    """The BOP closing unit. Every field moves on its own; send what changed.
+
+    Omitting a field leaves that setting alone, which is what stops a panel
+    redrawing four times a second from dragging one control back while the
+    student is working another.
+    """
+
+    manifold_regulator_psi: float | None = Field(default=None, ge=0.0, le=5000.0)
+    annular_regulator_psi: float | None = Field(default=None, ge=0.0, le=5000.0)
+    bypass_open: bool | None = Field(
+        default=None,
+        description=(
+            "Puts full bottle pressure on the manifold, past the regulator. "
+            "Not where the unit is left."
+        ),
+    )
+    master_open: bool | None = Field(
+        default=None,
+        description="Shut, nothing on the stack will move.",
+    )
+    pod: str | None = Field(
+        default=None, description="blue or yellow. Subsea stacks only."
+    )
 
 
 class SpeedCommand(BaseModel):
@@ -268,8 +296,8 @@ class JoinRequest(BaseModel):
 class FaultCommand(BaseModel):
     kind: str = Field(
         description=(
-            "pump_failure, choke_plugged, choke_washout, accumulator_leak "
-            "or weak_shoe. See /api/fault-kinds."
+            "pump_failure, choke_plugged, choke_washout, accumulator_leak, "
+            "weak_shoe or pod_failure. See /api/fault-kinds."
         )
     )
     student_id: str | None = Field(
@@ -620,6 +648,16 @@ def set_valve(session_id: str, body: ValveCommand) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"gauges": session.gauges(), "lineup": session.lineup()}
+
+
+@app.post("/api/sessions/{session_id}/closingunit")
+def set_closing_unit(session_id: str, body: ClosingUnitCommand) -> dict:
+    session = _session(session_id)
+    try:
+        session.set_closing_unit(**body.model_dump(exclude_none=True))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"gauges": session.gauges()}
 
 
 @app.post("/api/sessions/{session_id}/speed")
@@ -1187,6 +1225,20 @@ def my_valve(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"gauges": student.session.gauges(), "lineup": student.session.lineup()}
+
+
+@app.post("/api/me/closingunit")
+@exclusive
+def my_closing_unit(
+    body: ClosingUnitCommand,
+    who: tuple[Classroom, Student] = Depends(require_student),
+) -> dict:
+    _, student = who
+    try:
+        student.session.set_closing_unit(**body.model_dump(exclude_none=True))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"gauges": student.session.gauges()}
 
 
 @app.post("/api/me/strip")

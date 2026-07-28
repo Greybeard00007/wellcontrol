@@ -380,8 +380,8 @@ class TestScreens:
     def test_both_bop_panels_are_drawn(self, client):
         """A rig has two: a red remote panel, and a subsea monitoring screen."""
         text = client.get("/").text
-        assert "function drawSurfaceBop(" in text
-        assert "function drawSubseaBop(" in text
+        assert "function drawSurfaceBopFace(" in text
+        assert "function drawSubseaBopFace(" in text
         assert "function drawBopPanel(" in text
 
     def test_the_panel_follows_the_well(self, client):
@@ -433,7 +433,11 @@ class TestScreens:
         import re
 
         text = client.get("/").text
-        drawn = set(re.findall(r'data-face="([a-z0-9+-]+)"', text))
+        # The BOP face's element buttons carry which element they operate --
+        # `bop-open:annular` -- because the stack is drawn from the lineup and
+        # there is no fixed list of names on the page. Only the part before
+        # the colon is dispatched, so that is what has to be handled.
+        drawn = set(re.findall(r'data-face="([a-z0-9+-]+)(?::[^"]*)?"', text))
         drawn -= {"${act}", "none"}
         handled = set(re.findall(r'case "([a-z0-9+-]+)":', text))
         # The joystick and block lever are dragged, not clicked.
@@ -628,8 +632,22 @@ class TestScreens:
         assert 'id="pid"' in text
         assert 'id="schematic"' in text
 
-    def test_the_accumulator_is_shown(self, client):
-        assert "acc-psi" in client.get("/").text
+    def test_the_closing_unit_is_on_the_bop_face(self, client):
+        """Bottle pressure is not the whole unit, and the panel says so.
+
+        The regulators, the bypass, the master and the gallons counter are all
+        gauges and controls in their own right: an element will not shift with
+        a regulator wound off however full the bottles are, and the flow
+        counter is the only thing on the panel that says a ram actually moved.
+        """
+        text = client.get("/").text
+        for label in (
+            "Accumulator Pressure", "Air Pressure",
+            "Manifold Pressure", "Annular Pressure",
+            "Manifold Regulator Pressure", "Annular Regulator Pressure",
+            "By Pass Valve", "Flow Counter", "Flow Reset", "MASTER",
+        ):
+            assert label in text, label
 
     def test_exactly_one_screen_starts_visible(self, client):
         """The whole page rendered blank for a while and nothing caught it.
@@ -746,12 +764,13 @@ class TestScreens:
         subsea one with position and health per pod.
         """
         text = client.get("/").text
-        assert 'id="bop-panel"' in text
-        for panel in ("function drawSurfaceBop(", "function drawSubseaBop("):
+        assert 'id="bopface"' in text
+        for panel in ("function drawSurfaceBopFace(", "function drawSubseaBopFace("):
             assert panel in text
-            body = text.split(panel)[1][:2600]
-            # Rams that meet across the bore when shut and draw back when open.
-            assert "shut ?" in body
+        # One drawing serves both, so the rams meet across the bore when shut
+        # and draw back into the body when open on either stack.
+        body = text.split("function stackElement(")[1][:1400]
+        assert "shut ?" in body
 
 
 class TestPanel:
@@ -765,7 +784,7 @@ class TestPanel:
         and what goes off the bottom is the mud pump block.
         """
         text = client.get("/").text
-        for host in ("#chokeface {", "#dcuface {"):
+        for host in ("#chokeface {", "#dcuface {", "#bopface {"):
             face = text.split(host)[1].split("}")[0]
             assert "width: calc(100% + 32px)" in face, host
             assert "margin: -16px -16px" in face, host

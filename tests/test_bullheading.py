@@ -59,7 +59,7 @@ class TestTheFormationTakesFluidBothWays:
         sim.flow_path.close("annular")
         sim.flow_path.open(
             "pump_discharge", "standpipe_valve",
-            "choke_line_valve", "choke_line_to_manifold", "choke_1",
+            "choke_line", "choke_line_to_manifold", "choke_1",
         )
         sim.choke.command(20.0)
         sim.pump.command(30.0)

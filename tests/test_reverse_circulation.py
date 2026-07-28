@@ -22,7 +22,7 @@ from wellcontrol.wellconfig import BOPLocation, Trajectory, WellConfiguration
 SV = WellConfiguration(BOPLocation.SURFACE, Trajectory.VERTICAL)
 
 REVERSE_LINEUP = (
-    "pump_to_kill_line", "kill_line_valve",
+    "pump_to_kill_line", "kill_line",
     "float_valve", "standpipe_valve", "standpipe_to_manifold", "choke_1",
 )
 
@@ -61,8 +61,8 @@ class TestTheLineup:
         """That is lubricating. The difference is where the returns go."""
         path = FlowPath()
         path.close("annular")
-        path.open("pump_to_kill_line", "kill_line_valve",
-                  "choke_line_valve", "choke_line_to_manifold", "choke_1")
+        path.open("pump_to_kill_line", "kill_line",
+                  "choke_line", "choke_line_to_manifold", "choke_1")
         assert path.injecting_into_the_annulus
         assert not path.is_reverse_circulating
 
@@ -70,7 +70,7 @@ class TestTheLineup:
         path = FlowPath()
         path.close("annular")
         path.open("pump_discharge", "standpipe_valve",
-                  "choke_line_valve", "choke_line_to_manifold", "choke_1")
+                  "choke_line", "choke_line_to_manifold", "choke_1")
         assert not path.is_reverse_circulating
 
 

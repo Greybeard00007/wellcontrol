@@ -52,7 +52,16 @@ from .equipment import (
     TransferPump,
     TripTank,
 )
-from .flowpath import FlowPath, Node, ReturnRoute, Valve, ValveState, default_valves
+from .flowpath import (
+    FlowPath,
+    Node,
+    ReturnRoute,
+    Valve,
+    ValveState,
+    default_valves,
+    subsea_stack,
+    surface_stack,
+)
 from .session import SPEEDS, Session, SessionStore
 
 __all__ = [
@@ -97,6 +106,8 @@ __all__ = [
     "record_session",
     "class_code",
     "default_valves",
+    "subsea_stack",
+    "surface_stack",
     "hash_password",
     "verify_password",
 ]

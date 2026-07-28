@@ -143,7 +143,7 @@ class TestWhatCountsAsInService:
         sim = Simulator(well=examples.well_state(SV, bit_off_bottom_ft=500.0))
         sim.flow_path.close("annular")
         sim.flow_path.open(
-            "choke_line_valve", "choke_line_to_manifold", "choke_1"
+            "choke_line", "choke_line_to_manifold", "choke_1"
         )
         sim.flow_path.open("trip_tank_valve")
         sim.trip_tank.fillup_pump.start()

@@ -36,7 +36,7 @@ def lined_up_to_kill(sim: Simulator) -> Simulator:
     sim.flow_path.close("annular")
     sim.flow_path.open(
         "pump_discharge", "standpipe_valve",
-        "choke_line_valve", "choke_line_to_manifold", "choke_1",
+        "choke_line", "choke_line_to_manifold", "choke_1",
     )
     return sim
 
@@ -72,7 +72,7 @@ class TestFlowPath:
     def test_choke_line_gives_a_return_route_with_the_stack_shut(self):
         path = FlowPath()
         path.close("annular")
-        path.open("choke_line_valve", "choke_line_to_manifold", "choke_1")
+        path.open("choke_line", "choke_line_to_manifold", "choke_1")
         route = path.return_route()
         assert route.open_to_pits
         assert route.through_choke
@@ -80,7 +80,7 @@ class TestFlowPath:
     def test_kill_line_works_too(self):
         path = FlowPath()
         path.close("annular")
-        path.open("kill_line_valve", "kill_line_to_manifold", "choke_1")
+        path.open("kill_line", "kill_line_to_manifold", "choke_1")
         assert path.return_route().through_choke
 
     def test_pump_deadheads_without_a_path(self):
@@ -101,7 +101,7 @@ class TestFlowPath:
     def test_bypass_defeats_the_choke(self):
         path = FlowPath()
         path.close("annular")
-        path.open("choke_line_valve", "choke_line_to_manifold", "choke_bypass")
+        path.open("choke_line", "choke_line_to_manifold", "choke_bypass")
         assert path.bypass_is_open()
 
     def test_unknown_valve_is_rejected(self):
@@ -143,7 +143,7 @@ class TestEmergentBehaviour:
         sim = make()
         sim.flow_path.open(
             "pump_discharge", "standpipe_valve",
-            "choke_line_valve", "choke_line_to_manifold", "choke_1",
+            "choke_line", "choke_line_to_manifold", "choke_1",
         )
         sim.choke.command(2.0)          # nearly shut
         sim.pump.command(30.0)
@@ -511,7 +511,7 @@ class TestAssessment:
         sim = make()
         sim.flow_path.open(
             "pump_discharge", "standpipe_valve",
-            "choke_line_valve", "choke_line_to_manifold", "choke_1",
+            "choke_line", "choke_line_to_manifold", "choke_1",
         )
         sim.choke.command(2.0)
         sim.pump.command(30.0)

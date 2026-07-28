@@ -26,7 +26,7 @@ def drilling() -> Simulator:
 def shut_in() -> Simulator:
     sim = Simulator(well=examples.well_state(SV))
     sim.flow_path.close("annular")
-    sim.flow_path.open("choke_line_valve", "choke_line_to_manifold")
+    sim.flow_path.open("choke_line", "choke_line_to_manifold")
     sim.flow_path.open("pump_discharge", "standpipe_valve")
     return sim
 

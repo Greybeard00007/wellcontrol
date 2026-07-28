@@ -125,7 +125,10 @@ class Session:
         path = session.simulator.flow_path
         if state is StartState.SHUT_IN:
             path.close("annular")
-            path.open("choke_line_valve", "choke_line_to_manifold", "choke_1")
+            # "Open the choke line" is one instruction on the floor and two
+            # valves on either stack, so the side is named rather than the
+            # valves -- see FlowPath._group.
+            path.open("choke_line", "choke_line_to_manifold", "choke_1")
             path.open("pump_discharge", "standpipe_valve")
         else:
             # Lined up to drill: pump through the string, returns up the
@@ -162,7 +165,10 @@ class Session:
         path = simulator.flow_path
         if scenario.start is StartState.SHUT_IN:
             path.close("annular")
-            path.open("choke_line_valve", "choke_line_to_manifold", "choke_1")
+            # "Open the choke line" is one instruction on the floor and two
+            # valves on either stack, so the side is named rather than the
+            # valves -- see FlowPath._group.
+            path.open("choke_line", "choke_line_to_manifold", "choke_1")
             path.open("pump_discharge", "standpipe_valve")
         else:
             path.open("pump_discharge", "standpipe_valve")
@@ -398,10 +404,16 @@ class Session:
             # the strokes-to-bit figures on the kill sheet, so it has to keep
             # running; only the number in the window goes back to zero.
             self._strokes_offset = self.simulator.state.strokes
+        elif instrument == "flow_counter":
+            # The gallons counter on the BOP panel. Zeroed before operating an
+            # element, so the reading afterwards is what that element took --
+            # which is the only thing on the panel that says it moved.
+            self.simulator.accumulator.reset_flow_counter()
         else:
             raise KeyError(
                 "Cannot zero "
-                f"'{instrument}'. Available: pits, trip_tank, strokes"
+                f"'{instrument}'. Available: pits, trip_tank, strokes, "
+                "flow_counter"
             )
 
     def displayed_strokes(self) -> int:
@@ -457,10 +469,56 @@ class Session:
         path = self.simulator.flow_path
         valve = path.valve(name)
         target = ValveState(state)
-        if valve.is_bop and valve.state is not target:
-            if not self.simulator.accumulator.operate(is_annular="annular" in name):
-                return
+        if valve.is_bop:
+            # Everything about working the stack is well control, so it is the
+            # engine's: what the element costs, whether there is enough behind
+            # it to shift, and what a shear ram does to the string.
+            self.simulator.operate_bop_element(name, target)
+            return
         path.set_valve(name, target)
+
+    def set_closing_unit(
+        self,
+        manifold_regulator_psi: float | None = None,
+        annular_regulator_psi: float | None = None,
+        bypass_open: bool | None = None,
+        master_open: bool | None = None,
+        pod: str | None = None,
+    ) -> None:
+        """Work the BOP closing unit: regulators, bypass, master, pod.
+
+        **Every setting moves on its own.** Sending only what changed is what
+        stops a panel that redraws four times a second from dragging one
+        control back to whatever it last drew while the student is working
+        another -- the same reason the DCU's two alarm set points are
+        independent.
+
+        Raises:
+            KeyError: for a pod on a well that has no pods, or a pod that is
+                not one of the two.
+        """
+        self.advance()
+        unit = self.simulator.accumulator
+        if manifold_regulator_psi is not None:
+            unit.manifold_regulator_psi = max(
+                0.0, min(unit.capacity_psi, float(manifold_regulator_psi))
+            )
+        if annular_regulator_psi is not None:
+            unit.annular_regulator_psi = max(
+                0.0, min(unit.capacity_psi, float(annular_regulator_psi))
+            )
+        if bypass_open is not None:
+            unit.bypass_open = bool(bypass_open)
+        if master_open is not None:
+            unit.master_open = bool(master_open)
+        if pod is not None:
+            if not unit.pod:
+                raise KeyError(
+                    "This well has a surface stack, which has no control pods."
+                )
+            if pod not in ("blue", "yellow"):
+                raise KeyError(f"No pod called '{pod}'. Try blue or yellow.")
+            unit.pod = pod
 
     def strip(self, feet_per_min: float) -> None:
         """Run pipe in or out through the stripping element."""
@@ -567,7 +625,33 @@ class Session:
             "accumulator_psi": round(self.simulator.accumulator.pressure_psi),
             "accumulator_fraction": round(self.simulator.accumulator.fraction, 3),
             "accumulator_ok": self.simulator.accumulator.can_operate,
+            # The rest of the closing unit, which the BOP panel is mostly
+            # made of: the two regulators and their readbacks, the bypass,
+            # the air the charging pumps run on, and the flow counter that
+            # says an element actually moved rather than that a switch was
+            # thrown. Regulator *set points* and *readbacks* are both here
+            # and they are not the same number -- the readback is capped by
+            # what is in the bottles, which is how a student sees the unit
+            # losing the stack before the accumulator gauge looks alarming.
+            "closing_unit": {
+                "manifold_regulator_psi": round(
+                    self.simulator.accumulator.manifold_regulator_psi
+                ),
+                "annular_regulator_psi": round(
+                    self.simulator.accumulator.annular_regulator_psi
+                ),
+                "manifold_psi": round(self.simulator.accumulator.manifold_psi),
+                "annular_psi": round(self.simulator.accumulator.annular_psi),
+                "bypass_open": self.simulator.accumulator.bypass_open,
+                "master_open": self.simulator.accumulator.master_open,
+                "air_psi": round(self.simulator.accumulator.air_psi),
+                "capacity_psi": round(self.simulator.accumulator.capacity_psi),
+                "flow_gal": round(self.simulator.accumulator.flow_gal, 1),
+                "pod": self.simulator.accumulator.pod,
+                "pod_ok": not self.simulator.accumulator.pod_is_dead,
+            },
             "bop_closed": self.simulator.flow_path.bop_is_closed,
+            "pipe_sheared": self.simulator.flow_path.pipe_sheared,
             # Which BOP panel to draw. A subsea stack is monitored from a
             # screen; a surface stack is operated from a red remote panel.
             "is_subsea": self.simulator.well.configuration.is_subsea,
@@ -577,7 +661,7 @@ class Session:
             # gauge a driller reads instead of the choke line.
             "kill_line_psi": (
                 round(state.casing_pressure_psi)
-                if self.simulator.flow_path.valve("kill_line_valve").is_open
+                if self.simulator.flow_path.kill_line_is_open
                 else 0
             ),
             "choke_line_friction_psi": round(
@@ -699,7 +783,15 @@ class Session:
         }
 
     def lineup(self) -> list[dict]:
-        """Every valve, its label and its state, for the lineup panel."""
+        """Every valve, its label and its state, for the lineup panel.
+
+        The stack's own fields ride along here rather than in a second payload:
+        the BOP panel draws the elements in stack order with the outlet valves
+        beside the flow cross they belong to, and **the order of this list is
+        the order they are on the stack**. Everything the panel needs to draw
+        either stack is a property of the valve, so the page never has to know
+        a valve name or how many elements there are.
+        """
         return [
             {
                 "name": valve.name,
@@ -709,6 +801,12 @@ class Session:
                 "throttling": valve.throttling,
                 "from": valve.frm.value,
                 "to": valve.to.value,
+                # Stack shape. Blank on everything that is not part of it.
+                "bop_kind": valve.bop_kind,
+                "seals": valve.seals,
+                "shears": valve.shears,
+                "side": valve.side,
+                "outlet": valve.outlet,
             }
             for valve in self.simulator.flow_path.valves
         ]

@@ -31,7 +31,7 @@ def stripping_rig(**kwargs) -> Simulator:
     well = examples.well_state(SV, bit_off_bottom_ft=OFF_BOTTOM_FT)
     sim = Simulator(well=well, **kwargs)
     sim.flow_path.close("annular")
-    sim.flow_path.open("choke_line_valve", "choke_line_to_manifold", "choke_1")
+    sim.flow_path.open("choke_line", "choke_line_to_manifold", "choke_1")
     sim.choke.command(0.0)
     return sim
 

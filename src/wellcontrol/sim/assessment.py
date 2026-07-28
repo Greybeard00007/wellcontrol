@@ -102,6 +102,9 @@ class EventKind(Enum):
     KILL_MUD_AT_BIT = "kill_mud_at_bit"
     WELL_DEAD = "well_dead"
     EQUIPMENT_FAILURE = "equipment_failure"
+    #: A shear ram closed on the string. Its own kind rather than an
+    #: equipment failure, because nothing failed -- somebody did it.
+    PIPE_SHEARED = "pipe_sheared"
 
     @property
     def label(self) -> str:

@@ -43,6 +43,10 @@ class FaultKind(str, Enum):
     CHOKE_WASHOUT = "choke_washout"
     ACCUMULATOR_LEAK = "accumulator_leak"
     WEAK_SHOE = "weak_shoe"
+    #: The control pod in use stops answering. Nothing on the stack will
+    #: shift until the other pod is selected, which is the whole drill --
+    #: and it does nothing at all on a surface stack, which has no pods.
+    POD_FAILURE = "pod_failure"
 
     @property
     def label(self) -> str:
@@ -178,11 +182,15 @@ class Scenario:
 # --------------------------------------------------------------------------
 
 #: Lineups the scenarios build on, named so the intent is readable.
+#: ``kill_line`` and ``choke_line`` name a *side* rather than a valve, because
+#: how many valves that side has depends on the stack -- two HCRs on a surface
+#: flow cross, two fail-safes per outlet subsea. A scenario file should be able
+#: to say "open the kill line" without knowing which rig it will run on.
 _REVERSE = (
-    "pump_to_kill_line", "kill_line_valve",
+    "pump_to_kill_line", "kill_line",
     "float_valve", "standpipe_valve", "standpipe_to_manifold", "choke_1",
 )
-_LUBRICATE = ("pump_to_kill_line", "kill_line_valve")
+_LUBRICATE = ("pump_to_kill_line", "kill_line")
 
 
 SCENARIOS: tuple[Scenario, ...] = (
@@ -260,7 +268,7 @@ SCENARIOS: tuple[Scenario, ...] = (
             "the pipe to the choke. The influx never passes the shoe."
         ),
         open_valves=_REVERSE,
-        closed_valves=("pump_discharge", "choke_line_valve"),
+        closed_valves=("pump_discharge", "choke_line"),
     ),
     Scenario(
         key="choke_plugs",

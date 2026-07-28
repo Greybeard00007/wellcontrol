@@ -251,6 +251,14 @@
     width: calc(100% + 32px);
     margin: -16px -16px 12px;
   }
+  /* Third face, same rule and the same reason. No `max-height`, ever: an SVG
+     given an explicit width clips instead of scaling when its height is
+     capped, and on this face what falls off the bottom is the lower rams. */
+  #bopface {
+    display: block; height: auto;
+    width: calc(100% + 32px);
+    margin: -16px -16px 12px;
+  }
   .armbtn.off { opacity: .55; text-decoration: line-through; }
 
   /* ---- choke bank ---- */
@@ -333,7 +341,6 @@
   svg { display: block; width: 100%; }
   #schematic { height: min(74vh, 620px); }
   #pid { height: min(46vh, 340px); }
-  #bop-panel { height: min(76vh, 560px); }
   #standpipe { height: min(72vh, 540px); }
   #ckmanifold { height: min(44vh, 320px); }
 
@@ -634,35 +641,20 @@
 </section>
 
 <!-- ========================== BOP & LINEUP ========================= -->
+<!-- Two panels, because a rig has two, and the well picks which. A surface
+     stack is worked from a red remote panel with a push-button pair per
+     element; a subsea stack is watched on a screen, where what matters is
+     each element's position and which pod is answering. Both are one fixed
+     viewBox at fixed coordinates, drawn from the references in
+     simulator_screens/sim_screen_expectations/. -->
 <section class="screen" id="s-bop">
-  <div class="cols">
-    <div>
-      <div class="card">
-        <h2 id="bop-title">BOP control panel</h2>
-        <svg id="bop-panel" viewBox="0 0 640 430" role="img" aria-label="BOP panel"></svg>
-        <div class="note" id="bop-note"></div>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <h2>Accumulator</h2>
-        <div class="row" style="gap:12px">
-          <div class="v mono" id="acc-psi" style="font-size:26px;font-weight:700">—</div>
-          <div style="flex:1">
-            <div class="bar"><i id="acc-bar" style="width:100%"></i></div>
-            <div class="note" style="margin-top:5px" id="acc-note"></div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Stack elements</h2>
-        <div class="valves" id="bop-list"></div>
-        <div class="note">
-          Closed is what seals the annulus, so these read the opposite way to
-          every other valve. Each operation costs accumulator pressure.
-        </div>
-      </div>
-    </div>
+  <svg id="bopface" viewBox="0 0 1600 680" role="img"
+       aria-label="BOP control panel"></svg>
+
+  <div class="card">
+    <h2>Stack elements</h2>
+    <div class="valves" id="bop-list"></div>
+    <div class="note" id="bop-note"></div>
   </div>
 </section>
 
@@ -980,7 +972,7 @@ async function poll() {
 
 function redraw() {
   if (screen === "choke") drawCharts();
-  else if (screen === "bop") { drawBopPanel(); drawLineup(lineupCache); }
+  else if (screen === "bop") { drawBopPanel(lastGauges); drawLineup(lineupCache); }
   else if (screen === "spmanifold") {
     drawStandpipeManifold(); drawPid(); drawLineup(lineupCache);
   }
@@ -1084,15 +1076,6 @@ function paint(g) {
   clfPsi = g.choke_line_friction_psi || 0;
   chokePercent = g.choke_percent;
   isSubsea = !!g.is_subsea;
-
-  /* --- accumulator --- */
-  $("acc-psi").textContent = g.accumulator_psi.toLocaleString();
-  const bar = $("acc-bar");
-  bar.style.width = (g.accumulator_fraction * 100).toFixed(0) + "%";
-  bar.classList.toggle("low", !g.accumulator_ok);
-  $("acc-note").textContent = g.accumulator_ok
-    ? "Enough to operate the stack."
-    : "Below the minimum — nothing on the stack will shift until it recharges.";
 
   /* --- chrome --- */
   const ret = $("returns");
@@ -1653,9 +1636,42 @@ function faceAction(act, g) {
     armed: !(name === "pit_deviation" ? g.pits : g.return_flow).alarm.armed,
   });
 
+  /* The BOP face's element buttons carry which element they belong to, since
+     the stack is drawn from the lineup and there is no fixed list of names
+     here to switch on. `bop-open:annular` splits into an action and an
+     argument; everything else has no argument and is unaffected. */
+  const colon = act.indexOf(":");
+  const arg = colon < 0 ? "" : act.slice(colon + 1);
+  if (colon >= 0) act = act.slice(0, colon);
+
+  /* One command carries the whole closing unit and every field moves on its
+     own, so sending only what changed cannot drag another setting back to
+     whatever the face last drew. Same reason the DCU's set points are
+     independent. */
+  const unit = g.closing_unit || {};
+  const regBy = (key, d) => send("closingunit",
+    {[key]: Math.max(0, Math.min(unit.capacity_psi || 3000, (unit[key] || 0) + d))});
+
   switch (act) {
     case "open":    chokeBy(5); break;
     case "close":   chokeBy(-5); break;
+
+    // -- the BOP panel ------------------------------------------------------
+    // Nothing here reports failure, and that is deliberate: with the bottles
+    // down, a regulator wound off, the master shut or a dead pod selected the
+    // element simply does not move. Working out why is the exercise.
+    case "bop-open":  send("valve", {name: arg, state: "open"}); break;
+    case "bop-close": send("valve", {name: arg, state: "closed"}); break;
+    case "manreg-":   regBy("manifold_regulator_psi", -100); break;
+    case "manreg+":   regBy("manifold_regulator_psi", 100); break;
+    case "annreg-":   regBy("annular_regulator_psi", -100); break;
+    case "annreg+":   regBy("annular_regulator_psi", 100); break;
+    case "bypass-on":  send("closingunit", {bypass_open: true}); break;
+    case "bypass-off": send("closingunit", {bypass_open: false}); break;
+    case "master":    send("closingunit", {master_open: !unit.master_open}); break;
+    case "pod-blue":   send("closingunit", {pod: "blue"}); break;
+    case "pod-yellow": send("closingunit", {pod: "yellow"}); break;
+    case "flowreset": send("zero", {instrument: "flow_counter"}); break;
     // The counter in the window goes back to zero; the engine's stroke count
     // does not, because the faults and the kill sheet are hung off it.
     case "reset":   send("zero", {instrument: "strokes"}); break;
@@ -1882,8 +1898,12 @@ let flowInPercent = false;
 
 /* A plain rig dial: white face, dark bezel, one scale, digital inset. */
 function rigDial(o) {
+  // `labelFill` because the same dial is screwed to two different consoles:
+  // near-black lettering reads on the DCU's orange and disappears on the BOP
+  // panel's red, where the silkscreen is white.
   const {cx, cy, r, value, min = 0, max, ticks, label, unit,
-         decimals = 0, digits, leftLabel, rightLabel, redFrom} = o;
+         decimals = 0, digits, leftLabel, rightLabel, redFrom,
+         labelFill = "var(--console-ink)"} = o;
   const b = [], A = 135, SW = 270, span = max - min;
   b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#4a545e" stroke="#2b333b" stroke-width="2.5"/>`);
   b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 9}" fill="#f5f7f8" stroke="#aab4bd" stroke-width="1.5"/>`);
@@ -1929,7 +1949,7 @@ function rigDial(o) {
   const [t2x, t2y] = polar(cx, cy, 6, deg - 90);
   b.push(`<polygon points="${nx},${ny} ${t1x},${t1y} ${t2x},${t2y}" fill="#c0392b"/>`);
   b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.16}" fill="#2b333b"/>`);
-  b.push(`<text x="${cx}" y="${cy + r + 16}" text-anchor="middle" fill="var(--console-ink)"
+  b.push(`<text x="${cx}" y="${cy + r + 16}" text-anchor="middle" fill="${labelFill}"
     font-size="11.5" font-weight="700" font-family="system-ui">${label}</text>`);
   return b.join("");
 }
@@ -2866,181 +2886,436 @@ function drawChokeKillManifold() {
 }
 
 /* ------------------------- BOP control panels -------------------------- */
-/* Two of them, because a rig has two. A surface stack is worked from a red
-   remote panel with a rotary selector per element; a subsea stack is watched
-   on a screen, where what matters is each element's position and health on
-   both pods. Drawn from simulator_screens/. */
+/* Two of them, because a rig has two, and the well decides which -- not a
+   setting. A surface stack is worked from a red remote panel with a push
+   button either side of every element; a subsea stack is watched on a screen,
+   where what matters is each element's position and which of the two control
+   pods is answering.
+
+   Both are built to the references in simulator_screens/sim_screen_expectations
+   (surface_bop.JPG, ss_bop.JPG): one fixed viewBox, everything at fixed
+   coordinates, nothing that reflows. A driller's scan is spatial, and a
+   control that moves because a column rewrapped has stopped being findable
+   without being read.
+
+   **The stack is drawn from the lineup, not from a list of names here.** Every
+   element carries its own kind, whether it seals and whether it shears, and
+   the outlet valves carry which side and which outlet they are on. So the two
+   stacks -- four elements and one flow cross, against six elements and four
+   outlets -- come out of the same code, and a change to either one is a change
+   to the engine rather than to a picture of it. */
+
+const BOPF = {
+  W: 1600, H: 680,
+  //: The console itself. Red because a BOP remote panel is red; the rest of
+  //: the page stays slate, exactly as the choke panel's orange does.
+  red: "#a8231f", edge: "#7a1613", plate: "#f2f3f4", ink: "#f7e6e5",
+  //: Subsea is a monitoring screen rather than a console, so it is drawn as
+  //: one: pale, with the stack in schematic and the piping in oxide red.
+  sea: "#dfe5ea", seaInk: "#1d2a35", seaLine: "#b04a44",
+};
 
 let isSubsea = false;
 
-function drawBopPanel() {
-  if (!lineupCache.length) return;
-  $("bop-title").textContent = isSubsea
-    ? "Subsea BOP — monitoring" : "BOP remote control panel";
+function drawBopPanel(g) {
+  const host = $("bopface");
+  if (!host || !lineupCache.length) return;
+  const gauges = g || lastGauges;
+  if (!gauges) return;
   $("bop-note").textContent = isSubsea
-    ? "Position and health for every element, on both pods. The stack is on "
-      + "the seabed; everything here is read at a distance."
-    : "Turn a selector to work its element. Each operation draws on the "
-      + "accumulator, and below the minimum nothing will shift.";
-  (isSubsea ? drawSubseaBop : drawSurfaceBop)();
+    ? "Every element's position, on the pod that is answering. The stack is "
+      + "on the seabed; everything here is read at a distance, and a function "
+      + "that does not move is the only report you get."
+    : "Press to operate. Each function costs the closing unit pressure and "
+      + "gallons, and below the minimum — or with a regulator wound off, or "
+      + "the master shut — nothing moves at all.";
+  (isSubsea ? drawSubseaBopFace : drawSurfaceBopFace)(gauges, host);
 }
 
-function drawSurfaceBop() {
-  const svg = $("bop-panel");
-  const elements = lineupCache.filter(v => v.is_bop);
-  const bits = [
-    `<rect width="640" height="430" rx="8" fill="#a8231f"/>`,
-    `<rect x="8" y="8" width="624" height="414" rx="5" fill="none"
-       stroke="#7a1613" stroke-width="3"/>`,
-  ];
+/* -- pieces both faces are made of --------------------------------------- */
 
-  // Two pressure gauges across the top, as on the cabinet.
-  const gauge = (cx, cy, r, value, max, label) => {
-    const frac = Math.max(0, Math.min(1, value / max));
-    const out = [
-      `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#f4f5f6" stroke="#5c6169" stroke-width="3"/>`,
-    ];
-    for (let i = 0; i <= 8; i++) {
-      const [x1, y1] = polar(cx, cy, r - 4, A0 + i / 8 * SWEEP);
-      const [x2, y2] = polar(cx, cy, r - 11, A0 + i / 8 * SWEEP);
-      out.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#2c3138" stroke-width="1.5"/>`);
+/* A lit push button. The one showing the position the element is *in* is the
+   one that lights, so the panel reads at a glance without anybody comparing
+   two labels. Grey is "this is the other way you could go", never "unknown". */
+function bopButton(x, y, w, h, text, act, lit, tone) {
+  const fill = lit ? (tone === "shut" ? "#c4302a" : "#2f9e4f") : "#cfd4d8";
+  const ink = lit ? "#ffffff" : "#17120c";
+  return `<g class="hit" data-face="${act}" style="cursor:pointer">
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${fill}"
+          stroke="#20262b" stroke-width="1.5"/>
+    <rect x="${x + 2}" y="${y + 2}" width="${w - 4}" height="${h * 0.32}" rx="3"
+          fill="#ffffff" opacity="0.16"/>
+    <text x="${x + w / 2}" y="${y + h / 2 + 4.5}" text-anchor="middle" fill="${ink}"
+          font-size="13" font-weight="700" font-family="system-ui">${text}</text></g>`;
+}
+
+/* The engraved name plate, which sits *on* the element it names, as the
+   reference cabinet has it. The plate is narrower than the element body so the
+   shoulders show either side: the drawing has to stay readable as a stack
+   rather than becoming a column of labels.
+
+   The lettering is sized to the plate rather than the plate to the lettering,
+   because these labels come from the engine and "Upper variable bore rams" is
+   three times the length of "Annular". A fixed size ran the long ones off both
+   ends of the plate and into the buttons. */
+function bopPlate(x, y, w, h, text, ink) {
+  const size = Math.max(8.5, Math.min(13, (w - 10) / (text.length * 0.56)));
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2"
+      fill="${BOPF.plate}" stroke="#20262b" stroke-width="1.5"/>
+    <text x="${x + w / 2}" y="${y + h / 2 + size * 0.35}" text-anchor="middle"
+          fill="${ink || BOPF.red}" font-size="${size.toFixed(1)}" font-weight="700"
+          letter-spacing="0.03em" font-family="system-ui">${text}</text>`;
+}
+
+/* An Inc./Dec. pair over a caption, which is how the reference works a
+   regulator: no number on the buttons, the number is on the gauge beside them.
+   Wound below what an element takes to shift, that element stops moving --
+   see Accumulator.supply_psi. */
+function regulatorBlock(x, y, caption, downAct, upAct, ink) {
+  return `
+    ${bopButton(x, y, 74, 44, "Inc.", upAct, false)}
+    ${bopButton(x + 82, y, 74, 44, "Dec.", downAct, false)}
+    <text x="${x + 78}" y="${y + 62}" text-anchor="middle" fill="${ink}"
+          font-size="11.5" font-weight="700" font-family="system-ui">${caption}</text>`;
+}
+
+/* The gallons counter, and the button that zeroes it. Zero it, operate an
+   element, and the reading is what that element took -- which is the only
+   thing on a BOP panel that says the ram actually moved rather than that a
+   switch was thrown. */
+function flowCounter(x, y, gal, ink) {
+  return `
+    ${bopButton(x, y, 62, 40, "", "flowreset", false)}
+    <text x="${x + 31}" y="${y + 55}" text-anchor="middle" fill="${ink}"
+          font-size="10.5" font-weight="700" font-family="system-ui">Flow Reset</text>
+    <rect x="${x + 76}" y="${y}" width="130" height="40" rx="3" fill="#0a0d10"
+          stroke="#8f99a2" stroke-width="1.5"/>
+    <text x="${x + 141}" y="${y + 28}" text-anchor="middle" fill="#ff2d2d"
+          font-size="21" font-weight="700" letter-spacing="1.5"
+          font-family="Consolas, ui-monospace, monospace">${gal.toFixed(1)}</text>
+    <text x="${x + 220}" y="${y + 27}" fill="${ink}" font-size="12"
+          font-family="system-ui">gal</text>
+    <text x="${x + 141}" y="${y + 55}" text-anchor="middle" fill="${ink}"
+          font-size="10.5" font-weight="700" font-family="system-ui">Flow Counter</text>`;
+}
+
+/* -- the stack, in elevation --------------------------------------------- */
+/* Element bodies on a common bore, each showing its own position: a closed
+   element's rams meet in the middle, an open one's are drawn back into the
+   body. An annular is a bulge rather than a box, because that is what it looks
+   like and because a student should be able to tell the two apart on the
+   drawing without reading the plate. */
+function stackElement(cx, y, w, h, shut, kind, colours) {
+  const b = [];
+  // An annular is a rounded body and a ram is a square one, so the two are
+  // told apart on the drawing without reading the plate -- which matters,
+  // because they behave differently: an annular will close on anything and a
+  // pipe ram only seals on the size it was dressed for.
+  b.push(`<rect x="${cx - w / 2}" y="${y}" width="${w}" height="${h}"
+    rx="${kind === "annular" ? h * 0.42 : 4}"
+    fill="${colours.body}" stroke="${colours.line}" stroke-width="2"/>`);
+  if (kind === "annular") {
+    // The packing element, tapering to the bore.
+    b.push(`<path d="M ${cx - w * 0.30} ${y + h - 3} L ${cx - w * 0.13} ${y + 3}
+      L ${cx + w * 0.13} ${y + 3} L ${cx + w * 0.30} ${y + h - 3}"
+      fill="none" stroke="${colours.line}" stroke-width="1.6" opacity="0.8"/>`);
+  }
+  // The rams themselves. Shut, they close on the bore.
+  const reach = shut ? w / 2 - 5 : w * 0.16;
+  const ry = y + h * 0.3, rh = h * 0.4;
+  b.push(`<rect x="${cx - w / 2 + 4}" y="${ry}" width="${reach}" height="${rh}"
+    fill="${shut ? colours.shut : colours.open}" stroke="${colours.line}"/>`);
+  b.push(`<rect x="${cx + w / 2 - 4 - reach}" y="${ry}" width="${reach}" height="${rh}"
+    fill="${shut ? colours.shut : colours.open}" stroke="${colours.line}"/>`);
+  return b.join("");
+}
+
+/* -- the surface remote panel -------------------------------------------- */
+function drawSurfaceBopFace(g, host) {
+  const b = [];
+  const unit = g.closing_unit || {};
+  const cap = unit.capacity_psi || 3000;
+  const elements = lineupCache.filter(v => v.is_bop);
+  const outlets = side => lineupCache.filter(v => v.side === side);
+
+  b.push(`<rect x="0" y="0" width="${BOPF.W}" height="${BOPF.H}" fill="${BOPF.red}"/>`);
+  b.push(`<rect x="10" y="10" width="${BOPF.W - 20}" height="${BOPF.H - 20}" rx="6"
+    fill="none" stroke="${BOPF.edge}" stroke-width="4"/>`);
+
+  // -- closing unit gauges, left ------------------------------------------
+  // Accumulator over air, with the master valve in the gap between them, as
+  // the reference cabinet has it.
+  b.push(rigDial({
+    cx: 170, cy: 170, r: 120, value: g.accumulator_psi, max: cap,
+    ticks: [0, cap / 4, cap / 2, cap * 0.75, cap], label: "Accumulator Pressure",
+    unit: "psi", digits: pad(g.accumulator_psi, 4), labelFill: BOPF.ink,
+  }));
+  b.push(rigDial({
+    cx: 170, cy: 480, r: 120, value: unit.air_psi, max: 300,
+    ticks: [0, 75, 150, 225, 300], label: "Air Pressure", unit: "psi",
+    digits: pad(unit.air_psi, 3), labelFill: BOPF.ink,
+  }));
+  // The master valve. Shut, the whole stack is dead however healthy every
+  // other gauge looks, which is exactly why it is a control and not a note.
+  b.push(bopButton(96, 318, 148, 34,
+    unit.master_open ? "MASTER OPEN" : "MASTER SHUT", "master",
+    true, unit.master_open ? "" : "shut"));
+
+  // -- the stack, centre ---------------------------------------------------
+  const cx = 780, colW = 200;
+  const rows = [58, 166, 274, 556];          // three above the cross, one below
+  b.push(`<rect x="${cx - 22}" y="30" width="44" height="${610 - 30}"
+    fill="#5c646c" stroke="#2b333b" stroke-width="2"/>`);
+  const metal = {body: "#2b3138", line: "#12181d", shut: "#c4302a", open: "#7d868f"};
+
+  elements.forEach((v, i) => {
+    const y = rows[Math.min(i, rows.length - 1)];
+    const shut = v.state !== "open";
+    b.push(stackElement(cx, y - 9, colW, 64, shut, v.bop_kind, metal));
+    b.push(bopButton(592, y, 84, 46, "Open", `bop-open:${v.name}`, !shut));
+    // The plate is well inside the element body, so the rams stay visible
+    // either side of it: the drawing has to say what position the element is
+    // in, or the two buttons are the only report and the stack is scenery.
+    b.push(bopPlate(cx - 66, y + 8, 132, 30, v.label));
+    b.push(bopButton(884, y, 84, 46, "Close", `bop-close:${v.name}`, shut, "shut"));
+    // Casing shear rams cut and do *not* seal, so the panel says so rather
+    // than letting a lit Close button be read as a barrier.
+    if (!v.seals) {
+      b.push(`<text x="${cx}" y="${y + 70}" text-anchor="middle" fill="${BOPF.ink}"
+        font-size="10.5" font-family="system-ui">shears — does not seal</text>`);
     }
-    const [nx, ny] = polar(cx, cy, r - 13, A0 + frac * SWEEP);
-    out.push(`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#c0392b" stroke-width="3"/>`);
-    out.push(`<circle cx="${cx}" cy="${cy}" r="5" fill="#2c3138"/>`);
-    out.push(`<text x="${cx}" y="${cy + r + 15}" text-anchor="middle" fill="#f7e6e5"
-      font-size="10" font-weight="600" font-family="system-ui, sans-serif">${label}</text>`);
-    out.push(`<text x="${cx}" y="${cy + r - 8}" text-anchor="middle" fill="#2c3138"
-      font-size="11" font-weight="700"
-      font-family="Consolas, monospace">${Math.round(value).toLocaleString()}</text>`);
+  });
+
+  // The flow cross, between the blind shear rams and the lower rams, with its
+  // two outlets. Kill to the left, choke to the right, as the stack is piped.
+  b.push(`<rect x="${cx - 100}" y="404" width="200" height="100" rx="4"
+    fill="#2b3138" stroke="#12181d" stroke-width="2"/>`);
+  b.push(`<line x1="${cx - 100}" y1="452" x2="576" y2="452"
+    stroke="#5c646c" stroke-width="14"/>`);
+  b.push(`<line x1="${cx + 100}" y1="452" x2="984" y2="452"
+    stroke="#5c646c" stroke-width="14"/>`);
+  b.push(`<text x="${cx}" y="${524}" text-anchor="middle" fill="${BOPF.ink}"
+    font-size="11.5" font-weight="700" font-family="system-ui">FLOW CROSS</text>`);
+
+  [["kill", 380, "Kill Line"], ["choke", 1000, "Choke Line"]]
+    .forEach(([side, x, title]) => {
+      b.push(`<text x="${x + 100}" y="${372}" text-anchor="middle" fill="${BOPF.ink}"
+        font-size="12.5" font-weight="700" letter-spacing="0.05em"
+        font-family="system-ui">${title.toUpperCase()}</text>`);
+      outlets(side).forEach((v, i) => {
+        const y = 382 + i * 62;
+        const shut = v.state !== "open";
+        b.push(bopButton(x, y, 88, 40, "Open", `bop-open:${v.name}`, !shut));
+        b.push(bopButton(x + 96, y, 88, 40, "Close", `bop-close:${v.name}`,
+          shut, "shut"));
+        b.push(`<text x="${x + 92}" y="${y + 54}" text-anchor="middle"
+          fill="${BOPF.ink}" font-size="10.5"
+          font-family="system-ui">${v.label}</text>`);
+      });
+    });
+
+  // -- regulators and the bypass, right of the stack -----------------------
+  b.push(regulatorBlock(1010, 70, "Manifold Regulator Pressure",
+    "manreg-", "manreg+", BOPF.ink));
+  b.push(bopButton(1010, 176, 74, 44, "On", "bypass-on",
+    unit.bypass_open));
+  b.push(bopButton(1092, 176, 74, 44, "Off", "bypass-off",
+    !unit.bypass_open, "shut"));
+  b.push(`<text x="1088" y="238" text-anchor="middle" fill="${BOPF.ink}"
+    font-size="11.5" font-weight="700" font-family="system-ui">By Pass Valve</text>`);
+  b.push(regulatorBlock(1010, 552, "Annular Regulator Pressure",
+    "annreg-", "annreg+", BOPF.ink));
+
+  // -- the two readback gauges, right --------------------------------------
+  // Set point and readback are not the same number: the readback is capped by
+  // what is in the bottles, which is how a student watches the unit lose the
+  // stack while the accumulator gauge still looks respectable.
+  b.push(rigDial({
+    cx: 1420, cy: 170, r: 120, value: unit.manifold_psi, max: cap,
+    ticks: [0, cap / 4, cap / 2, cap * 0.75, cap], label: "Manifold Pressure",
+    unit: "psi", digits: pad(unit.manifold_psi, 4), labelFill: BOPF.ink,
+  }));
+  b.push(rigDial({
+    cx: 1420, cy: 480, r: 120, value: unit.annular_psi, max: cap,
+    ticks: [0, cap / 4, cap / 2, cap * 0.75, cap], label: "Annular Pressure",
+    unit: "psi", digits: pad(unit.annular_psi, 4), labelFill: BOPF.ink,
+  }));
+  b.push(flowCounter(1288, 314, unit.flow_gal || 0, BOPF.ink));
+
+  if (showGrid) b.push(gridOverlay(BOPF.W, BOPF.H, 40));
+  host.innerHTML = b.join("");
+  wireFace(host, g);
+}
+
+/* -- the subsea monitoring screen ---------------------------------------- */
+/* Not a console: a screen, and drawn as one. What a subsea stack gives you is
+   position and pod, and the piping matters because the two outlets are at
+   different heights on it -- which outlet is usable depends on what is closed
+   above it, and that is only obvious from a drawing. */
+function drawSubseaBopFace(g, host) {
+  const b = [];
+  const unit = g.closing_unit || {};
+  const cap = unit.capacity_psi || 3000;
+  const ink = BOPF.seaInk;
+  const elements = lineupCache.filter(v => v.is_bop);
+
+  b.push(`<rect x="0" y="0" width="${BOPF.W}" height="${BOPF.H}" fill="${BOPF.sea}"/>`);
+
+  // -- set points and readbacks, left --------------------------------------
+  // Both, and side by side, because they are not the same number: the
+  // readback is what the pod actually has, and watching it fall away from the
+  // set point is how a student sees the unit losing the stack.
+  const smallDial = (cy, value, label) => rigDial({
+    cx: 92, cy, r: 62, value, max: cap, ticks: [0, cap / 2, cap],
+    label, unit: "psi", digits: pad(value, 4), labelFill: ink,
+  });
+  b.push(smallDial(78, unit.annular_regulator_psi, "Annular Reg. Pressure"));
+  b.push(smallDial(232, unit.annular_psi, "Annular Readback"));
+  b.push(smallDial(386, unit.manifold_regulator_psi, "Man. Reg. Pressure"));
+  b.push(smallDial(540, unit.manifold_psi, "Manifold Readback"));
+
+  // -- pod, regulators, bypass, master -------------------------------------
+  // The pod is a real selector, not a legend. One of the two can stop
+  // answering and then nothing on the stack moves until the student changes
+  // over -- the same shape as the pump and choke faults, and the reason this
+  // is on the panel at all.
+  const pod = unit.pod || "blue";
+  b.push(`<text x="270" y="34" text-anchor="middle" fill="${ink}" font-size="12.5"
+    font-weight="700" font-family="system-ui">Pod Selector</text>`);
+  [["blue", "B", 180, "#2f7fd0", "#ffffff"],
+   ["yellow", "Y", 274, "#d8b02a", "#17120c"]].forEach(
+    ([name, letter, x, on, letterInk]) => {
+      const live = pod === name;
+      b.push(`<g class="hit" data-face="pod-${name}" style="cursor:pointer">
+        <rect x="${x}" y="${44}" width="86" height="46" rx="4"
+          fill="${live ? on : "#b8c0c8"}" stroke="#3c4650"
+          stroke-width="${live ? 3 : 1.5}"/>
+        <text x="${x + 43}" y="${74}" text-anchor="middle"
+          fill="${live ? letterInk : "#5b6672"}" font-size="16" font-weight="700"
+          font-family="system-ui">${letter}</text></g>`);
+    });
+  if (!unit.pod_ok) {
+    b.push(`<text x="270" y="106" text-anchor="middle" fill="#a8231f"
+      font-size="12" font-weight="700" font-family="system-ui">pod not answering</text>`);
+  }
+  b.push(regulatorBlock(186, 132, "Annular Regulator Pressure",
+    "annreg-", "annreg+", ink));
+  b.push(regulatorBlock(186, 236, "Manifold Regulator Pressure",
+    "manreg-", "manreg+", ink));
+  b.push(bopButton(186, 340, 74, 44, "On", "bypass-on", unit.bypass_open));
+  b.push(bopButton(268, 340, 74, 44, "Off", "bypass-off",
+    !unit.bypass_open, "shut"));
+  b.push(`<text x="264" y="402" text-anchor="middle" fill="${ink}" font-size="11.5"
+    font-weight="700" font-family="system-ui">By Pass Valve</text>`);
+  b.push(bopButton(186, 432, 156, 42,
+    unit.master_open ? "MASTER OPEN" : "MASTER SHUT", "master",
+    true, unit.master_open ? "" : "shut"));
+  b.push(flowCounter(186, 512, unit.flow_gal || 0, ink));
+
+  // -- the stack ------------------------------------------------------------
+  // A schematic rather than an elevation, which is what the reference screen
+  // is: the bore runs down the middle, each element is a control block beside
+  // it, and the two outlets tap the bore at the heights they actually tap it.
+  // Which outlet is usable depends on what is closed above it, and that is
+  // only obvious from a drawing.
+  const bore = 800;
+  const upper = lineupCache.filter(v => v.outlet === "upper");
+  const lower = lineupCache.filter(v => v.outlet === "lower");
+  const annulars = elements.filter(v => v.bop_kind === "annular");
+  const rams = elements.filter(v => v.bop_kind !== "annular");
+  const ordered = annulars.map(v => ({element: v}))
+    .concat(upper.length ? [{outlets: upper}] : [])
+    .concat(rams.map(v => ({element: v})))
+    .concat(lower.length ? [{outlets: lower}] : []);
+
+  const top = 26, rowH = Math.floor((BOPF.H - top - 34) / ordered.length);
+  b.push(`<line x1="${bore}" y1="${top - 10}" x2="${bore}"
+    y2="${top + ordered.length * rowH}" stroke="#8d959d" stroke-width="26"/>`);
+
+  /* A control block: press to operate, with the position between the two
+     buttons. The window is the reference's own idiom and it earns its place --
+     a lamp says a switch was thrown, a position window says where the element
+     is, and on a stack 7,000 ft under the boat those are different claims. */
+  const block = (x, y, v, wide) => {
+    const shut = v.state !== "open";
+    const bw = wide ? 76 : 52, ww = wide ? 148 : 92, h = wide ? 34 : 30;
+    const out = [
+      bopButton(x, y, bw, h, wide ? "Open" : "O", `bop-open:${v.name}`, !shut),
+      `<rect x="${x + bw + 6}" y="${y}" width="${ww}" height="${h}" rx="3"
+        fill="${shut ? "#4a4437" : "#cbbb92"}" stroke="#6d6250" stroke-width="1.5"/>
+       <text x="${x + bw + 6 + ww / 2}" y="${y + h / 2 + 4.5}" text-anchor="middle"
+        fill="${shut ? "#e8e2d4" : "#231f18"}" font-size="12" font-weight="700"
+        font-family="system-ui">${shut ? "CLOSED" : "OPEN"}</text>`,
+      bopButton(x + bw + ww + 12, y, bw, h, wide ? "Close" : "C",
+        `bop-close:${v.name}`, shut, "shut"),
+    ];
+    const w = bw * 2 + ww + 12;
+    // The name goes underneath, as the reference screen has it. These labels
+    // run to "Upper variable bore rams" and would not fit between the buttons.
+    out.push(bopPlate(x, y + h + 4, w, 20, v.label,
+      v.seals ? BOPF.seaInk : "#a8231f"));
     return out.join("");
   };
-  bits.push(gauge(80, 68, 44, accumulatorPsi, 3000, "ACCUMULATOR psi"));
-  bits.push(gauge(560, 68, 44, manifoldPsi, 3000, "MANIFOLD psi"));
 
-  // Stack schematic down the left, as printed on the cabinet face.
-  const sx = 175, sw = 74;
-  bits.push(`<rect x="${sx - 11}" y="46" width="22" height="330" fill="#6f7880"/>`);
-  elements.forEach((v, i) => {
-    const y = 60 + i * 78;
-    const shut = v.state !== "open";
-    bits.push(`<rect x="${sx - sw / 2}" y="${y}" width="${sw}" height="34" rx="2"
-      fill="#d9dbde" stroke="#2c3138" stroke-width="2"/>`);
-    const reach = shut ? sw / 2 - 11 : 11;
-    bits.push(`<rect x="${sx - sw / 2 + 4}" y="${y + 9}" width="${reach}" height="16"
-      fill="${shut ? "#c0392b" : "#9aa1a8"}" stroke="#2c3138"/>`);
-    bits.push(`<rect x="${sx + sw / 2 - 4 - reach}" y="${y + 9}" width="${reach}" height="16"
-      fill="${shut ? "#c0392b" : "#9aa1a8"}" stroke="#2c3138"/>`);
-  });
-  bits.push(`<rect x="${sx - 46}" y="${60 + elements.length * 78}" width="92" height="14"
-    rx="2" fill="#d9dbde" stroke="#2c3138" stroke-width="2"/>`);
+  const yellow = {body: "#e8d24a", line: "#7a6a12", shut: "#2b2b2b", open: "#c4b23c"};
 
-  // One rotary selector per element, the way the panel is actually operated.
-  elements.forEach((v, i) => {
-    const y = 78 + i * 78, cx = 400;
-    const shut = v.state !== "open";
-    // The plate is sized round the lettering rather than the other way about:
-    // at 18px high the descenders sat on the bottom stroke and the label read
-    // as struck through.
-    bits.push(`<rect x="270" y="${y - 32}" width="260" height="24" rx="2"
-      fill="#f2f3f4" stroke="#2c3138" stroke-width="1.5"/>`);
-    bits.push(`<text x="400" y="${y - 15}" text-anchor="middle" fill="#a8231f"
-      font-size="12" font-weight="700" letter-spacing="0.06em"
-      font-family="system-ui, sans-serif">${v.label.toUpperCase()}</text>`);
-    // OPEN / CLOSE arc, with the handle pointing at the position it is in.
-    bits.push(`<path d="M ${cx - 46} ${y + 26} A 46 46 0 0 1 ${cx + 46} ${y + 26}"
-      fill="none" stroke="#f2f3f4" stroke-width="3"/>`);
-    bits.push(`<text x="${cx - 56}" y="${y + 30}" text-anchor="end" fill="#f7e6e5"
-      font-size="9" font-weight="600" font-family="system-ui, sans-serif">OPEN</text>`);
-    bits.push(`<text x="${cx + 56}" y="${y + 30}" fill="#f7e6e5"
-      font-size="9" font-weight="600" font-family="system-ui, sans-serif">CLOSE</text>`);
-    const angle = shut ? -35 : -145;
-    const [hx, hy] = polar(cx, y + 26, 38, angle);
-    bits.push(`<g class="bopsel" data-valve="${v.name}" style="cursor:pointer">
-      <circle cx="${cx}" cy="${y + 26}" r="30" fill="transparent"/>
-      <line x1="${cx}" y1="${y + 26}" x2="${hx}" y2="${hy}" stroke="#14181c" stroke-width="7"
-        stroke-linecap="round"/>
-      <circle cx="${cx}" cy="${y + 26}" r="13" fill="#2c3138" stroke="#14181c" stroke-width="2"/>
-      <circle cx="${cx}" cy="${y + 26}" r="4" fill="#7d858d"/>
-      <title>${v.label} — ${shut ? "closed" : "open"}. Click to operate.</title></g>`);
-  });
-  svg.innerHTML = bits.join("");
-  svg.querySelectorAll(".bopsel").forEach(g =>
-    g.onclick = () => toggleValve(g.dataset.valve));
-}
-
-function drawSubseaBop() {
-  const svg = $("bop-panel");
-  const elements = lineupCache.filter(v => v.is_bop);
-  const bits = [`<rect width="640" height="430" fill="#eef1f4"/>`];
-
-  // Surface pressures strip, as the monitoring screen carries it.
-  bits.push(`<rect x="180" y="8" width="280" height="42" fill="#fff" stroke="#5b6672"/>`);
-  bits.push(`<text x="320" y="22" text-anchor="middle" fill="#26313c" font-size="10"
-    font-weight="700" font-family="system-ui, sans-serif">SURFACE PRESSURES</text>`);
-  [["Kill", 0], ["Choke", chokePsi], ["SPP", drillPipePsi], ["CLF", clfPsi]]
-    .forEach(([name, value], i) => {
-      const x = 200 + i * 70;
-      bits.push(`<text x="${x}" y="${34}" text-anchor="middle" fill="#5b6672"
-        font-size="9" font-family="system-ui, sans-serif">${name}</text>`);
-      bits.push(`<text x="${x}" y="${46}" text-anchor="middle" fill="#12303f"
-        font-size="11" font-weight="700"
-        font-family="Consolas, monospace">${Math.round(value)} psi</text>`);
+  ordered.forEach((row, i) => {
+    const y = top + i * rowH;
+    if (row.element) {
+      // The element on the bore, tied across to the block that works it. The
+      // bore is not decoration: which outlet is still usable depends on what
+      // is closed above it, and that only reads off a drawing.
+      b.push(`<line x1="838" y1="${y + 17}" x2="886" y2="${y + 17}"
+        stroke="#8d959d" stroke-width="3"/>`);
+      b.push(stackElement(bore, y - 4, 86, 44,
+        row.element.state !== "open", row.element.bop_kind, yellow));
+      b.push(block(886, y, row.element, true));
+      // Casing shear rams cut and leave the bore open. Saying so on the face
+      // is the difference between a student who reaches for them knowing what
+      // they get and one who thinks they have shut the well in.
+      if (!row.element.seals) {
+        b.push(`<text x="1050" y="${y + 72}" text-anchor="middle" fill="#a8231f"
+          font-size="10.5" font-family="system-ui">shears — does not seal</text>`);
+      }
+      return;
+    }
+    // An outlet: kill to the left of the bore, choke to the right, each with
+    // its inner and outer fail-safe. Both have to be open to pass anything,
+    // which is the whole point of a double barrier and is why they are two
+    // controls rather than one.
+    const my = y + 15;
+    b.push(`<line x1="${bore}" y1="${my}" x2="368" y2="${my}"
+      stroke="${BOPF.seaLine}" stroke-width="10"/>`);
+    b.push(`<line x1="${bore}" y1="${my}" x2="1240" y2="${my}"
+      stroke="${BOPF.seaLine}" stroke-width="10"/>`);
+    row.outlets.forEach(v => {
+      const inner = v.name.indexOf("inner") >= 0;
+      const kill = v.side === "kill";
+      const x = kill ? (inner ? 592 : 380) : (inner ? 886 : 1098);
+      b.push(block(x, y, v, false));
     });
-
-  // The stack in yellow, the way subsea schematics draw it.
-  const CX = 320, W = 108;
-  bits.push(`<rect x="${CX - 13}" y="62" width="26" height="330" fill="#8d949b"/>`);
-  elements.forEach((v, i) => {
-    const y = 78 + i * 84;
-    const shut = v.state !== "open";
-    bits.push(`<rect x="${CX - W / 2}" y="${y}" width="${W}" height="46" rx="3"
-      fill="#f2d94e" stroke="#7a6a12" stroke-width="2"/>`);
-    const reach = shut ? W / 2 - 13 : 13;
-    bits.push(`<rect x="${CX - W / 2 + 5}" y="${y + 14}" width="${reach}" height="18"
-      fill="${shut ? "#2b2b2b" : "#cbb93f"}" stroke="#7a6a12"/>`);
-    bits.push(`<rect x="${CX + W / 2 - 5 - reach}" y="${y + 14}" width="${reach}" height="18"
-      fill="${shut ? "#2b2b2b" : "#cbb93f"}" stroke="#7a6a12"/>`);
-
-    // Position boxes on both pods, cyan for open and black for closed --
-    // the legend every subsea monitoring screen uses.
-    ["blue", "yellow"].forEach((pod, p) => {
-      const bx = p === 0 ? CX - W / 2 - 68 : CX + W / 2 + 8;
-      bits.push(`<g class="bopsel" data-valve="${v.name}" style="cursor:pointer">
-        <rect x="${bx}" y="${y + 12}" width="60" height="22" rx="2"
-          fill="${shut ? "#14181c" : "#3fd0e0"}" stroke="#3c4650" stroke-width="1.5"/>
-        <text x="${bx + 30}" y="${y + 27}" text-anchor="middle"
-          fill="${shut ? "#fff" : "#0d2b31"}" font-size="10" font-weight="700"
-          font-family="system-ui, sans-serif">${shut ? "Close" : "Open"}</text>
-        <title>${v.label} — ${pod} pod. Click to operate.</title></g>`);
-    });
-    // Health lamps, and the element's name.
-    bits.push(`<circle cx="${CX - W / 2 - 84}" cy="${y + 23}" r="7"
-      fill="${accumulatorOk ? "#3ac455" : "#e8a33d"}" stroke="#3c4650"/>`);
-    bits.push(`<text x="${CX}" y="${y - 5}" text-anchor="middle" fill="#26313c"
-      font-size="10" font-weight="600"
-      font-family="system-ui, sans-serif">${v.label}</text>`);
   });
 
-  bits.push(`<path d="M 150 400 q 30 -10 60 0 t 60 0 t 60 0 t 60 0 t 60 0"
-    fill="none" stroke="#7f8c98" stroke-width="2"/>`);
-  bits.push(`<text x="320" y="420" text-anchor="middle" fill="#5b6672"
-    font-size="10" font-family="system-ui, sans-serif">sea bed</text>`);
+  // -- the closing unit's own gauges, right --------------------------------
+  b.push(rigDial({
+    cx: 1440, cy: 78, r: 62, value: g.accumulator_psi, max: cap,
+    ticks: [0, cap / 2, cap], label: "Accumulator Pressure", unit: "psi",
+    digits: pad(g.accumulator_psi, 4), labelFill: ink,
+  }));
+  b.push(rigDial({
+    cx: 1440, cy: 232, r: 62, value: unit.air_psi, max: 300,
+    ticks: [0, 150, 300], label: "Air Pressure", unit: "psi",
+    digits: pad(unit.air_psi, 3), labelFill: ink,
+  }));
+  b.push(rigDial({
+    cx: 1440, cy: 386, r: 62, value: g.casing_psi, max: 5000,
+    ticks: [0, 2500, 5000], label: "Stack Pressure", unit: "psi",
+    digits: pad(g.casing_psi, 4), labelFill: ink,
+  }));
 
-  // Legend, so the colours are not a private language.
-  bits.push(`<rect x="12" y="352" width="118" height="56" fill="#fff" stroke="#5b6672"/>`);
-  bits.push(`<text x="71" y="366" text-anchor="middle" fill="#26313c" font-size="9"
-    font-weight="700" font-family="system-ui, sans-serif">POSITION LEGEND</text>`);
-  bits.push(`<circle cx="26" cy="380" r="6" fill="#3fd0e0" stroke="#3c4650"/>`);
-  bits.push(`<text x="38" y="384" fill="#26313c" font-size="9"
-    font-family="system-ui, sans-serif">Open</text>`);
-  bits.push(`<circle cx="26" cy="397" r="6" fill="#14181c" stroke="#3c4650"/>`);
-  bits.push(`<text x="38" y="401" fill="#26313c" font-size="9"
-    font-family="system-ui, sans-serif">Closed</text>`);
-
-  svg.innerHTML = bits.join("");
-  svg.querySelectorAll(".bopsel").forEach(g =>
-    g.onclick = () => toggleValve(g.dataset.valve));
+  if (showGrid) b.push(gridOverlay(BOPF.W, BOPF.H, 40));
+  host.innerHTML = b.join("");
+  wireFace(host, g);
 }
 
 /* -------------------------------- lineup ------------------------------- */
@@ -3162,9 +3437,17 @@ $("strip").addEventListener("change", () => send("strip", {feet_per_min: Number(
 async function send(what, body) {
   if (watchOnly) return;      // watching, not flying
   if (!ready()) return;
-  paint((await api(`${base()}/${what}`, {
+  const r = await api(`${base()}/${what}`, {
     method: "POST", body: JSON.stringify(body)
-  })).gauges);
+  });
+  /* A valve command comes back with the lineup as well, and the BOP face is
+     drawn from it. Waiting for the next poll to pick it up left a quarter of a
+     second between pressing Close and the ram moving on the drawing, which on
+     a control that is meant to feel like a button reads as a press that did
+     not take -- the same complaint the joystick had. */
+  if (r.lineup) { lineupCache = r.lineup; drawLineup(r.lineup); }
+  paint(r.gauges);
+  if (r.lineup) redraw();
 }
 document.querySelectorAll("[data-choke]").forEach(b => b.onclick = () => {
   const raw = b.dataset.choke;

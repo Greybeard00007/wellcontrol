@@ -68,7 +68,7 @@ from .equipment import (
     ReturnFlowMeter,
     TripTank,
 )
-from .flowpath import FlowPath
+from .flowpath import FlowPath, ValveState
 
 #: Compressibility of mud, 1/psi. Includes a little for casing expansion.
 MUD_COMPRESSIBILITY: float = 3.0e-6
@@ -273,7 +273,11 @@ class Simulator:
     """
 
     well: WellState
-    flow_path: FlowPath = field(default_factory=FlowPath)
+    #: Left unset, the lineup is built for the stack this well actually has --
+    #: a surface stack and a subsea one carry different elements and different
+    #: numbers of outlet valves, so which one is under the rig is not something
+    #: a default factory can know.
+    flow_path: FlowPath | None = None
     pump: MudPump | None = None
     #: The second rig pump. Real because pump 1 failing mid-kill is a
     #: drill worth running, and because a rig has two.
@@ -330,6 +334,14 @@ class Simulator:
     state: SimState = field(default_factory=SimState)
 
     def __post_init__(self) -> None:
+        subsea = self.well.configuration.is_subsea
+        if self.flow_path is None:
+            self.flow_path = FlowPath.for_stack(subsea=subsea)
+        # A subsea stack is worked through one of two control pods; a surface
+        # one has no such thing, and a blank pod is what tells the closing
+        # unit -- and the panel -- which of the two it is.
+        if subsea and not self.accumulator.pod:
+            self.accumulator.pod = "blue"
         if self.pump is None:
             self.pump = MudPump(pump=self.well.pump)
         if self.pump_2 is None:
@@ -676,6 +688,48 @@ class Simulator:
             fault=fault.kind.value,
         )
 
+    # -- the stack ------------------------------------------------------------
+
+    def operate_bop_element(self, name: str, target: ValveState) -> bool:
+        """Shift one stack element, and pay for it.
+
+        Everything about working the stack that is not simply setting a valve
+        lives here rather than in the session, because all of it is well
+        control: what an element costs the closing unit, whether there is
+        enough regulated pressure behind it to move at all, and what closing a
+        shear ram does to the string.
+
+        **A thing that cannot work does not work.** With the bottles down, a
+        regulator wound off or a dead pod selected, the element simply does not
+        move -- no error, no message. That is what the rig gives you, and
+        working out why is the exercise.
+
+        Returns:
+            True if the element moved.
+        """
+        valve = self.flow_path.valve(name)
+        if not valve.is_bop:
+            raise ValueError(f"{name} is not a BOP element")
+        if valve.state is target:
+            return True
+        if not self.accumulator.operate(is_annular=valve.bop_kind == "annular"):
+            return False
+
+        closing = target is ValveState.CLOSED
+        # Shearing is a one-way door and only happens on the way shut, with
+        # pipe across the rams. The string being cut is a fact about the well
+        # from then on, not a state the student can put back by re-opening.
+        if closing and valve.shears and not self.flow_path.pipe_sheared:
+            self.flow_path.pipe_sheared = True
+            self.state.record(
+                EventKind.PIPE_SHEARED,
+                f"{valve.label} closed on the string.",
+                severity=Severity.CRITICAL,
+                element=valve.name,
+            )
+        self.flow_path.set_valve(name, target)
+        return True
+
     def _break_equipment(self, fault) -> None:
         kind = fault.kind.value
         if kind == "pump_failure":
@@ -698,6 +752,12 @@ class Simulator:
         elif kind == "accumulator_leak":
             self.accumulator.pressure_psi = 0.0
             self.accumulator.recharge_psi_per_min = 0.0
+        elif kind == "pod_failure":
+            # Whichever pod is selected, so the fault always bites and the
+            # answer is always to change over -- the same shape as the pump
+            # and choke faults. Nothing to fail on a surface stack.
+            if self.accumulator.pod:
+                self.accumulator.failed_pods.add(self.accumulator.pod)
         elif kind == "weak_shoe":
             if self.frac_pressure_psi is not None:
                 # Measured against the pressure the shoe is *already* carrying,

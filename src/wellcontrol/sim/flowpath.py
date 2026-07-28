@@ -47,6 +47,18 @@ class Node(str, Enum):
     PITS = "active pits"
     TRIP_TANK = "trip tank"
 
+    # The spool between an outlet's two isolation valves. It exists so the
+    # pair reads as **in series** rather than in parallel: two valves both
+    # joining the annulus straight to the choke line would mean either one
+    # opening gave a route, which is the opposite of what a double barrier
+    # is for. A subsea stack has two outlets a side, each with its own pair,
+    # so each needs its own spool -- sharing one would let the upper inner
+    # valve and the lower outer valve add up to a route that does not exist.
+    CHOKE_OUTLET = "choke outlet"
+    CHOKE_OUTLET_LOWER = "lower choke outlet"
+    KILL_OUTLET = "kill outlet"
+    KILL_OUTLET_LOWER = "lower kill outlet"
+
 
 class ValveState(str, Enum):
     OPEN = "open"
@@ -71,6 +83,25 @@ class Valve:
             valve does not care which way the flow goes; the kill line takes
             returns during a kill and takes mud *into* the annulus when
             lubricating, and it is the same valve doing both.
+        bop_kind: ``annular`` or ``ram`` for a stack element, blank otherwise.
+            The closing unit charges by element type -- an annular has much
+            the largest closing volume -- and the panel draws the two shapes
+            differently. Reading it off the name worked while there were three
+            elements all called what they are; it does not survive a stack with
+            variable bore rams and two kinds of shear ram on it.
+        seals: Whether closing this element shuts the annulus in.
+            **Casing shear rams do not.** They cut the string and leave a hole
+            for the well to come through, so a student who reaches for them
+            expecting a barrier has not shut the well in -- which is exactly
+            what the stack would do and is worth finding out here.
+        shears: Whether closing it cuts whatever is through it. Closed on pipe,
+            a shear ram severs the string: the well may be sealed but nothing
+            can be circulated afterwards.
+        side: ``choke`` or ``kill`` for an outlet isolation valve, blank
+            otherwise. With it the panel can draw the two sides of the stack
+            without knowing any valve names.
+        outlet: ``upper`` or ``lower`` for a subsea stack's two outlets a
+            side; blank on a surface stack, which has one flow cross.
     """
 
     name: str
@@ -81,20 +112,121 @@ class Valve:
     is_bop: bool = False
     throttling: bool = False
     bidirectional: bool = False
+    bop_kind: str = ""
+    seals: bool = True
+    shears: bool = False
+    side: str = ""
+    outlet: str = ""
 
     @property
     def is_open(self) -> bool:
         return self.state is ValveState.OPEN
 
 
-def default_valves() -> list[Valve]:
-    """The simplified lineup: the dozen or so valves that change the outcome.
+def surface_stack() -> list[Valve]:
+    """A surface stack: one annular, two pipe rams, a blind shear ram.
+
+    Listed top to bottom, which is the order the panel draws them in. The flow
+    cross sits between the blind shear rams and the lower pipe rams and carries
+    **two hydraulically operated valves a side** -- an inner and an outer HCR.
+    Both have to be open for that side to pass anything, which is the whole
+    point of a double barrier and is why they are two valves in series here
+    rather than one valve called "the choke line".
+    """
+    return [
+        Valve("annular", "Annular preventer", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
+        Valve("upper_rams", "Upper pipe rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
+        Valve("blind_shear_rams", "Blind shear rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
+        Valve("lower_rams", "Lower pipe rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
+
+        Valve("kill_inner_hcr", "Kill inner HCR", Node.ANNULUS,
+              Node.KILL_OUTLET, bidirectional=True, side="kill"),
+        Valve("kill_outer_hcr", "Kill outer HCR", Node.KILL_OUTLET,
+              Node.KILL_LINE, bidirectional=True, side="kill"),
+        Valve("choke_inner_hcr", "Choke inner HCR", Node.ANNULUS,
+              Node.CHOKE_OUTLET, bidirectional=True, side="choke"),
+        Valve("choke_outer_hcr", "Choke outer HCR", Node.CHOKE_OUTLET,
+              Node.CHOKE_LINE, bidirectional=True, side="choke"),
+    ]
+
+
+def subsea_stack() -> list[Valve]:
+    """A subsea stack: two annulars, two shear rams, two variable bore rams.
+
+    Top to bottom, with the upper choke and kill outlets between the annulars
+    and the rams and the lower pair below everything. Each outlet carries two
+    fail-safe valves, so there are eight of them; a fail-safe closes on loss of
+    control pressure, which is why they are drawn shut and opened deliberately.
+
+    Two elements are not interchangeable with the rest and the names say so.
+    The **blind shear rams** cut and seal. The **casing shear rams** cut and
+    do *not* -- ``seals=False`` -- so closing them on a live well shears the
+    string and leaves the well flowing, which is the thing about them worth
+    knowing before it matters.
+
+    The variable bore rams keep the keys ``upper_rams`` and ``lower_rams``:
+    they are the upper and lower ram-type elements on this stack, everything
+    that operates a stack element addresses them by those keys on both, and
+    what a student reads is the label.
+    """
+    return [
+        Valve("annular", "Upper annular", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
+        Valve("lower_annular", "Lower annular", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
+
+        Valve("upper_kill_inner", "Upper kill inner fail-safe", Node.ANNULUS,
+              Node.KILL_OUTLET, bidirectional=True, side="kill", outlet="upper"),
+        Valve("upper_kill_outer", "Upper kill outer fail-safe",
+              Node.KILL_OUTLET, Node.KILL_LINE, bidirectional=True,
+              side="kill", outlet="upper"),
+        Valve("upper_choke_inner", "Upper choke inner fail-safe", Node.ANNULUS,
+              Node.CHOKE_OUTLET, bidirectional=True, side="choke",
+              outlet="upper"),
+        Valve("upper_choke_outer", "Upper choke outer fail-safe",
+              Node.CHOKE_OUTLET, Node.CHOKE_LINE, bidirectional=True,
+              side="choke", outlet="upper"),
+
+        Valve("blind_shear_rams", "Blind shear rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
+        # Cuts the string and leaves the bore open. Not a barrier.
+        Valve("casing_shear_rams", "Casing shear rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True,
+              seals=False),
+        Valve("upper_rams", "Upper variable bore rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
+        Valve("lower_rams", "Lower variable bore rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
+
+        Valve("lower_kill_inner", "Lower kill inner fail-safe", Node.ANNULUS,
+              Node.KILL_OUTLET_LOWER, bidirectional=True, side="kill",
+              outlet="lower"),
+        Valve("lower_kill_outer", "Lower kill outer fail-safe",
+              Node.KILL_OUTLET_LOWER, Node.KILL_LINE, bidirectional=True,
+              side="kill", outlet="lower"),
+        Valve("lower_choke_inner", "Lower choke inner fail-safe", Node.ANNULUS,
+              Node.CHOKE_OUTLET_LOWER, bidirectional=True, side="choke",
+              outlet="lower"),
+        Valve("lower_choke_outer", "Lower choke outer fail-safe",
+              Node.CHOKE_OUTLET_LOWER, Node.CHOKE_LINE, bidirectional=True,
+              side="choke", outlet="lower"),
+    ]
+
+
+def default_valves(subsea: bool = False) -> list[Valve]:
+    """The simplified lineup: the valves that change the outcome.
 
     Deliberately not a full choke manifold. Every valve here has a consequence
     a student can feel; adding the rest would add tedium without adding
-    lessons.
+    lessons. The **stack** is the exception and is modelled in full, because a
+    stack a student cannot recognise is one they cannot practise on: see
+    `surface_stack` and `subsea_stack`.
     """
-    return [
+    return (subsea_stack() if subsea else surface_stack()) + [
         Valve("pump_discharge", "Mud pump discharge", Node.PUMP, Node.STANDPIPE),
         Valve("standpipe_valve", "Standpipe valve", Node.STANDPIPE, Node.STRING,
               bidirectional=True),
@@ -114,26 +246,14 @@ def default_valves() -> list[Valve]:
         # the string, so opening it is what a ported float buys you.
         Valve("float_valve", "String float valve", Node.BIT, Node.STRING),
 
-        # BOP elements. Closed means the annulus is sealed, so the sense is
-        # inverted relative to every other valve.
-        Valve("annular", "Annular preventer", Node.ANNULUS, Node.BOP,
-              state=ValveState.OPEN, is_bop=True),
-        Valve("upper_rams", "Upper pipe rams", Node.ANNULUS, Node.BOP,
-              state=ValveState.OPEN, is_bop=True),
-        Valve("lower_rams", "Lower pipe rams", Node.ANNULUS, Node.BOP,
-              state=ValveState.OPEN, is_bop=True),
-
         # Returns with the stack open.
         Valve("flowline", "Flowline to shakers", Node.BOP, Node.FLOWLINE,
               state=ValveState.OPEN),
         Valve("shakers_to_pits", "Shakers to pits", Node.FLOWLINE, Node.PITS,
               state=ValveState.OPEN),
 
-        # Returns with the stack closed.
-        Valve("choke_line_valve", "Choke line valve", Node.ANNULUS,
-              Node.CHOKE_LINE, bidirectional=True),
-        Valve("kill_line_valve", "Kill line valve", Node.ANNULUS,
-              Node.KILL_LINE, bidirectional=True),
+        # Returns with the stack closed. The stack's own isolation valves are
+        # above; these are the lines from the stack up to the manifold.
         Valve("choke_line_to_manifold", "Choke line to manifold",
               Node.CHOKE_LINE, Node.CHOKE_MANIFOLD),
         Valve("kill_line_to_manifold", "Kill line to manifold",
@@ -175,6 +295,21 @@ def default_valves() -> list[Valve]:
     ]
 
 
+#: Where returns can leave the annulus once the stack is shut, in the order
+#: they are tried. **These are the outlet spools, not the lines**: with a
+#: double barrier on each side the annulus reaches the spool between the two
+#: valves first, and reaches the line itself only if the outer one is open
+#: too. Looking for the line here instead is a way to have a well that is
+#: closed in whatever the student does with the HCRs.
+_RETURN_ENTRIES: tuple[Node, ...] = (
+    Node.CHOKE_OUTLET,
+    Node.CHOKE_OUTLET_LOWER,
+    Node.KILL_OUTLET,
+    Node.KILL_OUTLET_LOWER,
+    Node.BIT,
+)
+
+
 @dataclass
 class ReturnRoute:
     """How returns are leaving the well, if they are."""
@@ -198,8 +333,17 @@ class FlowPath:
 
     valves: list[Valve] = field(default_factory=default_valves)
 
+    #: Set once a shear ram has been closed on the string. The pipe is cut and
+    #: nothing can be circulated through it again -- see `_edges`.
+    pipe_sheared: bool = False
+
     def __post_init__(self) -> None:
         self._by_name = {v.name: v for v in self.valves}
+
+    @classmethod
+    def for_stack(cls, subsea: bool) -> "FlowPath":
+        """The lineup a rig with this stack on it would have."""
+        return cls(valves=default_valves(subsea=subsea))
 
     # -- operating -----------------------------------------------------------
 
@@ -214,13 +358,45 @@ class FlowPath:
     def set_valve(self, name: str, state: ValveState | str) -> None:
         self.valve(name).state = ValveState(state)
 
+    def _group(self, name: str) -> list[Valve] | None:
+        """The valves a rig hand means by "the choke line" or "the kill line".
+
+        Lining a side up is one instruction on the floor and several valves on
+        the stack, and how many depends on which stack is under the rig: two
+        HCRs on a surface flow cross, two fail-safes per outlet subsea. Setup
+        code and scenario files should not have to know which, so they name the
+        side and this resolves it. Anything that *operates* one valve --
+        `set_valve`, and so the panel and the API -- still names it exactly.
+
+        Subsea, this opens the **lower** outlet: it is below every ram on the
+        stack, so it stays useful whatever else has been closed.
+        """
+        if name not in ("choke_line", "kill_line"):
+            return None
+        side = name.split("_")[0]
+        outlets = {v.outlet for v in self.valves if v.side == side}
+        wanted = "lower" if "lower" in outlets else ""
+        return [
+            v for v in self.valves if v.side == side and v.outlet == wanted
+        ]
+
     def open(self, *names: str) -> None:
         for name in names:
-            self.set_valve(name, ValveState.OPEN)
+            group = self._group(name)
+            if group is None:
+                self.set_valve(name, ValveState.OPEN)
+            else:
+                for valve in group:
+                    valve.state = ValveState.OPEN
 
     def close(self, *names: str) -> None:
         for name in names:
-            self.set_valve(name, ValveState.CLOSED)
+            group = self._group(name)
+            if group is None:
+                self.set_valve(name, ValveState.CLOSED)
+            else:
+                for valve in group:
+                    valve.state = ValveState.CLOSED
 
     # -- state ---------------------------------------------------------------
 
@@ -230,12 +406,34 @@ class FlowPath:
 
     @property
     def bop_is_closed(self) -> bool:
-        """True when any BOP element is closed, sealing the annulus."""
-        return any(not v.is_open for v in self.bop_elements)
+        """True when a *sealing* element is closed, shutting the annulus in.
+
+        Casing shear rams are the exception the `seals` flag exists for: they
+        cut the string and leave the bore open, so closing them is not shutting
+        the well in however final it feels.
+        """
+        return any(not v.is_open and v.seals for v in self.bop_elements)
 
     @property
     def closed_bop_elements(self) -> list[str]:
         return [v.label for v in self.bop_elements if not v.is_open]
+
+    def outlet_valves(self, side: str) -> list[Valve]:
+        """Every isolation valve on the choke or kill side, in stack order."""
+        return [v for v in self.valves if v.side == side]
+
+    @property
+    def kill_line_is_open(self) -> bool:
+        """Whether the annulus actually reaches the kill line.
+
+        The gauge on the kill line reads the annulus only when a complete route
+        to it is open, which on either stack means a pair of valves rather than
+        one. Asking the graph is the only version of this that survives the
+        stack changing under it.
+        """
+        return self._reachable(
+            self._edges(), Node.ANNULUS, Node.KILL_LINE
+        ) is not None
 
     # -- path resolution -----------------------------------------------------
 
@@ -248,10 +446,21 @@ class FlowPath:
         element is open. The choke and kill lines take off from the stack below
         the elements, so they stay available with the stack shut, which is the
         whole point of having them.
+
+        **A sheared string is not a route.** Once a shear ram has been closed
+        on pipe the string is cut at the stack, so every edge through it goes:
+        the pump has nowhere to go and nothing can be circulated out. The well
+        may well be sealed -- blind shear rams do seal -- but the exercise is
+        over as a kill, which is the honest consequence of reaching for them.
         """
         edges: dict[Node, list[Node]] = {}
+        severed = {Node.STRING, Node.BIT}
         for valve in self.valves:
             if valve.is_bop or not valve.is_open:
+                continue
+            if self.pipe_sheared and (
+                valve.frm in severed or valve.to in severed
+            ):
                 continue
             edges.setdefault(valve.frm, []).append(valve.to)
             if valve.bidirectional:
@@ -329,7 +538,7 @@ class FlowPath:
         # return route it is currently feeding, and the reported path doubles
         # back on itself.
         inlet = self.injection_path() or ()
-        for entry in (Node.CHOKE_LINE, Node.KILL_LINE, Node.BIT):
+        for entry in _RETURN_ENTRIES:
             if entry not in edges.get(Node.ANNULUS, ()) or entry in inlet:
                 continue
             path = self._reachable(edges, entry, Node.PITS)

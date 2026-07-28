@@ -171,7 +171,7 @@ class TestReadouts:
     def test_bop_elements_are_marked(self, session):
         bops = [v for v in session.lineup() if v["is_bop"]]
         assert {v["name"] for v in bops} == {
-            "annular", "upper_rams", "lower_rams"
+            "annular", "upper_rams", "blind_shear_rams", "lower_rams"
         }
 
     def test_events_can_be_fetched_incrementally(self, session, clock):
@@ -253,7 +253,10 @@ class TestTheWellStillResponds:
     def test_circulating_with_the_bop_open_does_nothing(self, clock):
         session = Session.for_configuration(start="drilling", clock=clock)
         session.set_speed(10.0)
-        session.set_valve("choke_line_valve", "open")
+        # set_valve names one valve, so both HCRs go individually -- a group
+        # is a setup convenience, not something the panel can operate.
+        session.set_valve("choke_inner_hcr", "open")
+        session.set_valve("choke_outer_hcr", "open")
         session.set_valve("choke_line_to_manifold", "open")
         session.set_valve("choke_1", "open")
         session.set_pump(30.0)

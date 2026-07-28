@@ -29,20 +29,20 @@ class TestTheKillLineRunsBothWays:
     def test_returns_can_leave_through_the_kill_line(self):
         path = FlowPath()
         path.close("annular")
-        path.open("kill_line_valve", "kill_line_to_manifold", "choke_1")
+        path.open("kill_line", "kill_line_to_manifold", "choke_1")
         assert path.return_route().through_choke
 
     def test_the_pump_can_go_in_through_the_kill_line(self):
         path = FlowPath()
         path.close("annular")
-        path.open("pump_to_kill_line", "kill_line_valve")
+        path.open("pump_to_kill_line", "kill_line")
         assert not path.pump_is_deadheaded
         assert Node.KILL_LINE in path.injection_path()
 
     def test_that_route_does_not_go_through_the_string(self):
         path = FlowPath()
         path.close("annular")
-        path.open("pump_to_kill_line", "kill_line_valve")
+        path.open("pump_to_kill_line", "kill_line")
         assert path.injecting_into_the_annulus
 
     def test_pumping_down_the_string_is_not_lubricating(self):
@@ -67,7 +67,7 @@ def gas_at_surface() -> Simulator:
     """
     sim = Simulator(well=examples.well_state(SV))
     sim.flow_path.close("annular")
-    sim.flow_path.open("choke_line_valve", "choke_line_to_manifold", "choke_1")
+    sim.flow_path.open("choke_line", "choke_line_to_manifold", "choke_1")
     sim.choke.command(0.0)
     target = sim.formation_pressure_psi
     guard = 0
@@ -83,7 +83,7 @@ def gas_at_surface() -> Simulator:
 
 def line_up_to_lubricate(sim: Simulator) -> None:
     sim.flow_path.close("pump_discharge", "standpipe_valve")
-    sim.flow_path.open("pump_to_kill_line", "kill_line_valve")
+    sim.flow_path.open("pump_to_kill_line", "kill_line")
 
 
 @pytest.fixture(scope="module")

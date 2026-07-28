@@ -395,6 +395,15 @@ class Accumulator:
     with, which is a real way to lose a well and is invisible if the BOP panel
     is drawn as a row of indicator lights.
 
+    Bottle pressure is not the whole unit, and the panel makes that obvious.
+    Stack functions run on **regulated** pressure, not on what is in the
+    bottles: the manifold regulator feeds the rams and the annular regulator
+    feeds the annular, and an element turned down below what it takes to shift
+    will not shift however full the bottles are. That is a real way to find a
+    stack unresponsive with a healthy accumulator gauge, and it is the reason
+    the two regulators have their own gauges and their own Inc./Dec. buttons on
+    the panel rather than being implied by the accumulator reading.
+
     Attributes:
         pressure_psi: What the gauge on the closing unit reads.
         minimum_psi: Below this there is not enough to shift an element. Stands
@@ -403,6 +412,23 @@ class Accumulator:
         annular_cost_psi: Pressure given up closing or opening the annular. It
             has the largest closing volume of the three.
         ram_cost_psi: The same for a set of rams.
+        manifold_regulator_psi: What the rams are given to work on.
+        annular_regulator_psi: The same for the annular, set lower on a real
+            unit so the element is not damaged closing on pipe.
+        bypass_open: The bypass puts full bottle pressure on the manifold,
+            past the regulator. It is there for the moment a regulator will not
+            pass enough, and it is not where the unit is left.
+        master_open: The master valve between the bottles and the manifold.
+            Shut, the whole stack is dead however healthy every gauge on the
+            unit looks -- which is why it is on the panel rather than assumed.
+        air_psi: Supply air to the closing unit's pumps. **The pumps stop
+            without it** and the bottles never come back up, which is what an
+            air pressure gauge on a BOP panel is for.
+        flow_gal: The flow counter, gallons of control fluid used. This is how
+            a driller tells an element actually *moved*: the right number of
+            gallons went out to it. A lamp only says a switch was thrown.
+        pod: Which control pod is selected, subsea. Blank on a surface stack.
+        failed_pods: Pods that will not answer. Select the other one.
     """
 
     pressure_psi: float = 3000.0
@@ -412,23 +438,83 @@ class Accumulator:
     annular_cost_psi: float = 250.0
     ram_cost_psi: float = 150.0
 
+    manifold_regulator_psi: float = 1500.0
+    annular_regulator_psi: float = 1500.0
+    bypass_open: bool = False
+    master_open: bool = True
+    air_psi: float = 120.0
+    flow_gal: float = 0.0
+    annular_gal: float = 20.0
+    ram_gal: float = 10.0
+    pod: str = ""
+    failed_pods: set[str] = field(default_factory=set)
+
+    #: Regulated pressure below which an element will not shift at all.
+    minimum_operating_psi: float = 400.0
+    #: Supply air below which the charging pumps stop.
+    minimum_air_psi: float = 60.0
+
     @property
     def can_operate(self) -> bool:
-        return self.pressure_psi > self.minimum_psi
+        return (
+            self.pressure_psi > self.minimum_psi
+            and self.master_open
+            and not self.pod_is_dead
+        )
+
+    @property
+    def pod_is_dead(self) -> bool:
+        """Whether the selected pod will answer. Never true on a surface stack."""
+        return bool(self.pod) and self.pod in self.failed_pods
 
     @property
     def fraction(self) -> float:
         return max(0.0, min(1.0, self.pressure_psi / self.capacity_psi))
 
+    @property
+    def manifold_psi(self) -> float:
+        """Regulated pressure to the rams, as the readback gauge shows it.
+
+        Never more than there is in the bottles, and the bypass takes the
+        regulator out of the way altogether.
+        """
+        if self.bypass_open:
+            return self.pressure_psi
+        return min(self.manifold_regulator_psi, self.pressure_psi)
+
+    @property
+    def annular_psi(self) -> float:
+        if self.bypass_open:
+            return self.pressure_psi
+        return min(self.annular_regulator_psi, self.pressure_psi)
+
+    def supply_psi(self, is_annular: bool) -> float:
+        if not self.master_open:
+            return 0.0
+        return self.annular_psi if is_annular else self.manifold_psi
+
     def operate(self, is_annular: bool) -> bool:
-        """Spend the volume for one element. False if there is not enough."""
+        """Spend the volume for one element. False if it will not shift.
+
+        Two ways it will not: nothing left in the bottles, or a regulator wound
+        down below what the element takes. Both read as the element simply not
+        moving, which is what they look like on the rig.
+        """
         if not self.can_operate:
+            return False
+        if self.supply_psi(is_annular) < self.minimum_operating_psi:
             return False
         cost = self.annular_cost_psi if is_annular else self.ram_cost_psi
         self.pressure_psi = max(0.0, self.pressure_psi - cost)
+        self.flow_gal += self.annular_gal if is_annular else self.ram_gal
         return True
 
+    def reset_flow_counter(self) -> None:
+        self.flow_gal = 0.0
+
     def advance(self, dt: float) -> None:
+        if self.air_psi < self.minimum_air_psi:
+            return
         self.pressure_psi = min(
             self.capacity_psi,
             self.pressure_psi + self.recharge_psi_per_min * dt / 60.0,
