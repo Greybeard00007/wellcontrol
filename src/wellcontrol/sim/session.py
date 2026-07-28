@@ -518,6 +518,15 @@ class Session:
             # Which BOP panel to draw. A subsea stack is monitored from a
             # screen; a surface stack is operated from a red remote panel.
             "is_subsea": self.simulator.well.configuration.is_subsea,
+            # The kill line reads the annulus when it is lined up to it, and
+            # nothing when it is shut -- it has been bled down. The reference
+            # panel gives it its own window, and on a subsea well it is the
+            # gauge a driller reads instead of the choke line.
+            "kill_line_psi": (
+                round(state.casing_pressure_psi)
+                if self.simulator.flow_path.valve("kill_line_valve").is_open
+                else 0
+            ),
             "choke_line_friction_psi": round(
                 self.simulator.well.effective_choke_line_friction
             ),

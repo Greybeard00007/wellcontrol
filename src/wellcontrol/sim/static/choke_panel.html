@@ -303,6 +303,8 @@
 
   /* Dials. Two big ones for the pressures a kill is flown on, three smaller
      for the settings, exactly as the panel is laid out on a rig. */
+  /* The face fills the width and keeps its aspect; nothing reflows. */
+  #chokeface { width: 100%; height: auto; display: block; }
   .dials { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .dials.small { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
   .dials > div { max-width: 260px; margin: 0 auto; width: 100%; }
@@ -521,20 +523,18 @@
 
 <!-- ============================= CHOKE ============================= -->
 <section class="screen" id="s-choke">
+  <!-- The panel face. Positions come from the reference console, not from
+       a layout engine: a driller's scan is spatial, and moving a gauge
+       because a column reflowed would break the thing that makes it
+       readable without being read. -->
+  <svg id="chokeface" viewBox="0 0 1200 640" role="img"
+       aria-label="Choke panel"></svg>
+  <div class="lamps" id="lamps" style="margin:10px 0 14px"></div>
+
   <div class="cols">
     <div>
       <div class="card">
-        <h2>Choke panel</h2>
-        <div class="dials">
-          <div id="dial-dp"></div>
-          <div id="dial-csg"></div>
-        </div>
-        <div class="dials small">
-          <div id="dial-spm"></div>
-          <div id="dial-choke"></div>
-          <div id="dial-extra"></div>
-        </div>
-        <div class="lamps" id="lamps"></div>
+        <h2>Readouts</h2>
         <div class="gauges" style="margin-top:12px">
           <div class="g dp"><div class="k">Drill pipe</div><div class="v" id="g-dp">—</div><div class="u">psi</div></div>
           <div class="g csg"><div class="k">Casing</div><div class="v" id="g-csg">—</div><div class="u">psi</div></div>
@@ -985,30 +985,11 @@ function paint(g) {
     ? "Hookload is at zero — the well is pushing the string out. This has to be snubbed, not stripped."
     : "";
 
-  /* --- choke: the dials --- */
+  drawChokeFace(g);
+
+  /* --- choke: supplementary readouts --- */
   // Scale chosen once from what this well can actually reach, so the needle
   // uses the face instead of sitting near zero all run.
-  const full = Math.max(2000, Math.ceil((maaspPsi || 1500) * 1.6 / 500) * 500);
-  $("dial-dp").innerHTML = dial({
-    value: g.drill_pipe_psi, max: full, label: "Drill Pipe", unit: "psi",
-    colour: "#c62828",
-  });
-  $("dial-csg").innerHTML = dial({
-    value: g.casing_psi, max: full, label: "Casing", unit: "psi",
-    colour: "#c62828",
-  });
-  $("dial-spm").innerHTML = dial({
-    value: g.pump_spm, max: 80, label: "Pump", unit: "spm", size: 170, ticks: 5,
-  });
-  $("dial-choke").innerHTML = dial({
-    value: g.choke_percent, max: 100, label: "Choke", unit: "% open",
-    size: 170, ticks: 6,
-  });
-  $("dial-extra").innerHTML = seen
-    ? dial({value: g.influx_bbl || 0, max: 120, label: "Influx", unit: "bbl",
-            size: 170, ticks: 5, colour: "#e07b39"})
-    : dial({value: g.pit_gain_bbl, max: 60, label: "Pit Gain", unit: "bbl",
-            size: 170, ticks: 5, colour: "#e07b39"});
   $("lamps").innerHTML =
     lamp(g.pump_spm > 0, "Mud pump") +
     lamp(g.bop_closed, "BOP closed", "#e2453d") +
@@ -1206,6 +1187,228 @@ function dial(opts) {
   bits.push(`<circle cx="${c}" cy="${c}" r="9" fill="#2b3640" stroke="#0d1117" stroke-width="2"/>`);
 
   return `<svg viewBox="0 0 ${size} ${size}" style="width:100%;height:auto">${bits.join("")}</svg>`;
+}
+
+
+/* ---------------------------- the choke panel --------------------------- */
+/* Drawn as one surface at fixed coordinates, the way the reference console
+   is. Everything below is positioned against that 1200x640 viewBox. */
+
+const FACE = {
+  dp:      {cx: 218, cy: 218, r: 148},
+  csg:     {cx: 982, cy: 218, r: 148},
+  chokePos:{cx: 1010, cy: 505, r: 96},
+  stick:   {cx: 600, cy: 455},
+};
+
+function bolt(cx, cy) {
+  return `<circle cx="${cx}" cy="${cy}" r="5" fill="#8b949c" stroke="#333c44"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="2" fill="#333c44"/>`;
+}
+
+/* A rig pressure gauge: dark bolted bezel, white face, psi outer in black and
+   bar inner in red -- both scales, as the reference has. */
+function pressureGauge(cx, cy, r, value, maxPsi, label) {
+  const b = [];
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#454f59" stroke="#2b333b" stroke-width="3"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 14}" fill="#f4f6f7" stroke="#aab4bd" stroke-width="2"/>`);
+  [[-0.72, -0.72], [0.72, -0.72], [-0.72, 0.72], [0.72, 0.72]].forEach(
+    ([dx, dy]) => b.push(bolt(cx + dx * r, cy + dy * r)));
+
+  const A = 135, SW = 270;
+  const maxBar = maxPsi / 14.5038;
+  // psi: outer ring, black.
+  for (let i = 0; i <= 40; i++) {
+    const f = i / 40, major = i % 4 === 0;
+    const deg = A + f * SW;
+    const [x1, y1] = polar(cx, cy, r - 18, deg);
+    const [x2, y2] = polar(cx, cy, r - (major ? 30 : 24), deg);
+    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="${major ? 2 : 1}"/>`);
+    if (major) {
+      const [tx, ty] = polar(cx, cy, r - 42, deg);
+      b.push(`<text x="${tx}" y="${ty + 4}" text-anchor="middle" fill="#1d252c"
+        font-size="12" font-family="system-ui">${Math.round(maxPsi * f)}</text>`);
+    }
+  }
+  // bar: inner ring, red -- the second scale every rig gauge carries.
+  for (let i = 0; i <= 7; i++) {
+    const f = i / 7, deg = A + f * SW;
+    const [tx, ty] = polar(cx, cy, r - 66, deg);
+    b.push(`<text x="${tx}" y="${ty + 4}" text-anchor="middle" fill="#c0392b"
+      font-size="11" font-family="system-ui">${Math.round(maxBar * f / 50) * 50}</text>`);
+  }
+  b.push(`<text x="${cx}" y="${cy + r - 44}" text-anchor="middle" fill="#c0392b"
+    font-size="12" font-family="system-ui">bar</text>`);
+  b.push(`<text x="${cx}" y="${cy + r - 30}" text-anchor="middle" fill="#1d252c"
+    font-size="14" font-family="system-ui">psi</text>`);
+
+  const frac = Math.max(0, Math.min(1, (value || 0) / maxPsi));
+  const [nx, ny] = polar(cx, cy, r - 26, A + frac * SW);
+  b.push(`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#12181d" stroke-width="3"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="13" fill="#2b333b"/>`);
+  b.push(`<circle cx="${cx - 22}" cy="${cy + 22}" r="3" fill="#9aa4ac"/>`);
+  b.push(`<circle cx="${cx + 22}" cy="${cy + 22}" r="3" fill="#9aa4ac"/>`);
+  b.push(`<text x="${cx}" y="${cy + r + 22}" text-anchor="middle" fill="#17120c"
+    font-size="14" font-weight="700" font-family="system-ui">${label}</text>`);
+  return b.join("");
+}
+
+/* Black window, red seven-segment lettering, silkscreened label above it. */
+function segment(x, y, w, h, text, label, size) {
+  const s = size || 26;
+  return `
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3"
+          fill="#0a0d10" stroke="#8f99a2" stroke-width="2"/>
+    <text x="${x + w - 10}" y="${y + h / 2 + s * 0.36}" text-anchor="end"
+          fill="#ff2d2d" font-size="${s}" font-weight="700"
+          font-family="Consolas, ui-monospace, monospace"
+          letter-spacing="2">${text}</text>
+    ${label ? `<text x="${x + w / 2}" y="${y - 7}" text-anchor="middle"
+          fill="#17120c" font-size="12" font-weight="700"
+          font-family="system-ui">${label}</text>` : ""}`;
+}
+
+/* Choke position, scaled in eighths from Open round to Close. */
+function chokePositionDial(cx, cy, r, percent) {
+  const b = [];
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#454f59" stroke="#2b333b" stroke-width="3"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 11}" fill="#f4f6f7" stroke="#aab4bd" stroke-width="2"/>`);
+  const A = 135, SW = 270;
+  const marks = ["Open", "7/8", "3/4", "5/8", "1/2", "3/8", "1/4", "1/8", "Close"];
+  // Open at the left end of the sweep, Close at the right: the handle travels
+  // the way the reference gauge reads.
+  marks.forEach((m, i) => {
+    const f = i / (marks.length - 1), deg = A + f * SW;
+    const [x1, y1] = polar(cx, cy, r - 14, deg);
+    const [x2, y2] = polar(cx, cy, r - 22, deg);
+    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="2"/>`);
+    const [tx, ty] = polar(cx, cy, r - 34, deg);
+    b.push(`<text x="${tx}" y="${ty + 3}" text-anchor="middle" fill="#1d252c"
+      font-size="10" font-family="system-ui">${m}</text>`);
+  });
+  const frac = Math.max(0, Math.min(1, 1 - (percent || 0) / 100));
+  const [nx, ny] = polar(cx, cy, r - 24, A + frac * SW);
+  b.push(`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#c0392b" stroke-width="3"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="#2b333b"/>`);
+  b.push(`<text x="${cx}" y="${cy + r + 20}" text-anchor="middle" fill="#17120c"
+    font-size="13" font-weight="700" font-family="system-ui">Choke Position</text>`);
+  return b.join("");
+}
+
+/* The joystick, its Hold arc and the Open/Close arrows. Clicking the arrows
+   drives the choke, so the control on screen is the control on the panel. */
+function joystick(cx, cy, moving) {
+  const b = [];
+  const ax = cx, ay = cy - 60, ar = 132;
+  b.push(`<path d="M ${ax - ar} ${ay} A ${ar} ${ar} 0 0 1 ${ax + ar} ${ay}"
+    fill="none" stroke="#17120c" stroke-width="2"/>`);
+  b.push(`<text x="${ax}" y="${ay - ar + 44}" text-anchor="middle" fill="#17120c"
+    font-size="13" font-weight="700" font-family="system-ui">Hold</text>`);
+
+  [[-1, "Open", "open"], [1, "Close", "close"]].forEach(([dir, text, act]) => {
+    const hx = ax + dir * (ar - 18), hy = ay - 26;
+    b.push(`<path d="M ${hx - dir * 26} ${hy - 26} l ${dir * 34} 30 l ${-dir * 9} 9
+      l ${-dir * 34} -30 z" fill="#7d8891"/>`);
+    b.push(`<g class="hit" data-face="${act}" style="cursor:pointer">
+      <rect x="${hx - 34}" y="${hy + 14}" width="68" height="26" rx="3"
+            fill="#e6e9ec" stroke="#6d777f"/>
+      <text x="${hx}" y="${hy + 32}" text-anchor="middle" fill="#17120c"
+            font-size="13" font-family="system-ui">${text}</text></g>`);
+  });
+
+  // Base, shaft, ball.
+  b.push(`<path d="M ${cx - 66} ${cy + 92} L ${cx - 48} ${cy + 8}
+    L ${cx + 48} ${cy + 8} L ${cx + 66} ${cy + 92} z" fill="#3b444c"/>`);
+  b.push(`<rect x="${cx - 14}" y="${cy - 52}" width="28" height="64" rx="6"
+    fill="#c3cad0" stroke="#8b949c"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy - 62}" r="30" fill="#20262b"/>`);
+  b.push(`<circle cx="${cx - 9}" cy="${cy - 72}" r="9" fill="#3d464e" opacity="0.8"/>`);
+  if (moving) {
+    b.push(`<circle cx="${cx}" cy="${cy - 62}" r="36" fill="none"
+      stroke="#4bf07e" stroke-width="2" opacity="0.8"/>`);
+  }
+  return b.join("");
+}
+
+/* The Choke2 / Choke1 rotary selector, and the speed knob. */
+function rotarySelector(cx, cy, r, rightHand) {
+  const deg = rightHand ? 20 : 160;
+  const [px, py] = polar(cx, cy, r + 16, deg);
+  return `
+    <circle cx="${cx}" cy="${cy}" r="${r + 22}" fill="none" stroke="#c96a0e" stroke-width="2"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="#6c757d" stroke="#3b444c" stroke-width="2"/>
+    <circle cx="${cx}" cy="${cy}" r="${r * 0.55}" fill="#8b949c"/>
+    <line x1="${cx}" y1="${cy}" x2="${px}" y2="${py}" stroke="#3b444c" stroke-width="9"
+          stroke-linecap="round"/>
+    <text x="${cx - r - 30}" y="${cy + 4}" text-anchor="end" fill="#17120c"
+          font-size="12" font-weight="700" font-family="system-ui">Choke2</text>
+    <text x="${cx + r + 30}" y="${cy + 4}" fill="#17120c"
+          font-size="12" font-weight="700" font-family="system-ui">Choke1</text>`;
+}
+
+function knob(cx, cy, r, label) {
+  return `
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="#3b444c" stroke="#20262b" stroke-width="2"/>
+    <circle cx="${cx - r * 0.3}" cy="${cy - r * 0.3}" r="${r * 0.3}" fill="#59636c"/>
+    <text x="${cx}" y="${cy + r + 15}" text-anchor="middle" fill="#17120c"
+          font-size="11" font-family="system-ui">${label}</text>`;
+}
+
+function pad(value, width) {
+  return String(Math.max(0, Math.round(value || 0))).padStart(width, "0");
+}
+
+function drawChokeFace(g) {
+  const host = $("chokeface");
+  if (!host) return;
+  const full = Math.max(2000, Math.ceil((maaspPsi || 1500) * 1.6 / 500) * 500);
+  const b = [];
+
+  b.push(`<rect x="0" y="0" width="1200" height="640" fill="var(--bg)"/>`);
+
+  b.push(pressureGauge(FACE.dp.cx, FACE.dp.cy, FACE.dp.r,
+    g.drill_pipe_psi, full, "Drill Pipe Pressure"));
+  b.push(segment(388, 246, 152, 54, pad(g.drill_pipe_psi, 4), ""));
+
+  b.push(pressureGauge(FACE.csg.cx, FACE.csg.cy, FACE.csg.r,
+    g.casing_psi, full, "Casing Pressure"));
+  b.push(segment(660, 246, 152, 54, pad(g.casing_psi, 4), ""));
+
+  b.push(segment(452, 74, 150, 48, pad(g.pumps[0].spm + g.pumps[1].spm, 5),
+    "Stroke Rate", 22));
+  b.push(segment(700, 74, 150, 48, pad(g.strokes, 5), "Stroke Counter", 22));
+  b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
+    <circle cx="651" cy="98" r="21" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
+    <circle cx="645" cy="92" r="6" fill="#3fd4bd" opacity="0.7"/>
+    <text x="651" y="134" text-anchor="middle" fill="#17120c" font-size="11"
+          font-family="system-ui">Reset</text></g>`);
+
+  b.push(segment(540, 168, 170, 46, pad(g.kill_line_psi, 5),
+    "Kill Line Pressure", 22));
+
+  b.push(joystick(FACE.stick.cx, FACE.stick.cy,
+    Math.abs(g.choke_commanded - g.choke_percent) > 0.5));
+  b.push(knob(714, 522, 21, "Speed"));
+  b.push(`<text x="756" y="510" fill="#17120c" font-size="11"
+    font-family="system-ui">Increase</text>`);
+
+  b.push(rotarySelector(224, 512, 44, g.choke_in_service !== "choke_2"));
+
+  b.push(chokePositionDial(FACE.chokePos.cx, FACE.chokePos.cy, FACE.chokePos.r,
+    g.choke_percent));
+  b.push(segment(806, 486, 130, 44,
+    (g.choke_percent || 0).toFixed(1) + "%", "", 22));
+
+  host.innerHTML = b.join("");
+
+  host.querySelectorAll("[data-face]").forEach(el => el.onclick = () => {
+    const act = el.dataset.face;
+    if (act === "reset") return;               // stroke counter reset: display only
+    const step = act === "open" ? 5 : -5;
+    const next = Math.max(0, Math.min(100, Number($("choke").value || 0) + step));
+    $("choke").value = next;
+    send("choke", {percent: next});
+  });
 }
 
 function lamp(on, label, onColour) {

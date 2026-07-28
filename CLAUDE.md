@@ -338,7 +338,64 @@ A related resolution trap: **peak casing pressure is a sharp cusp**, reached as 
 
 - **Single-user simulator: done.** Headless engine, lineup, validation, event log and assessment, the full drilling → kick → detection → shut-in sequence, every kill method operable rather than merely planned (Driller's, Wait and Weight, Volumetric, Bullheading, Lube and Bleed, Reverse Circulation, Stripping), and a scenario library with fault injection. **UI decided: FastAPI + browser** — Streamlit has no game loop and reruns the whole script per interaction, which would make gauges into widgets and the choke laggy. The planner stays on Streamlit; the two apps share the library and nothing else.
 - **Classroom rebuild: all five stages done.** (1) Server clock, class codes, a session per student, instructor console with a live monitor grid, Docker/NPM deployment — *The classroom*. (2) The trip tank in the volume balance, active and reserve pits, the return flow meter, alarms, a second mud pump, four independent chokes — *The mud system*. (3) The student screens redrawn against the references in `simulator_screens/sim_screen_expectations/` — *The screens*. (4) Live fault induction concealed from the student, per-student drill-down, recordings that outlive the class — *The instructor's hand*. (5) The drilling model — *Making hole*.
-- **Two things never verified on the Windows dev box**, both waiting on the server: **nobody has looked at the student screens** (the render harness proves every draw function runs against a real payload, but layout and collisions are unverified by eye), and **the Docker image has never been built** — Docker was simply not installed here, not a Windows limitation. First `docker compose up -d --build` on the Ubuntu box will shake it out.
+- **The presentation layer is being rebuilt, and this is the live piece of work.** The engine is sound; the screens missed. See *Faithful to the panel* below for what that means and what is done so far.
+- **The Docker image has never been built** — Docker was simply not installed on the dev box, not a Windows limitation. First `docker compose up -d --build` on the Ubuntu box will shake it out.
+
+## Faithful to the panel
+
+**The first attempt at the screens was built without ever seeing one, and it
+missed.** Not in detail — structurally. Asked whether to reproduce the
+reference console or take its ideas, the answer given was "better than this
+simulator", which was read as licence to design freely. What was actually
+wanted, and said in the same breath, was *"tabs orientated just like the
+photos"* and *"look more professional"*: **same layout, more capability.**
+
+What came out was a web dashboard with round gauges in it — cards, headings, a
+scrolling page. What was wanted is that instrument panel. The engine underneath
+was never the problem.
+
+So the target is now explicit: **faithful reproduction of the reference layout
+first, capability added on top of it.** The references are the photographs in
+`simulator_screens/sim_screen_expectations/`, committed at 1600px.
+
+### What that means in practice
+
+**A panel is one surface at fixed coordinates, not a layout.** A driller's scan
+is *spatial* — they look at where the gauge is, not where a layout engine put
+it this frame. So the Choke Panel is a single SVG at a fixed viewBox with
+everything positioned on it, and the same will go for the rest. A gauge that
+moves because a column reflowed has stopped being readable without being read,
+which is the entire argument for a needle over a number.
+
+**Every control on the face must work.** The joystick drives the choke in 5%
+steps; decoration would be worse than nothing, because a student learns the
+panel and then finds half of it inert.
+
+Done so far:
+
+- **Choke Panel.** Two bolted gauges with dual psi/bar scales and their own
+  seven-segment windows, stroke rate and counter with the reset button, kill
+  line pressure, the joystick with its Hold arc and live Open/Close handles,
+  the Choke2/Choke1 rotary selector, the speed knob, and the choke position
+  dial scaled in eighths. `kill_line_psi` was added to the gauges for it — the
+  engine had no such reading.
+
+Still to do, in order: **DCU**, then the **instructor station** — which needs
+the most structural change of all. The reference is a fixed-height admin
+console with a fifteen-entry left navigation tree (Load Exercise/Recording,
+Fault Induction Panel, Kill Sheets, Drilling Plots Report, Operator Panels…)
+and an *Operator Panels* view that opens a student's real screens. Ours is a
+flat scrolling page of tiles with no navigation at all.
+
+### The lesson worth keeping
+
+**Do not build screens blind.** Roughly 7,800 lines went in before anyone
+looked at a pixel, because the browser extension would not connect and the work
+carried on anyway. The render harness in `tests/test_panel_render.py` is
+genuinely useful — it proves every draw function executes against a real
+payload — but "does not throw" is a far weaker claim than "reads correctly",
+and no test was ever going to catch *this is the wrong shape entirely*. Get
+eyes on a screen before building the next one.
 
 ## Making hole (`sim/drilling.py`)
 

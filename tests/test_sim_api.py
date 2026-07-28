@@ -472,16 +472,53 @@ class TestScreens:
     def test_the_accumulator_is_shown(self, client):
         assert "acc-psi" in client.get("/").text
 
-    def test_the_pressure_gauges_are_dials(self, client):
-        """A needle shows the rate and which way it is going without being read.
+    def test_the_choke_panel_is_one_instrument_face(self, client):
+        """Not cards containing gauges -- the console the reference photographs.
 
-        The panel is built the way a rig builds it -- see simulator_screens/ for
-        the references it is drawn from.
+        A driller's scan is *spatial*: they look at where the gauge is, not at
+        where a layout engine put it this frame. So the panel is one SVG at
+        fixed coordinates, and everything the reference carries is on it.
         """
         text = client.get("/").text
-        assert "function dial(" in text
-        for slot in ("dial-dp", "dial-csg", "dial-spm", "dial-choke"):
-            assert slot in text
+        assert 'id="chokeface"' in text
+        assert "function drawChokeFace(" in text
+        for part in (
+            "function pressureGauge(",     # bolted bezel, psi and bar scales
+            "function segment(",           # black window, red seven-segment
+            "function chokePositionDial(",  # scaled in eighths
+            "function joystick(",          # with its Hold arc
+            "function rotarySelector(",    # Choke2 / Choke1
+        ):
+            assert part in text, part
+
+    def test_the_choke_panel_carries_the_reference_readouts(self, client):
+        text = client.get("/").text
+        for label in (
+            "Drill Pipe Pressure", "Casing Pressure", "Stroke Rate",
+            "Stroke Counter", "Kill Line Pressure", "Choke Position", "Hold",
+        ):
+            assert label in text, label
+
+    def test_the_choke_position_dial_is_scaled_in_eighths(self, client):
+        """Open, 7/8 … 1/8, Close -- the way the reference gauge reads."""
+        text = client.get("/").text
+        for mark in ('"7/8"', '"3/4"', '"5/8"', '"1/2"', '"3/8"', '"1/4"', '"1/8"'):
+            assert mark in text, mark
+
+    def test_the_joystick_actually_works_the_choke(self, client):
+        """Decoration would be worse than nothing: it is the panel's control.
+
+        Asserted on the mechanism rather than on a rendered attribute -- the
+        handles are templated, so `data-face="open"` never appears literally in
+        the source and a test looking for it would pass or fail for the wrong
+        reason.
+        """
+        text = client.get("/").text
+        assert '[[-1, "Open", "open"], [1, "Close", "close"]]' in text
+        assert 'data-face="${act}"' in text
+        # The click handler has to reach the choke, not just exist.
+        assert 'querySelectorAll("[data-face]")' in text
+        assert 'send("choke", {percent: next})' in text
 
     def test_the_bop_stack_is_drawn_in_elevation(self, client):
         """Not a list of words: a student who shut the wrong element sees it.
