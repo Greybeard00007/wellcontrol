@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Bare `python` on this machine is a broken Microsoft Store alias stub** — it prints "Python was not found" and exits 49. Always invoke the venv interpreter by path.
 
 ```bash
-.venv/Scripts/python.exe -m pytest                      # full suite (~60s, 595 tests)
+.venv/Scripts/python.exe -m pytest                      # full suite (~5 min, 1400 tests)
 .venv/Scripts/python.exe -m pytest tests/test_methods.py -q
 .venv/Scripts/python.exe -m pytest -k "test_balance_point" -q      # single test
 .venv/Scripts/python.exe -m pytest tests/test_stripping.py::TestForces -q
@@ -30,6 +30,10 @@ Run the simulator — or double-click `Launch Simulator.bat`:
 ```bash
 .venv/Scripts/python.exe -m uvicorn wellcontrol.sim.api:app --reload
 ```
+
+Three ways in: `/` is the student's screens (solo, no login), `/instructor` is
+the instructor station, `/join` is where a student enters a class code. For a
+class, deploy with `docker compose up -d --build` — see *The classroom* below.
 
 `[dev]` is dependency-free (library + tests). `[app]` adds matplotlib, streamlit, pandas for the planner; `[sim]` adds fastapi, uvicorn, httpx for the simulator's web front end. `tests/test_streamlit_app.py` and `tests/test_sim_api.py` skip themselves via `importorskip`, so the core suite stays dependency-free.
 
@@ -260,19 +264,28 @@ Run it with `Launch Simulator.bat`, or:
 
 **The panel is two charts, not one.** Surface pressure runs in hundreds of psi and downhole in thousands; on a shared axis the drill pipe and casing traces flatten onto the baseline, which is exactly the gauge the student is working to. Thresholds are labelled on the line rather than in the legend, because two identical dashes do not tell you which one the shoe is about to cross.
 
-#### The six screens
+#### The screens
 
-One page, six tabs, one poll loop; only the visible screen redraws. Everything is served from `static/choke_panel.html`, still self-contained — a rig has no internet and a test pins that.
+One page, one poll loop; only the visible screen redraws. Everything is served from `static/choke_panel.html`, still self-contained — a rig has no internet and a test pins that. The operator screens and their order follow the reference console in `simulator_screens/sim_screen_expectations/`.
 
 | Screen | What it is for |
 | --- | --- |
-| **Driller** | Standpipe, pump, pit gain, flow differential, hookload, trip tank. Pump and **stripping** controls. |
-| **Choke** | Dials, lamps, the choke, both pressure charts, the event log. |
+| **Choke Panel** | Drill pipe and casing dials, lamps, the choke, both pressure charts, the event log. |
+| **DCU** | Where a kick is *noticed*: pit deviation, return flow, standpipe, both pump rates, alarms with set points, depths and stroke counter. Pump and **stripping** controls. |
 | **BOP** | The control panel — red remote panel for a surface stack, monitoring screen for a subsea one. |
-| **Manifolds** | Standpipe manifold, choke and kill manifold, and the whole circulating system. |
-| **Well** | Cross-section with live fluid zones, plus the column as a table. |
+| **SP Manifold** | Standpipe manifold and the whole circulating system. |
+| **Choke Manifold** | The manifold, plus all four chokes with their own handles and lineup. |
+| **Trip Tank** | Tank, active and reserve pits, the transfer pumps, level alarms, and whether the tank is actually in service. |
+| **Trends** | Stacked tracks or the reference panel's overlaid parallel axes, against time or strokes. |
+| **Well** | Cross-section with live fluid zones. Instructor-side in a class. |
 | **Kill sheet** | Built from the student's own readings; plan against actual. |
-| **Debrief** | Verdict, measures against their limits, and what happened. |
+| **Debrief** | Verdict, measures against their limits, and what happened. Instructor-side in a class. |
+
+**Manifolds are two screens because they are two panels in two places** and a student is sent to one or the other. **The DCU and the choke panel are deliberately different jobs**: one is where you notice something is wrong, the other is where you do something about it, and merging them is how a trainer teaches students to stare at the choke while the pit gain runs away behind them.
+
+**Trends offers both forms because the audience is split.** Stacked tracks sharing one axis is the readable answer and the default; the reference panel's six overlaid parallel axes is what a student will meet if they later sit that box, so it is a toggle rather than an omission. Each axis is drawn in its own trace's colour, which is the only thing making the overlaid form legible at all.
+
+**`node --check` proves the script parses; it does not prove it runs.** A gauge path that does not exist throws on the first poll, blanks the screen, and looks exactly like a server fault. `tests/test_panel_render.py` extracts the real script, stubs just enough DOM, and drives every draw function with a payload built by a real `Session` — under both a shut-in start and a masked drilling one, since the downhole tracks must be *skipped* rather than drawn as nulls. A companion test breaks a gauge path on purpose so the harness is known to catch it.
 
 **There are two BOP panels because a rig has two.** A surface stack is worked from a red remote panel with a rotary selector per element; a subsea stack is watched on a screen, where what matters is each element's position and health on both pods. `gauges["is_subsea"]` picks which to draw, so the panel follows the well rather than a setting.
 
@@ -323,9 +336,257 @@ A related resolution trap: **peak casing pressure is a sharp cusp**, reached as 
 
 ## Where this is up to
 
-- **Simulator**: **all five stages done** — headless engine, lineup, validation, event log and assessment, all six screens, the full drilling → kick → detection → shut-in sequence, every kill method operable rather than merely planned (Driller's, Wait and Weight, Volumetric, Bullheading, Lube and Bleed, Reverse Circulation, Stripping), and a scenario library with fault injection. **UI decided: FastAPI + browser** — Streamlit has no game loop and reruns the whole script per interaction, which would make gauges into widgets and the choke laggy. The planner stays on Streamlit; the two apps share the library and nothing else.
+- **Single-user simulator: done.** Headless engine, lineup, validation, event log and assessment, the full drilling → kick → detection → shut-in sequence, every kill method operable rather than merely planned (Driller's, Wait and Weight, Volumetric, Bullheading, Lube and Bleed, Reverse Circulation, Stripping), and a scenario library with fault injection. **UI decided: FastAPI + browser** — Streamlit has no game loop and reruns the whole script per interaction, which would make gauges into widgets and the choke laggy. The planner stays on Streamlit; the two apps share the library and nothing else.
+- **Classroom rebuild: all five stages done.** (1) Server clock, class codes, a session per student, instructor console with a live monitor grid, Docker/NPM deployment — *The classroom*. (2) The trip tank in the volume balance, active and reserve pits, the return flow meter, alarms, a second mud pump, four independent chokes — *The mud system*. (3) The student screens redrawn against the references in `simulator_screens/sim_screen_expectations/` — *The screens*. (4) Live fault induction concealed from the student, per-student drill-down, recordings that outlive the class — *The instructor's hand*. (5) The drilling model — *Making hole*.
+- **Two things never verified on the Windows dev box**, both waiting on the server: **nobody has looked at the student screens** (the render harness proves every draw function runs against a real payload, but layout and collisions are unverified by eye), and **the Docker image has never been built** — Docker was simply not installed here, not a Windows limitation. First `docker compose up -d --build` on the Ubuntu box will shake it out.
+
+## Making hole (`sim/drilling.py`)
+
+The only part of this simulator that is not about well control, and it earns
+its place for one reason:
+
+**A drilling break is a kick indicator, and it arrives before the pit gain.**
+Penetration rate rises as the chip hold-down effect weakens — that is, as the
+mud becomes less overbalanced. Drill into a zone the mud cannot hold and the bit
+speeds up *because* the well is going underbalanced. Measured on the reference
+well: the rate **doubles within 30 seconds**, while the pit has gained 0.16 bbl.
+Nothing tells the bit a kick is coming; it reads the same bottomhole pressure as
+everything else.
+
+**`NOMINAL_OVERBALANCE_PSI` is 500, not the static 150.** A well drilling ahead
+does not carry `DRILLING_OVERBALANCE_PSI` — circulating adds annular friction on
+top, and the bit is working against about 500 psi. Normalising against the static
+figure put the baseline hold-down at 0.34, so a well drilling normally sat at a
+third of its nominal rate and the break came out at *five* times: theatrical, and
+not what a driller sees. Calibrated against the engine, the baseline is 0.99 and
+the break is 2.0×.
+
+**`Simulator.drilling_ahead` is a lock-out, not a status.** BOP closed, pump off,
+rotary stopped, no weight on bit, or bit off bottom — any one of them and nothing
+in this module runs. That is what keeps every validated kill exactly as it was:
+they are all shut-in or circulating exercises, and none can reach the drilling
+model. A parametrised test asserts each condition stops the bit dead.
+
+Weight on bit comes **off the hookload**, which is the relation a driller
+actually works to — lower the block until the indicator drops by the weight you
+want on bottom. Picking up off bottom drops the weight to zero rather than
+leaving a stale number on the gauge. New hole is new volume, so drilling ahead
+slowly consumes mud from the active pits.
+
+The exponents are the familiar Bourgoyne-Young *shape* — rate roughly linear in
+weight, fractional power of speed — with coefficients chosen so the reference
+well drills at a plausible 60 ft/hr. **Nothing here should be used to plan a bit
+run.**
+
+## The instructor's hand (`sim/recording.py`, `Simulator.inject_fault`)
+
+**A thrown fault and a scheduled one are the same call.** `Simulator.inject_fault`
+is what `_apply_faults` invokes when a scenario fault's moment arrives, *and*
+what the instructor's button invokes. Deliberately one path: a student who can
+tell that a human just did something to them starts flying the instructor rather
+than the well, and the surest way to keep the two indistinguishable is for there
+to be nothing to keep in step. A test asserts the two produce identical event
+signatures, and another scans the whole student payload for the words that would
+give it away.
+
+Faults are still triggers rather than scripts — `inject_fault` only chooses the
+*moment*. What follows is whatever the well does about it.
+
+**Recordings are data, not a paused engine.** A recording holds the trace, the
+event log, the kill sheet the student built and the assessment; replaying it
+means drawing those again, not re-running physics. That matters: a re-simulation
+could disagree with what the student actually saw, which would make it useless
+as evidence. Recording is unconditional — storage is not the constraint, and a
+debrief you have to remember to switch on is one you do not have when you need
+it. Runs are captured automatically before anything destroys them (a restart, a
+class ending), because those are exactly the moments a debrief is about to be
+wanted and the evidence is about to go.
+
+Two failure modes are handled rather than raised: **losing a recording must not
+lose the class**, so an unwritable volume is logged and swallowed; and one
+corrupt file must not make the whole listing unavailable, so `list()` skips what
+it cannot parse. Files are plain JSON in `WELLCONTROL_DATA_DIR`, one per run,
+named to sort by time — the access pattern is "list them" and "open one", which
+a directory does perfectly well.
+
+The filename fragment built from a student's name **strips dots as well as
+separators**. Separators alone would stop traversal, but `../../etc/passwd`
+still arrives as `..-..-etc-passwd`, which is a filename nobody should have to
+reason about.
+
+The console reviews a recording by drawing it: the pressure traces, the verdict
+with every metric against its limit, and the whole event log. **A recording that
+cannot be looked at is not a debrief**, so the viewer is part of the feature
+rather than a later addition.
 - **Open question**: the stripping migration allowance, where the planner and the simulator disagree by about 4×. Written up under *Stripping* below; nothing has been changed on the strength of it.
 - **Importers**: done and validated against real-shaped files in `test_data/`, with an independent answer key. See *Importing real geometry* below.
+
+## The mud system (`sim/equipment.py`)
+
+Stage 2. The trip tank, the pits, the flow paddle and the alarms — the surface
+instruments a kick is actually *detected* on, as opposed to the ones it is
+killed on.
+
+**Pipe displacement reached no surface vessel at all.** That was the gap. Steel
+run into a shut-in well became pressure, correctly, but steel pulled out of an
+open hole went nowhere: a trip moved no volume, no tank level changed, and a
+kick taken while tripping — which is a large share of them — was invisible.
+`_settle_surface_volume` now puts that volume somewhere real, and the exercise
+falls out of the same balance as everything else. On the reference well, pulling
+60 ft drops the tank by exactly the 1.46 bbl of steel; with the well flowing the
+tank *rises* 7.78 bbl instead, and the discrepancy is the influx.
+
+**The trip tank is in service only with the valve open *and* the fill-up pump
+running.** That is the lineup a driller is taught — the pump circulates into the
+hole, the overflow comes back, the level shows the net. Open the valve alone and
+the volume goes to the active system instead, where a barrel and a half does not
+show against 800. The consequence is the rig's: the trip is not measured, and
+the kick stays hidden until the pit gain is much larger.
+
+**A reserve-to-active transfer deliberately reads as a gain.** The level went up
+and the gauge cannot tell why; re-zeroing after a transfer is the driller's job.
+That is the false gain that teaches students to distrust the pit alarm, and
+`Session.zero("pits")` is how they clear it.
+
+**`Alarm` is a Schmitt trigger for the same reason `EventLog.set_level` is.** A
+value sitting on its set point crosses it repeatedly, and a lamp that flickers
+is a lamp a student learns to ignore. Disarming silences the horn but leaves the
+lamp lit, so the instructor can see what was silenced.
+
+**The flow alarm sits on the differential, not the return rate.** Alarming on
+the rate would fire every time the driller changed pump speed, which is how a
+real flow alarm gets switched off and left off. `flowing_with_the_pump_off` is
+the indicator that is never anything else.
+
+Two pumps and four chokes, and neither is about matching a photograph — both
+faults this simulator already throws (`pump_failure`, `choke_plugged`) had
+nothing to change over *to*, so the fault was simply the end of the exercise.
+Both now bite whichever unit is actually in service, and the answer is what a
+rig would do. Two consequences worth knowing:
+
+- **`total_pump_spm` is the combined flow expressed as spm of pump 1.** Every
+  relation in `engine.py` is written in spm against the slow circulating rate;
+  converting back through pump 1's displacement keeps all of them correct
+  without rewriting any, and reduces exactly to the old behaviour on one pump.
+- **Chokes in parallel add.** Each open one passes its own flow at the same
+  pressure drop, so a second choke left cracked lets past more than the handle
+  in the driller's hand accounts for. `active_chokes()` used to claim the engine
+  did this; it did not, and now it does.
+
+## The classroom (`sim/classroom.py`, `sim/auth.py`, `sim/config.py`)
+
+Up to a roomful of students, each on their own well, all flying one exercise
+that an instructor starts, pauses and watches.
+
+**The clock moved to the server, and that overturns a documented decision.**
+`session.py` used to advance time *on demand* — each request measured the wall
+time since the last one and stepped the engine that far, so nothing ran when
+nobody was watching. That is right for one person and does not survive a class:
+*pause all* has to stop the wells rather than the browsers, a student reading
+their kill sheet would sit on a frozen kick, and the instructor's monitor
+stepping fifteen engines races each student's own polling for the same engine.
+
+So a `Classroom` owns a clock and drives every session on it. What is kept from
+the old design is the part that made it testable: the clock is still injected,
+`classroom.py` still has **no web dependency**, and `Classroom.tick()` is an
+ordinary method a test calls in a loop. The asyncio task that calls it in
+production lives in `api.py`, because that is runtime plumbing.
+
+`Session.advance()` is unchanged and still banks elapsed time before a speed
+change — which matters more now, not less: an instructor's speed request
+arrives between ticks, and without banking the seconds elapsed at 1× would be
+re-integrated at 10×. `tests/test_classroom.py` pins it by moving the clock
+*without* ticking, which is the only way that gap is reachable; a version of
+that test that ticked right up to the change passed against a deliberately
+broken implementation.
+
+**Students are not accounts.** A class is fifteen people for an afternoon;
+creating and deleting fifteen accounts per class means password resets during a
+lesson and a permanent user table full of people who came once. The only
+durable credential is the instructor's. Students get in with a **class code** —
+eight characters with no O/0, I/1 or S/5 because it is read off a whiteboard —
+which expires on its own. Tokens are HMAC-signed and carry their own expiry, so
+there is no session table and a restart does not evict the room.
+
+Four things that are easy to get wrong here:
+
+- **The roster is checked on every request, not just at join.** That is what
+  makes dropping a student effective against a token that is still
+  cryptographically valid. There is no blacklist and there does not need to be.
+- **A wrong code and an expired one give the same answer.** `by_code` does not
+  find closed or expired classes rather than reporting them, so somebody
+  probing cannot tell a stale code from a guess.
+- **Rate limiting keys on the forwarded address only when `trust_proxy` is
+  set.** Behind Nginx Proxy Manager every request arrives from the proxy, so
+  throttling on that would take the whole class out the first time anyone
+  mistyped a code — and on a directly exposed server the header is client-
+  controlled and must not be believed.
+- **`Classroom` validates its exercise at construction.** Sessions are built per
+  student at join time, so an unknown scenario key would otherwise sail through
+  class creation and surface as an error thrown at the first student to join,
+  with the code already read out.
+
+**The engines have two callers now, and they overlap.** A sync FastAPI handler
+runs in a threadpool worker while the clock driver runs on the event loop, so a
+student's request and a tick are genuinely inside the same `Session` at the same
+instant. Cheapest symptom is elapsed time counted twice, because both read
+`_last_tick` before either writes; worst is a half-rebuilt fluid column, or a
+roster dictionary mutated while `tick_all` iterates it.
+
+One reentrant lock on `ClassroomStore` covers every class — stepping fifteen
+wells is well under a millisecond, so contention is not the constraint and a
+single lock cannot be taken in the wrong order. `@exclusive` in `api.py` applies
+it to every route that touches a class, and a **structural test** asserts that
+every such route carries it. That test is the real guard: the race is not
+reliably reproducible, and the threaded stress test beside it passes with the
+lock removed, so it proves absence of deadlock rather than presence of the bug.
+
+**Never hold that lock across an `await`.** The driver takes it on the event loop
+thread, so a coroutine suspending while holding it would block the loop that has
+to resume the handler holding the other end — a deadlock, not a slowdown.
+Everything that takes it is synchronous and must stay that way.
+
+**`Session.instructor_view()` is the one place `downhole_visible` is
+deliberately bypassed.** The mask exists so a student detecting a kick cannot
+read the answer off a gauge; an instructor watching fifteen wells has the
+opposite problem. The tile also reports `downhole_visible` itself, so the
+instructor knows whether that student is still meant to be detecting.
+
+Speed is the instructor's, for the whole class — there is no student speed
+route at all, not a forbidden one. The exception is `_should_slow_down`, which
+drops a single student to real time when *their* well starts flowing; that is a
+safety behaviour and should not wait for the instructor to notice.
+
+### Running it
+
+`Dockerfile` and `docker-compose.yml` target an Ubuntu box behind Nginx Proxy
+Manager, which terminates TLS. **One uvicorn worker, and that is not a tuning
+choice** — classes, rosters and every engine live in this process's memory and
+one asyncio task steps them, so a second worker would get its own empty set of
+classrooms and half the room would land in a class that does not exist.
+
+Measured on an i7-1165G7: one circulating well runs at **5,300 engine steps per
+second**, 530× realtime on one core. Fifteen wells need 150 steps/s at 1× and
+1,500 at 10× — comfortable. Fifteen simultaneously at 60× would not fit on one
+core, but that is not a thing a class does; if it ever matters, widen `dt` as
+the speed multiplier rises rather than adding processes.
+
+Settings come from the environment (`sim/config.py`), never the repository.
+With nothing set a password is generated and printed to the log, Jupyter-style
+— the alternative is either an unprotected console or a server that refuses to
+start on a laptop. `python -m wellcontrol.sim.auth` prints a hash for the env
+file.
+
+### What the student sees, for now
+
+`/` serves the same page solo or in a class; it probes `/api/me` to find out
+which, because the class token is an httpOnly cookie it cannot read. Every call
+goes through `base()`, which is the only thing that knows the difference.
+
+In class mode the **Well cross-section and Debrief tabs are removed** — a live
+cross-section shows where the gas is, which is what the student is meant to be
+working out. Note the schematic is still in the student's snapshot payload and
+should come out of it when the screens are rebuilt in stage 3.
 
 ## Adding a kill method
 

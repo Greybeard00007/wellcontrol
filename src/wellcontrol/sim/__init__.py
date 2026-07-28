@@ -38,14 +38,30 @@ from .assessment import (
     TraceSample,
     assess,
 )
+from .auth import RateLimiter, TokenSigner, class_code, hash_password, verify_password
+from .classroom import TICK_S, Classroom, ClassroomStore, Student
+from .recording import Recording, RecordingStore, record_session
+from .drilling import DrillingModel, RotarySystem
 from .engine import MUD_COMPRESSIBILITY, SimState, Simulator
-from .equipment import AdjustableChoke, MudPump, PitSystem, TripTank
+from .equipment import (
+    AdjustableChoke,
+    Alarm,
+    MudPump,
+    PitSystem,
+    ReturnFlowMeter,
+    TransferPump,
+    TripTank,
+)
 from .flowpath import FlowPath, Node, ReturnRoute, Valve, ValveState, default_valves
 from .session import SPEEDS, Session, SessionStore
 
 __all__ = [
     "AdjustableChoke",
+    "Alarm",
     "Assessment",
+    "Classroom",
+    "ClassroomStore",
+    "DrillingModel",
     "Event",
     "EventKind",
     "EventLog",
@@ -56,7 +72,12 @@ __all__ = [
     "MudPump",
     "Node",
     "PitSystem",
+    "RateLimiter",
+    "Recording",
+    "RecordingStore",
+    "ReturnFlowMeter",
     "ReturnRoute",
+    "RotarySystem",
     "SPEEDS",
     "Session",
     "SessionStore",
@@ -64,10 +85,18 @@ __all__ = [
     "SimState",
     "Simulator",
     "Standard",
+    "Student",
+    "TICK_S",
+    "TokenSigner",
+    "TransferPump",
     "TraceSample",
     "TripTank",
     "Valve",
     "ValveState",
     "assess",
+    "record_session",
+    "class_code",
     "default_valves",
+    "hash_password",
+    "verify_password",
 ]

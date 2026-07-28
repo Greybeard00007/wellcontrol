@@ -59,7 +59,15 @@ from .assessment import (
     Standard,
     TraceSample,
 )  # noqa: F401  -- Severity is used throughout the event calls below
-from .equipment import Accumulator, AdjustableChoke, MudPump, PitSystem, TripTank
+from .drilling import DrillingModel
+from .equipment import (
+    Accumulator,
+    AdjustableChoke,
+    MudPump,
+    PitSystem,
+    ReturnFlowMeter,
+    TripTank,
+)
 from .flowpath import FlowPath
 
 #: Compressibility of mud, 1/psi. Includes a little for casing expansion.
@@ -181,6 +189,9 @@ class SimState:
     # -- stripping -----------------------------------------------------------
     #: Pipe run into the hole since the start, ft. Negative is pulling out.
     pipe_moved_ft: float = 0.0
+    #: Hole made this run. The DCU counts it, and it is the
+    #: difference between well depth and bit depth going to zero.
+    hole_drilled_ft: float = 0.0
     #: Steel put into the well by that movement, bbl. Closed-end, because a
     #: string being stripped has a float in it. This is the volume that has to
     #: come out of the choke to hold bottomhole pressure.
@@ -264,10 +275,30 @@ class Simulator:
     well: WellState
     flow_path: FlowPath = field(default_factory=FlowPath)
     pump: MudPump | None = None
+    #: The second rig pump. Real because pump 1 failing mid-kill is a
+    #: drill worth running, and because a rig has two.
+    pump_2: MudPump | None = None
+    #: Remote choke 1 -- the one a kill is normally flown on, and the one
+    #: every existing caller means by ``sim.choke``.
     choke: AdjustableChoke = field(default_factory=AdjustableChoke)
+    choke_2: AdjustableChoke = field(default_factory=AdjustableChoke)
+    #: The handwheels on the manifold. Same orifice, slower to move, because
+    #: that is the difference a student actually feels when the remote fails.
+    manual_choke_1: AdjustableChoke = field(
+        default_factory=lambda: AdjustableChoke(travel_rate=4.0)
+    )
+    manual_choke_2: AdjustableChoke = field(
+        default_factory=lambda: AdjustableChoke(travel_rate=4.0)
+    )
     pits: PitSystem = field(default_factory=PitSystem)
     trip_tank: TripTank = field(default_factory=TripTank)
+    #: The flowline paddle. Its differential is the earliest kick
+    #: indicator the rig has -- a rate, where a pit gain is a volume.
+    return_flow: ReturnFlowMeter = field(default_factory=ReturnFlowMeter)
     accumulator: Accumulator = field(default_factory=Accumulator)
+    #: Weight on bit, rotary, torque and penetration rate. Only ever acts
+    #: while drilling ahead -- see `drilling_ahead`.
+    drilling: DrillingModel = field(default_factory=DrillingModel)
     #: bbl/min per psi of underbalance. None picks a default from the start
     #: state: a drilling kick has to develop while the student watches, where a
     #: shut-in start only needs this if they lose control again.
@@ -301,6 +332,8 @@ class Simulator:
     def __post_init__(self) -> None:
         if self.pump is None:
             self.pump = MudPump(pump=self.well.pump)
+        if self.pump_2 is None:
+            self.pump_2 = MudPump(pump=self.well.pump)
         if self.kill_mud_weight_ppg is None:
             self.kill_mud_weight_ppg = self.well.mud_weight_ppg
         if self.productivity_index is None:
@@ -615,27 +648,53 @@ class Simulator:
             if not fault.is_due(state.time_s, state.strokes, state.event_log):
                 remaining.append(fault)
                 continue
-            self._break_equipment(fault)
-            state.record(
-                EventKind.EQUIPMENT_FAILURE,
-                fault.message or f"{fault.kind.label}.",
-                severity=fault.severity,
-                fault=fault.kind.value,
-            )
+            # The same call an instructor makes by hand. Deliberately one path:
+            # a fault whose moment came on its own and one thrown live must be
+            # indistinguishable to the student, and the surest way to keep them
+            # so is for there to be nothing to keep in step.
+            self.inject_fault(fault)
         self.faults = tuple(remaining)
+
+    def inject_fault(self, fault) -> None:
+        """Fire a fault now, rather than waiting for its trigger.
+
+        **The instructor's hand, and the student must not be able to feel it.**
+        This goes through exactly the same `_break_equipment` and the same log
+        entry as a scenario fault whose moment arrived on its own, so a run
+        with a fault thrown at it is indistinguishable from one where the same
+        fault was written into the exercise. Nothing in the event, the gauges
+        or the trace records that a human chose the moment.
+
+        That is the whole point. A student who can tell an instructor just did
+        something to them starts flying the instructor instead of the well.
+        """
+        self._break_equipment(fault)
+        self.state.record(
+            EventKind.EQUIPMENT_FAILURE,
+            fault.message or f"{fault.kind.label}.",
+            severity=fault.severity,
+            fault=fault.kind.value,
+        )
 
     def _break_equipment(self, fault) -> None:
         kind = fault.kind.value
         if kind == "pump_failure":
-            self.pump.stop()
-            self.pump.spm = 0.0
-            self.pump.max_spm = 0.0
+            # Whichever one is turning, so the fault always bites -- and so the
+            # answer is to change pumps, which is what a rig would do.
+            failed = next((p for p in self.pumps if p.running), self.pump)
+            failed.stop()
+            failed.spm = 0.0
+            failed.max_spm = 0.0
         elif kind == "choke_plugged":
-            # The handle still moves; nothing gets through it.
-            self.choke.full_open_area_in2 = 0.02
+            # The handle still moves; nothing gets through it. Plugs the
+            # choke actually in service, so changing over is the answer.
+            plugged = next(iter(self.chokes_in_service), self.choke)
+            plugged.full_open_area_in2 = 0.02
         elif kind == "choke_washout":
-            # The opposite problem: it cannot hold pressure any more.
-            self.choke.full_open_area_in2 *= 4.0
+            # The opposite problem: it cannot hold pressure any more. Cuts
+            # out whichever one is being flown, for the same reason.
+            washed = next(iter(self.chokes_in_service), self.choke)
+            washed.full_open_area_in2 *= 4.0
         elif kind == "accumulator_leak":
             self.accumulator.pressure_psi = 0.0
             self.accumulator.recharge_psi_per_min = 0.0
@@ -672,7 +731,11 @@ class Simulator:
         buoyancy = max(0.0, 1.0 - self.well.mud_weight_ppg / 65.5)
         area_in2 = math.pi / 4.0 * self._stripping_pipe.od_in ** 2
         upward = self.state.casing_pressure_psi * area_in2
-        return weight_in_air * buoyancy - upward
+        # Weight put on the bit is weight taken off the hook. This is the
+        # relation the driller actually works to: they lower the block
+        # until the indicator drops by the weight they want on bottom.
+        on_bit = self.drilling.wob_klbf * 1000.0
+        return weight_in_air * buoyancy - upward - on_bit
 
     @property
     def _stripping_pipe(self):
@@ -732,6 +795,154 @@ class Simulator:
         displaced = self.closed_end_displacement_bbl_per_ft * moved
         state.pipe_displacement_bbl += displaced
         return displaced
+
+    # -- the mud system ------------------------------------------------------
+
+    @property
+    def trip_tank_in_service(self) -> bool:
+        """Whether the trip tank is the vessel measuring the well.
+
+        **Both the valve and the pump.** Lining the tank up to the annulus and
+        running the fill-up pump is what puts a trip tank in service on a rig:
+        the pump circulates into the hole, the overflow comes back, and the
+        level shows the net. Open the valve without the pump and nothing is
+        keeping the hole full, so what the well takes comes from wherever
+        somebody is filling it from -- the active system, unmeasured.
+
+        That is the lineup a driller is taught, and getting it wrong here has
+        the same consequence it has on the rig: the trip is not being measured
+        and a kick that arrives during it is invisible until the pit gain shows
+        it, by which time it is very much larger.
+        """
+        return (
+            self.flow_path.trip_tank_is_lined_up
+            and self.trip_tank.fillup_pump.running
+        )
+
+    @property
+    def drilling_ahead(self) -> bool:
+        """Whether the bit is actually making hole.
+
+        **Every condition here is a lock-out.** The drilling model must not be
+        able to touch a kill: with the BOP closed, or the pump off, or the
+        rotary stopped, or no weight on the bit, nothing is drilled and nothing
+        in this module runs. That is what keeps a validated shut-in circulation
+        exactly as it was before any of this existed.
+        """
+        return (
+            self.start is StartState.DRILLING
+            and not self.flow_path.bop_is_closed
+            and self.pumping
+            and self.drilling.rotary.turning
+            and self.drilling.wob_klbf > 0.1
+            and self.state.bit_md_ft >= self.hole_md - 1.0
+        )
+
+    def _make_hole(self, dt: float) -> float:
+        """Drill, and return the mud the new hole swallowed, bbl.
+
+        The rate comes from the differential pressure the bit is working
+        against, so a zone the mud cannot hold announces itself as a **drilling
+        break** before anything reaches the pits. Nothing here knows a kick is
+        coming; it reads the same bottomhole pressure as everything else.
+        """
+        overbalance = (
+            self.state.bottomhole_pressure_psi - self.formation_pressure_psi
+        )
+        rop = self.drilling.penetration_rate(overbalance)
+        if rop <= 0.0:
+            return 0.0
+
+        drilled = rop * dt / 3600.0
+        self.hole_md += drilled
+        self.state.bit_md_ft += drilled
+        self.state.hole_drilled_ft += drilled
+
+        # New hole is volume that has to be filled. The pipe run in behind the
+        # bit displaces its own steel, so only the difference is mud.
+        per_ft = max(
+            0.0,
+            self._hole_capacity_bbl_per_ft
+            - self.closed_end_displacement_bbl_per_ft,
+        )
+        self.annulus_volume_bbl += per_ft * drilled
+        return per_ft * drilled
+
+    @property
+    def _hole_capacity_bbl_per_ft(self) -> float:
+        diameter = self.well.annulus.wellbore.sections[-1].id_in
+        return diameter * diameter / 1029.4
+
+    def _settle_surface_volume(
+        self,
+        returns_bbl: float,
+        displacement_bbl: float,
+        lost_bbl: float,
+        route,
+    ) -> None:
+        """Put the volume the well gave up, or swallowed, somewhere real.
+
+        Two things decide where it goes and how much there is.
+
+        **Is the hole open?** Closed in, steel run into the well has nowhere to
+        go and becomes pressure -- the balance above has already done that, and
+        adding it here as well would count it twice. Open, the same steel
+        pushes an equal volume of mud out of the hole and it has to land in a
+        tank. That path was previously unmodelled, which meant tripping moved
+        no surface volume at all and a kick taken while tripping was invisible.
+
+        **Which tank?** The trip tank if it is in service, otherwise the active
+        pits. That choice is the whole of trip monitoring: a 35 bbl tank
+        resolves a couple of barrels, and an 800 bbl active system does not.
+        """
+        hole_is_open = route.open_to_pits and not route.through_choke
+
+        change = returns_bbl
+        if hole_is_open:
+            # Steel in displaces mud out; steel out leaves a void to fill.
+            change += displacement_bbl
+            # Mud going into the formation has to come from surface. Only
+            # counted on the open path: closed in, losses move the pressure
+            # balance instead and the choke flow already carries the effect.
+            change -= lost_bbl
+
+        if change == 0.0:
+            return
+
+        if hole_is_open and self.trip_tank_in_service:
+            self.trip_tank.add(change)
+        else:
+            self.pits.add(change)
+
+    def _advance_mud_system(self, dt: float) -> None:
+        """Run the transfer pumps around the pit room, and settle the lamps.
+
+        These move mud between vessels and never into or out of the well, so
+        none of it is a volume balance -- but it is not cosmetic either. The
+        reserve-to-active transfer raises the pit level without the well having
+        done anything, which is precisely the false gain that teaches students
+        to distrust the alarm.
+        """
+        tank, pits = self.trip_tank, self.pits
+
+        # Active pits -> trip tank, to top it back up.
+        wanted = min(tank.fill_pump.demand_bbl(dt), max(0.0, pits.active_bbl))
+        if wanted > 0:
+            pits.add(-tank.add(wanted))
+
+        # Trip tank -> active pits, to empty it after a trip.
+        wanted = min(tank.drain_pump.demand_bbl(dt), max(0.0, tank.volume_bbl))
+        if wanted > 0:
+            pits.add(-tank.add(-wanted))
+
+        # Reserve -> active. Deliberately shows up as a gain; see PitSystem.
+        pits.transfer_reserve_to_active(pits.transfer_pump.demand_bbl(dt))
+
+        tank.update_alarms()
+        pits.update_alarms()
+        self.return_flow.update(
+            self.state.flow_in_bpm, self.state.flow_out_bpm
+        )
 
     def _reconcile_controlled_gauge(self, bottomhole_psi: float) -> None:
         """Re-reference the controlled gauge so bottomhole pressure is continuous.
@@ -884,6 +1095,85 @@ class Simulator:
     def _kill_rate_spm(self) -> float:
         return max(1.0, self.well.slow_circulating_rate.spm)
 
+    @property
+    def pumps(self) -> tuple[MudPump, MudPump]:
+        return (self.pump, self.pump_2)
+
+    @property
+    def pumping(self) -> bool:
+        """Whether any rig pump is turning."""
+        return any(p.running for p in self.pumps)
+
+    @property
+    def total_pump_flow_bbl_per_min(self) -> float:
+        return sum(p.flow_bbl_per_min for p in self.pumps)
+
+    @property
+    def total_pump_commanded_spm(self) -> float:
+        return sum(p.commanded_spm for p in self.pumps)
+
+    @property
+    def total_pump_spm(self) -> float:
+        """Combined rate, expressed as spm of pump 1.
+
+        **Friction and strokes follow flow, not stroke count**, and the two
+        pumps need not share a displacement per stroke. Converting the combined
+        flow back to an equivalent rate on pump 1 keeps every relation in this
+        module -- all of which are written in spm against the slow circulating
+        rate -- correct without rewriting any of them. With one pump running it
+        is exactly that pump's spm, so nothing about the single-pump case moves.
+        """
+        per_stroke = self.pump.pump.output_bbl_per_stroke
+        if per_stroke <= 0:
+            return sum(p.spm for p in self.pumps)
+        return self.total_pump_flow_bbl_per_min / per_stroke
+
+    @property
+    def chokes(self) -> dict:
+        """Every choke, keyed by the valve that puts it in service."""
+        return {
+            "choke_1": self.choke,
+            "choke_2": self.choke_2,
+            "manual_choke_1": self.manual_choke_1,
+            "manual_choke_2": self.manual_choke_2,
+        }
+
+    @property
+    def choke_in_service(self):
+        """The choke the gauges and the trace should follow.
+
+        The first one lined up, or choke 1 when nothing is. A student who has
+        changed over to choke 2 because the first plugged should see the
+        handle they are actually working, not the one they abandoned.
+        """
+        return next(iter(self.chokes_in_service), self.choke)
+
+    @property
+    def chokes_in_service(self) -> list:
+        """The chokes actually on a live return route, in valve order."""
+        return [
+            self.chokes[v.name]
+            for v in self.flow_path.active_chokes()
+            if v.name in self.chokes
+        ]
+
+    def _choke_flow_bbl_per_min(
+        self, pressure_drop_psi: float, density_ppg: float
+    ) -> float:
+        """What the manifold passes in total.
+
+        **Chokes in parallel add.** Each open one sees the same pressure drop
+        and passes its own flow, so leaving a second choke cracked while
+        working the first lets past more than the handle in the driller's hand
+        accounts for -- and the well goes underbalanced for reasons that are
+        not on the gauge they are watching. That is a lineup error with a
+        consequence, which is the only kind this simulator has.
+        """
+        return sum(
+            choke.flow_bbl_per_min(pressure_drop_psi, density_ppg)
+            for choke in self.chokes_in_service
+        )
+
     def _annular_friction_psi(self) -> float:
         """Annular friction at the current pump speed.
 
@@ -891,9 +1181,9 @@ class Simulator:
         annular loss is a small part of total system friction at kill rates --
         and scaled by the square of pump speed.
         """
-        if not self.pump.running:
+        if not self.pumping:
             return 0.0
-        ratio = (self.pump.spm / self._kill_rate_spm) ** 2
+        ratio = (self.total_pump_spm / self._kill_rate_spm) ** 2
         return 0.15 * self.well.slow_circulating_rate.pressure_psi * ratio
 
     def _update_pressures(self) -> None:
@@ -914,8 +1204,8 @@ class Simulator:
         annulus = self._annulus_column()
 
         friction = 0.0
-        if self.pump.running:
-            ratio = (self.pump.spm / self._kill_rate_spm) ** 2
+        if self.pumping:
+            ratio = (self.total_pump_spm / self._kill_rate_spm) ** 2
             friction = self.well.slow_circulating_rate.pressure_psi * ratio
 
         if self.flow_path.is_reverse_circulating:
@@ -986,8 +1276,10 @@ class Simulator:
         minutes = dt / 60.0
 
         self._apply_faults()
-        self.pump.advance(dt)
-        self.choke.advance(dt)
+        for _pump in self.pumps:
+            _pump.advance(dt)
+        for _choke in self.chokes.values():
+            _choke.advance(dt)
         self.accumulator.advance(dt)
 
         route = self.flow_path.return_route()
@@ -1003,17 +1295,17 @@ class Simulator:
         # stretch of wall-clock time. A student who never starts the pump never
         # drills into anything.
         if not self.kick_taken and self.kick_after_s is not None:
-            if self.pump.running and not deadheaded:
+            if self.pumping and not deadheaded:
                 self._circulating_s += dt
                 if self._circulating_s >= self.kick_after_s:
                     self.trigger_kick()
 
         # -- flow in ---------------------------------------------------------
-        flow_in = 0.0 if deadheaded else self.pump.flow_bbl_per_min
+        flow_in = 0.0 if deadheaded else self.total_pump_flow_bbl_per_min
         state.flow_in_bpm = flow_in
         state.set_condition(
             EventKind.PUMP_DEADHEADED,
-            deadheaded and self.pump.running,
+            deadheaded and self.pumping,
             message="Pump running against a closed valve — deadheaded.",
             severity=Severity.WARNING,
             cleared_message="Injection path restored — the pump is delivering.",
@@ -1035,12 +1327,8 @@ class Simulator:
             flow_out = flow_in + state.influx_rate_bpm
             state.casing_pressure_psi = max(0.0, state.casing_pressure_psi - 50.0 * dt)
         else:
-            chokes = self.flow_path.active_chokes()
             drop = state.casing_pressure_psi - DOWNSTREAM_PRESSURE
-            flow_out = (
-                self.choke.flow_bbl_per_min(drop, returns_density)
-                if chokes else 0.0
-            )
+            flow_out = self._choke_flow_bbl_per_min(drop, returns_density)
         state.flow_out_bpm = flow_out
 
         # -- the formation's response ----------------------------------------
@@ -1118,7 +1406,7 @@ class Simulator:
             state.lubricated_bbl += flow_in * minutes
         else:
             state.pumped_bbl += flow_in * minutes
-        state.strokes += self.pump.strokes_in(dt)
+        state.strokes += self.total_pump_spm * dt / 60.0
         if self.kill_mud_weight_ppg != self.well.mud_weight_ppg:
             state.kill_mud_pumped_bbl = min(state.pumped_bbl, self.string_volume_bbl)
 
@@ -1180,8 +1468,21 @@ class Simulator:
 
         self._settle_gas()
 
-        # -- pits ------------------------------------------------------------
-        self.pits.active_bbl += (flow_out - flow_in) * minutes
+        # -- making hole -----------------------------------------------------
+        # Locked out of everything but drilling ahead; see drilling_ahead.
+        self.drilling.advance(
+            dt, on_bottom=self.state.bit_md_ft >= self.hole_md - 1.0
+        )
+        drilled_bbl = self._make_hole(dt) if self.drilling_ahead else 0.0
+
+        # -- surface volume --------------------------------------------------
+        self._settle_surface_volume(
+            returns_bbl=(flow_out - flow_in) * minutes,
+            displacement_bbl=displacement_bbl,
+            lost_bbl=loss_rate * minutes + drilled_bbl,
+            route=route,
+        )
+        self._advance_mud_system(dt)
 
         # -- what the run will be judged on ----------------------------------
         state.influx_taken_bbl += influx_rate * minutes
@@ -1189,7 +1490,7 @@ class Simulator:
 
         # Bleeding is what comes out with nothing going in. With the pump
         # running this is circulating returns and means something else.
-        if not self.pump.running and route.through_choke:
+        if not self.pumping and route.through_choke:
             state.bled_bbl += flow_out * minutes
 
         state.time_s += dt
@@ -1252,7 +1553,7 @@ class Simulator:
         # choke does nothing and the well is not under control at all.
         state.set_condition(
             EventKind.WELL_OPEN_TO_FLOWLINE,
-            self.pump.running and route.open_to_pits and not route.through_choke,
+            self.pumping and route.open_to_pits and not route.through_choke,
             message=(
                 "Circulating with the BOP open — returns are going up the "
                 "flowline and the choke has no effect."
@@ -1261,7 +1562,7 @@ class Simulator:
         )
         state.set_condition(
             EventKind.NO_RETURNS,
-            self.pump.running and not route.open_to_pits,
+            self.pumping and not route.open_to_pits,
             message="Pumping into a closed system — no returns route.",
             severity=Severity.WARNING,
             cleared_message="Returns route open.",
@@ -1300,7 +1601,7 @@ class Simulator:
         # message is warning against.
         closed_in = (
             self.flow_path.bop_is_closed
-            and not self.pump.running
+            and not self.pumping
             and state.influx_volume_bbl > 0
         )
         if closed_in:
@@ -1359,7 +1660,7 @@ class Simulator:
             EventKind.GAS_MIGRATING,
             (
                 self.flow_path.bop_is_closed
-                and not self.pump.running
+                and not self.pumping
                 and state.influx_volume_bbl > 0
                 and self.migration_rate_ft_per_hr > 0
                 and not state.gas_at_surface
@@ -1393,11 +1694,11 @@ class Simulator:
 
         state.set_condition(
             EventKind.PUMP_STARTED,
-            self.pump.running,
+            self.pumping,
             # The commanded speed, not the instantaneous one: the pump ramps,
             # so at the moment it starts turning it is still doing 0 spm and
             # logging that reads as a fault rather than an action.
-            message=f"Pump running up to {self.pump.commanded_spm:.0f} spm.",
+            message=f"Pump running up to {self.total_pump_commanded_spm:.0f} spm.",
             severity=Severity.INFO,
             cleared_message="Pump stopped.",
         )
@@ -1415,11 +1716,12 @@ class Simulator:
                 shoe_psi=state.shoe_pressure_psi,
                 influx_bbl=state.influx_volume_bbl,
                 influx_top_md=state.influx_top_md,
-                choke_percent=self.choke.position,
-                pump_spm=self.pump.spm,
+                choke_percent=self.choke_in_service.position,
+                pump_spm=self.total_pump_spm,
                 flow_in_bpm=state.flow_in_bpm,
                 flow_out_bpm=state.flow_out_bpm,
                 pit_gain_bbl=self.pits.gain_bbl,
+                trip_tank_bbl=self.trip_tank.change_bbl,
             )
         )
 
@@ -1521,8 +1823,8 @@ class Simulator:
         state = self.state
         return {
             "Time (min)": round(state.time_s / 60.0, 1),
-            "Pump (spm)": round(self.pump.spm, 1),
-            "Choke (%)": round(self.choke.position, 1),
+            "Pump (spm)": round(self.total_pump_spm, 1),
+            "Choke (%)": round(self.choke_in_service.position, 1),
             "Standpipe (psi)": round(state.standpipe_pressure_psi),
             "Casing (psi)": round(state.casing_pressure_psi),
             "Bottomhole (psi)": round(state.bottomhole_pressure_psi),

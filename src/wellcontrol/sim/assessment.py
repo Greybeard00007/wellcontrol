@@ -291,6 +291,9 @@ class TraceSample:
     flow_in_bpm: float
     flow_out_bpm: float
     pit_gain_bbl: float
+    #: Trip tank level against its mark. Zero unless a trip is being
+    #: monitored, and the only trace that shows a kick taken on one.
+    trip_tank_bbl: float = 0.0
 
 
 # --------------------------------------------------------------------------

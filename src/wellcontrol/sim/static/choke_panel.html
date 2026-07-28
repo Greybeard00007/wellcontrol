@@ -184,6 +184,69 @@
   }
   .legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink); margin-top: 6px; flex-wrap: wrap; font-weight: 600; }
   .key { display: inline-block; width: 11px; height: 2px; vertical-align: middle; margin-right: 5px; }
+
+  /* ---- DCU ---- */
+  /* Five instruments across, the way the reference console lays them out: the
+     two the driller is watching for a kick first, then the pressures. */
+  .dcu-row {
+    display: grid; gap: 12px; grid-template-columns: repeat(5, 1fr);
+    align-items: start;
+  }
+  .dcu-row > div > div:first-child { max-width: 210px; margin: 0 auto; }
+  @media (max-width: 1100px) { .dcu-row { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 680px)  { .dcu-row { grid-template-columns: repeat(2, 1fr); } }
+
+  /* Set points and lamps live in a black window under their gauge, because
+     prose and small numbers do not read on orange. */
+  .alarm-box {
+    background: var(--sunk); border-radius: 4px; padding: 8px; margin-top: 6px;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, .7);
+  }
+  .alarm-box .note { color: #8b9199; margin-top: 6px; font-size: 11px; }
+  .alarm-lamps { display: flex; gap: 10px; justify-content: center; }
+  .setpoints {
+    display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 4px 6px;
+    align-items: center; margin-top: 7px;
+  }
+  .setpoints label { font-size: 10px; color: #8b9199; text-transform: uppercase; }
+  .setpoints input {
+    width: 100%; font: 600 12px Consolas, ui-monospace, monospace;
+    background: #05080b; color: var(--readout); border: 1px solid #33383d;
+    border-radius: 3px; padding: 3px 4px;
+  }
+  .setpoints .armbtn, .zero { grid-column: 1 / -1; margin-top: 5px; }
+  .armbtn.off { opacity: .55; text-decoration: line-through; }
+
+  /* ---- choke bank ---- */
+  .chokegrid { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 820px) { .chokegrid { grid-template-columns: repeat(2, 1fr); } }
+  .chokecell {
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 5px;
+    padding: 9px;
+  }
+  .chokecell.live { border-color: var(--good); box-shadow: 0 0 0 1px var(--good); }
+  .chokecell h3 {
+    margin: 0 0 6px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--ink);
+  }
+  .chokecell .state { font-size: 10px; color: var(--faint); margin-top: 4px; }
+
+  /* ---- trip tank ---- */
+  .service {
+    font: 700 14px system-ui; padding: 9px 12px; border-radius: 4px;
+    background: var(--sunk); color: var(--readout); text-align: center;
+  }
+  .service.out { color: #ff9a6a; }
+
+  /* ---- trends ---- */
+  .trendbar { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; flex-wrap: wrap; }
+  canvas.strip.tall { height: 460px; }
+  .track { margin-bottom: 6px; }
+  .track .tlabel {
+    font: 600 11px system-ui; color: var(--ink); display: flex;
+    justify-content: space-between; margin-bottom: 2px;
+  }
+  .track canvas { height: 74px; }
   .key.dash { height: 0; border-top: 2px dashed var(--dim); background: none; }
 
   /* ---- log ---- */
@@ -270,23 +333,40 @@
   <span class="pill mono" id="clock">00:00:00</span>
   <span class="pill" id="deadpill" style="display:none">Well dead</span>
   <span class="grow"></span>
-  <label class="lbl">Exercise</label>
-  <select id="scenario"></select>
-  <label class="lbl">Speed</label>
-  <select id="speed">
-    <option value="0">Paused</option>
-    <option value="1">1&times;</option>
-    <option value="10" selected>10&times;</option>
-    <option value="60">60&times;</option>
-  </select>
-  <button id="restart">Restart</button>
+  <!-- Solo controls. Hidden in a class: the exercise and the clock are the
+       instructor's, and a student picking their own would not be flying the
+       same lesson as the room. -->
+  <span id="solo-controls">
+    <label class="lbl">Exercise</label>
+    <select id="scenario"></select>
+    <label class="lbl">Speed</label>
+    <select id="speed">
+      <option value="0">Paused</option>
+      <option value="1">1&times;</option>
+      <option value="10" selected>10&times;</option>
+      <option value="60">60&times;</option>
+    </select>
+    <button id="restart">Restart</button>
+  </span>
+  <span id="class-controls" style="display:none">
+    <span class="pill" id="class-name">—</span>
+    <span class="pill" id="student-name">—</span>
+    <span class="pill" id="class-speed">Paused</span>
+  </span>
 </header>
 
+<!-- The operator screens a rig simulator actually has, in the order the
+     reference console lists them. Manifolds are two screens rather than one,
+     because they are two panels in two places and a student is sent to one or
+     the other. -->
 <nav id="tabs">
-  <button data-screen="driller" class="active">Driller</button>
-  <button data-screen="choke">Choke</button>
+  <button data-screen="choke" class="active">Choke Panel</button>
+  <button data-screen="dcu">DCU</button>
   <button data-screen="bop">BOP</button>
-  <button data-screen="manifolds">Manifolds</button>
+  <button data-screen="spmanifold">SP Manifold</button>
+  <button data-screen="chokemanifold">Choke Manifold</button>
+  <button data-screen="triptank">Trip Tank</button>
+  <button data-screen="trends">Trends</button>
   <button data-screen="well">Well</button>
   <button data-screen="sheet">Kill sheet</button>
   <button data-screen="debrief">Debrief</button>
@@ -294,57 +374,98 @@
 
 <main>
 
-<!-- ============================ DRILLER ============================ -->
-<section class="screen active" id="s-driller">
-  <div class="cols">
-    <div>
-      <div class="card" id="briefing-card">
-        <h2>Briefing</h2>
-        <div style="font-weight:700;margin-bottom:5px;font-size:15px" id="brief-name">—</div>
-        <!-- Dark on the console, not gold: a mid-tone accent that reads well on
-             a dark page disappears entirely on orange. -->
-        <div style="font-size:13px;margin-bottom:8px;font-weight:700;
-                    color:#4a1d02" id="brief-obj"></div>
-        <div style="font-size:13px;color:var(--dim)" id="brief-text"></div>
-        <div class="note" id="brief-warn"></div>
-      </div>
+<!-- ============================== DCU ============================== -->
+<!-- The driller's console. Everything here is an instrument a driller watches
+     to notice that something is wrong, which is a different job from the
+     choke panel next door where they do something about it. -->
+<section class="screen" id="s-dcu">
+  <div class="card" id="briefing-card">
+    <h2>Briefing</h2>
+    <div style="font-weight:700;margin-bottom:5px;font-size:15px" id="brief-name">—</div>
+    <!-- Dark on the console, not gold: a mid-tone accent that reads well on
+         a dark page disappears entirely on orange. -->
+    <div style="font-size:13px;margin-bottom:8px;font-weight:700;
+                color:#4a1d02" id="brief-obj"></div>
+    <div style="font-size:13px;color:var(--dim)" id="brief-text"></div>
+    <div class="note" id="brief-warn"></div>
+  </div>
 
-      <div class="card">
-        <h2>Driller's console</h2>
-        <div class="gauges">
-          <div class="g dp"><div class="k">Standpipe</div><div class="v" id="d-spp">—</div><div class="u">psi</div></div>
-          <div class="g"><div class="k">Pump</div><div class="v" id="d-spm">—</div><div class="u">spm</div></div>
-          <div class="g" id="d-pit-wrap"><div class="k">Pit gain</div><div class="v" id="d-pit">—</div><div class="u">bbl</div></div>
-          <div class="g" id="d-flow-wrap"><div class="k">Flow out &minus; in</div><div class="v" id="d-flow">—</div><div class="u">bpm</div></div>
+  <div class="card">
+    <h2>Driller's console</h2>
+    <div class="dcu-row">
+      <div>
+        <div id="dial-pit"></div>
+        <div class="alarm-box">
+          <div class="alarm-lamps">
+            <span id="lamp-pit-low"></span><span id="lamp-pit-high"></span>
+          </div>
+          <div class="setpoints">
+            <label>Low</label><input type="number" id="sp-pit-low" step="1">
+            <label>High</label><input type="number" id="sp-pit-high" step="1">
+            <button id="arm-pit" class="armbtn">Alarm</button>
+          </div>
+          <button class="zero" data-zero="pits">Zero pits</button>
         </div>
-        <div class="stats">
-          <div class="s"><div class="k">Strokes</div><div class="v" id="d-stk">—</div></div>
-          <div class="s"><div class="k">Flow in</div><div class="v" id="d-in">—</div></div>
-          <div class="s"><div class="k">Flow out</div><div class="v" id="d-out">—</div></div>
-          <div class="s"><div class="k">Trip tank</div><div class="v" id="d-tt">—</div></div>
-          <div class="s" id="d-hook-wrap"><div class="k">Hookload</div><div class="v" id="d-hook">—</div></div>
-          <div class="s"><div class="k">Bit depth</div><div class="v" id="d-bit">—</div></div>
-          <div class="s"><div class="k">Pipe moved</div><div class="v" id="d-moved">—</div></div>
-          <div class="s"><div class="k">Displaced</div><div class="v" id="d-disp">—</div></div>
-        </div>
-        <div class="note" id="d-note"></div>
       </div>
+      <div>
+        <div id="dial-flow"></div>
+        <div class="alarm-box">
+          <div class="alarm-lamps">
+            <span id="lamp-flow-low"></span><span id="lamp-flow-high"></span>
+          </div>
+          <div class="setpoints">
+            <label>Low</label><input type="number" id="sp-flow-low" step="0.1">
+            <label>High</label><input type="number" id="sp-flow-high" step="0.1">
+            <button id="arm-flow" class="armbtn">Alarm</button>
+          </div>
+          <div class="note" id="flow-pct">&mdash;</div>
+        </div>
+      </div>
+      <div><div id="dial-spp2"></div></div>
+      <div><div id="dial-p1"></div></div>
+      <div><div id="dial-p2"></div></div>
+    </div>
 
-      <div class="card">
-        <h2>Pit and flow history</h2>
-        <canvas id="c-pits" class="strip"></canvas>
-        <div class="legend">
-          <span><i class="key" style="background:var(--csg)"></i>Pit gain (bbl)</span>
-          <span><i class="key" style="background:var(--bhp)"></i>Flow out (bpm &times;10)</span>
-          <span><i class="key" style="background:var(--dp)"></i>Flow in (bpm &times;10)</span>
+    <!-- Making hole. The rate is the earliest kick indicator a rig
+         has: it rises when the mud stops holding the cuttings down. -->
+    <div class="dcu-row" style="margin-top:12px">
+      <div><div id="dial-wob"></div></div>
+      <div><div id="dial-torque"></div></div>
+      <div><div id="dial-rpm"></div></div>
+      <div><div id="dial-rop"></div></div>
+      <div>
+        <div class="alarm-box">
+          <div class="setpoints">
+            <label>WOB</label>
+            <input type="number" id="set-wob" step="1" min="0" max="60">
+            <label>RPM</label>
+            <input type="number" id="set-rpm" step="10" min="0" max="200">
+            <button id="auto-driller" class="armbtn">Auto driller</button>
+          </div>
+          <div class="note" id="rop-note">&mdash;</div>
         </div>
       </div>
     </div>
 
+    <div class="stats">
+      <div class="s"><div class="k">Stroke counter</div><div class="v" id="d-stk">—</div></div>
+      <div class="s"><div class="k">Bit depth (ft)</div><div class="v" id="d-bit">—</div></div>
+      <div class="s"><div class="k">Well depth (ft)</div><div class="v" id="d-hole">—</div></div>
+      <div class="s"><div class="k">Flow in (bpm)</div><div class="v" id="d-in">—</div></div>
+      <div class="s"><div class="k">Flow out (bpm)</div><div class="v" id="d-out">—</div></div>
+      <div class="s"><div class="k">Active pit (bbl)</div><div class="v" id="d-active">—</div></div>
+      <div class="s"><div class="k">Reserve (bbl)</div><div class="v" id="d-reserve">—</div></div>
+      <div class="s" id="d-hook-wrap"><div class="k">Hookload (klbf)</div><div class="v" id="d-hook">—</div></div>
+    </div>
+    <div class="note" id="d-note"></div>
+  </div>
+
+  <div class="cols">
     <div>
       <div class="card">
-        <h2>Mud pump</h2>
+        <h2>Mud pumps</h2>
         <div class="row">
+          <label class="lbl" style="width:52px">Pump 1</label>
           <input type="range" id="pump" min="0" max="80" step="1" value="0">
           <div class="readback" id="pump-read">0</div>
         </div>
@@ -353,8 +474,25 @@
           <button data-pump="30">Kill rate</button>
           <button data-pump="60">Drilling</button>
         </div>
+        <div class="row" style="margin-top:10px">
+          <label class="lbl" style="width:52px">Pump 2</label>
+          <input type="range" id="pump2" min="0" max="80" step="1" value="0">
+          <div class="readback" id="pump2-read">0</div>
+        </div>
+        <div class="btns">
+          <button data-pump2="0">Stop</button>
+          <button data-pump2="30">Kill rate</button>
+          <button data-pump2="60">Drilling</button>
+        </div>
+        <div class="note">
+          Two pumps, and the strokes add. If one fails mid-kill the other is
+          the answer &mdash; but it has to be brought up to rate, and the well
+          does not wait while it ramps.
+        </div>
       </div>
+    </div>
 
+    <div>
       <div class="card">
         <h2>Stripping</h2>
         <div class="row">
@@ -365,6 +503,10 @@
           <button data-strip="-30">Pull out</button>
           <button data-strip="0">Stop</button>
           <button data-strip="30">Run in</button>
+        </div>
+        <div class="stats" style="margin-top:8px">
+          <div class="s"><div class="k">Pipe moved (ft)</div><div class="v" id="d-moved">—</div></div>
+          <div class="s"><div class="k">Displaced (bbl)</div><div class="v" id="d-disp">—</div></div>
         </div>
         <div class="note">
           Steel going into a shut-in well is volume going in. Bleed the
@@ -502,19 +644,14 @@
   </div>
 </section>
 
-<!-- =========================== MANIFOLDS ========================== -->
-<section class="screen" id="s-manifolds">
+<!-- ========================= SP MANIFOLD ========================== -->
+<section class="screen" id="s-spmanifold">
   <div class="cols">
     <div>
       <div class="card">
         <h2>Standpipe manifold</h2>
         <svg id="standpipe" viewBox="0 0 470 460" role="img"
              aria-label="Standpipe manifold"></svg>
-      </div>
-      <div class="card">
-        <h2>Choke and kill manifold</h2>
-        <svg id="ckmanifold" viewBox="0 0 640 330" role="img"
-             aria-label="Choke and kill manifold"></svg>
         <div class="note">
           Click any handwheel to work it. A wrong lineup is not marked wrong —
           it simply does not work, and the well tells you by doing nothing.
@@ -531,6 +668,104 @@
         <div class="valves" id="valve-list"></div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- ======================= CHOKE MANIFOLD ========================= -->
+<section class="screen" id="s-chokemanifold">
+  <div class="card">
+    <h2>Choke and kill manifold</h2>
+    <svg id="ckmanifold" viewBox="0 0 640 330" role="img"
+         aria-label="Choke and kill manifold"></svg>
+  </div>
+
+  <div class="card">
+    <h2>Chokes</h2>
+    <!-- Four throttling routes, as the manifold has. Only the ones actually
+         lined up pass anything, and two open at once pass more than the
+         handle in your hand accounts for. -->
+    <div class="chokegrid" id="choke-bank"></div>
+    <div class="note">
+      The remote chokes travel fast; the handwheels are slower, which is the
+      difference you feel when a remote fails and you change over.
+    </div>
+  </div>
+</section>
+
+<!-- =========================== TRIP TANK ========================== -->
+<section class="screen" id="s-triptank">
+  <div class="cols">
+    <div>
+      <div class="card">
+        <h2>Trip tank</h2>
+        <svg id="triptank" viewBox="0 0 560 360" role="img"
+             aria-label="Trip tank and pit system"></svg>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2>Tank in service</h2>
+        <div id="tt-service" class="service">&mdash;</div>
+        <div class="note">
+          A trip tank measures a trip only with the valve open <em>and</em> the
+          fill-up pump running. Lined up half way, the hole is still being
+          filled — from the active system, where a barrel and a half does not
+          show against eight hundred.
+        </div>
+        <div class="btns" style="margin-top:8px">
+          <button data-tt="trip_tank_fillup">Fill-up line pump</button>
+          <button data-tt="trip_tank_fill">Tank fill pump</button>
+          <button data-tt="trip_tank_drain">Drain pump</button>
+          <button data-tt="pit_transfer">Reserve transfer</button>
+        </div>
+        <div class="btns" style="margin-top:6px">
+          <button data-valve-toggle="trip_tank_valve">Trip tank valve</button>
+          <button class="zero" data-zero="trip_tank">Zero trip tank</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Level alarms</h2>
+        <div class="alarm-lamps" style="margin-bottom:8px">
+          <span id="lamp-tt-low"></span><span id="lamp-tt-high"></span>
+        </div>
+        <div class="setpoints">
+          <label>Low</label><input type="number" id="sp-tt-low" step="1">
+          <label>High</label><input type="number" id="sp-tt-high" step="1">
+          <button id="arm-tt" class="armbtn">Alarm</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Trip tank history</h2>
+        <canvas id="c-tt" class="strip"></canvas>
+        <div class="legend">
+          <span><i class="key" style="background:var(--csg)"></i>Trip tank (bbl from mark)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ TRENDS ============================ -->
+<section class="screen" id="s-trends">
+  <div class="card">
+    <div class="trendbar">
+      <h2 style="margin:0;flex:1">Trends</h2>
+      <label class="lbl">View</label>
+      <select id="trend-view">
+        <option value="tracks" selected>Stacked tracks</option>
+        <option value="parallel">Parallel axes</option>
+      </select>
+      <label class="lbl">Against</label>
+      <select id="trend-x">
+        <option value="time_s" selected>Time</option>
+        <option value="strokes">Strokes</option>
+      </select>
+    </div>
+    <div id="trend-tracks"></div>
+    <canvas id="c-parallel" class="strip tall" style="display:none"></canvas>
+    <div class="note" id="trend-note"></div>
   </div>
 </section>
 
@@ -613,13 +848,30 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-let sessionId = null, nextEvent = 0, trace = [], busy = false, screen = "driller";
+let sessionId = null, nextEvent = 0, trace = [], busy = false, screen = "choke";
+// Last gauge payload, so a screen can redraw without waiting for a poll.
+let lastGauges = null;
 let formationPsi = null, fracPsi = null, maaspPsi = null, downholeVisible = true;
 let lineupCache = [], schematicCache = null;
 // Readings the equipment panels draw from, kept here so a redraw does not have
 // to go back to the server for numbers the last poll already brought.
 let accumulatorPsi = 3000, manifoldPsi = 3000, accumulatorOk = true;
 let drillPipePsi = 0, chokePsi = 0, clfPsi = 0, chokePercent = 0;
+
+/* Two ways in, one set of screens.
+   Solo: the panel creates its own session and drives /api/sessions/{id}.
+   In a class: the student joined at /join, the server knows them from an
+   httpOnly cookie, and every call goes to /api/me instead. Everything below
+   builds its paths from base(), so nothing else has to know which it is. */
+let classMode = false;
+
+function base() {
+  return classMode ? "/api/me" : `/api/sessions/${sessionId}`;
+}
+
+function ready() {
+  return classMode || Boolean(sessionId);
+}
 
 async function api(path, options) {
   const r = await fetch(path, Object.assign(
@@ -668,16 +920,22 @@ async function start() {
 }
 
 async function poll() {
-  if (!sessionId || busy) return;
+  if (!ready() || busy) return;
   busy = true;
   try {
     const snap = await api(
-      `/api/sessions/${sessionId}?since_event=${nextEvent}&trace_limit=240`);
+      `${base()}?since_event=${nextEvent}&trace_limit=240`);
     trace = snap.trace;
     nextEvent = snap.events.next_index;
     snap.events.events.forEach(addEvent);
     lineupCache = snap.lineup;
     schematicCache = snap.schematic;
+    if (classMode && snap.classroom) {
+      // The clock belongs to the instructor, so the student is told what it
+      // is doing rather than given a control for it.
+      $("class-speed").textContent = snap.classroom.paused
+        ? "Paused" : `${snap.classroom.speed}×`;
+    }
     paint(snap.gauges);
     redraw();
   } catch (e) { console.error(e); }
@@ -686,12 +944,15 @@ async function poll() {
 
 function redraw() {
   if (screen === "choke") drawCharts();
-  else if (screen === "driller") drawPits();
   else if (screen === "bop") { drawBopPanel(); drawLineup(lineupCache); }
-  else if (screen === "manifolds") {
-    drawStandpipeManifold(); drawChokeKillManifold(); drawPid();
-    drawLineup(lineupCache);
+  else if (screen === "spmanifold") {
+    drawStandpipeManifold(); drawPid(); drawLineup(lineupCache);
   }
+  else if (screen === "chokemanifold") {
+    drawChokeKillManifold(); drawChokeBank();
+  }
+  else if (screen === "triptank") { drawTripTank(); drawTripTankChart(); }
+  else if (screen === "trends") drawTrends();
   else if (screen === "well") drawSchematic();
 }
 
@@ -704,21 +965,22 @@ function paint(g) {
   const excess = g.flow_out_bpm - g.flow_in_bpm;
 
   /* --- driller --- */
-  $("d-spp").textContent = g.drill_pipe_psi.toLocaleString();
-  $("d-spm").textContent = g.pump_spm.toFixed(0);
-  $("d-pit").textContent = g.pit_gain_bbl.toFixed(1);
-  $("d-flow").textContent = excess.toFixed(2);
+  lastGauges = g;
+
+  /* --- DCU: the instruments a kick is noticed on --- */
   $("d-stk").textContent = g.strokes.toLocaleString();
-  $("d-in").textContent = g.flow_in_bpm.toFixed(2) + " bpm";
-  $("d-out").textContent = g.flow_out_bpm.toFixed(2) + " bpm";
-  $("d-tt").textContent = g.trip_tank_bbl.toFixed(1) + " bbl";
-  $("d-hook").textContent = g.hookload_klbf.toFixed(0) + " klbf";
-  $("d-bit").textContent = g.bit_md_ft.toLocaleString() + " ft";
-  $("d-moved").textContent = g.pipe_moved_ft.toFixed(0) + " ft";
-  $("d-disp").textContent = g.pipe_displacement_bbl.toFixed(2) + " bbl";
-  $("d-pit-wrap").classList.toggle("alarm", g.pit_gain_bbl > 5);
-  $("d-flow-wrap").classList.toggle("alarm", excess > 0.4);
+  $("d-in").textContent = g.flow_in_bpm.toFixed(2);
+  $("d-out").textContent = g.flow_out_bpm.toFixed(2);
+  $("d-active").textContent = g.pits.active_bbl.toFixed(1);
+  $("d-reserve").textContent = g.pits.reserve_bbl.toFixed(1);
+  $("d-hook").textContent = g.hookload_klbf.toFixed(0);
+  $("d-bit").textContent = g.bit_md_ft.toLocaleString();
+  $("d-hole").textContent = (schematicCache && schematicCache.hole_md_ft
+    ? schematicCache.hole_md_ft.toLocaleString() : "—");
+  $("d-moved").textContent = g.pipe_moved_ft.toFixed(0);
+  $("d-disp").textContent = g.pipe_displacement_bbl.toFixed(2);
   $("d-hook-wrap").classList.toggle("alarm", g.hookload_klbf <= 0);
+  drawDcu(g);
   $("d-note").textContent = g.hookload_klbf <= 0
     ? "Hookload is at zero — the well is pushing the string out. This has to be snubbed, not stripped."
     : "";
@@ -858,13 +1120,34 @@ function polar(cx, cy, r, deg) {
 const A0 = 135, SWEEP = 270;
 
 function dial(opts) {
-  const {value, max, label, unit, colour, size = 200, ticks = 9} = opts;
+  /* `min` makes the dial bipolar. The pit deviation gauge on a real DCU reads
+     LOSS to the left of a centred needle and GAIN to the right, and zero in
+     the middle is the whole point: the driller is watching for the needle to
+     leave centre, not for it to reach a number. `zones` paints coloured arcs
+     on the face for the same reason. */
+  const {
+    value, max, min = 0, label, unit, colour, size = 200, ticks = 9,
+    decimals = 0, zones = [], leftLabel, rightLabel,
+  } = opts;
   const c = size / 2, r = c - 10;
-  const frac = Math.max(0, Math.min(1, (value || 0) / max));
+  const span = max - min;
+  const frac = Math.max(0, Math.min(1, ((value || 0) - min) / span));
   const bits = [];
 
   bits.push(`<circle cx="${c}" cy="${c}" r="${r}" fill="#f2f4f6" stroke="#9aa8b4" stroke-width="2"/>`);
   bits.push(`<circle cx="${c}" cy="${c}" r="${r - 7}" fill="none" stroke="#c9d2da" stroke-width="1"/>`);
+
+  // Coloured arcs on the face, where a real gauge has them printed.
+  zones.forEach(z => {
+    const f0 = Math.max(0, Math.min(1, (z.from - min) / span));
+    const f1 = Math.max(0, Math.min(1, (z.to - min) / span));
+    if (f1 <= f0) return;
+    const [ax, ay] = polar(c, c, r - 3.5, A0 + f0 * SWEEP);
+    const [bx, by] = polar(c, c, r - 3.5, A0 + f1 * SWEEP);
+    const large = (f1 - f0) * SWEEP > 180 ? 1 : 0;
+    bits.push(`<path d="M ${ax} ${ay} A ${r - 3.5} ${r - 3.5} 0 ${large} 1 ${bx} ${by}"
+      fill="none" stroke="${z.colour}" stroke-width="6" opacity="0.85"/>`);
+  });
 
   // The number ring sits close to the rim, which leaves the middle of the face
   // clear for the label and the digital inset. Placed further in they collide,
@@ -878,8 +1161,10 @@ function dial(opts) {
       stroke="#33404b" stroke-width="${major ? 2 : 1}"/>`);
     if (major) {
       const [tx, ty] = polar(c, c, r - 27, deg);
+      const tick = min + span * f;
       bits.push(`<text x="${tx}" y="${ty + 4}" text-anchor="middle" fill="#33404b"
-        font-size="${size / 20}" font-family="system-ui, sans-serif">${Math.round(max * f).toLocaleString()}</text>`);
+        font-size="${size / 20}" font-family="system-ui, sans-serif">${
+          Math.round(Math.abs(tick)).toLocaleString()}</text>`);
     }
   }
 
@@ -889,7 +1174,20 @@ function dial(opts) {
     rx="3" fill="#0d1117" stroke="#4b5a67"/>`);
   bits.push(`<text x="${c}" y="${c + size * 0.03 + bh * 0.76}" text-anchor="middle"
     fill="#5df08a" font-size="${size / 11}" font-weight="700"
-    font-family="Consolas, ui-monospace, monospace">${Math.round(value || 0).toLocaleString()}</text>`);
+    font-family="Consolas, ui-monospace, monospace">${
+      (value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+      })}</text>`);
+
+  // LOSS / GAIN either side of the hub, as the reference gauge prints them.
+  if (leftLabel || rightLabel) {
+    bits.push(`<text x="${c - r * 0.42}" y="${c - size * 0.05}" text-anchor="middle"
+      fill="#7a4a12" font-size="${size / 22}" font-weight="700"
+      font-family="system-ui, sans-serif">${leftLabel || ""}</text>`);
+    bits.push(`<text x="${c + r * 0.42}" y="${c - size * 0.05}" text-anchor="middle"
+      fill="#7a4a12" font-size="${size / 22}" font-weight="700"
+      font-family="system-ui, sans-serif">${rightLabel || ""}</text>`);
+  }
 
   // Label and unit go in the gap at the bottom, where the 270-degree sweep
   // does not reach. The upper half has no clear band at all -- the number ring
@@ -932,12 +1230,335 @@ function drawCharts() {
     [{value: formationPsi, label: "formation"}, {value: fracPsi, label: "fracture"}]);
 }
 
-function drawPits() {
-  drawPanel("c-pits", [
-    {key: "pit_gain_bbl", colour: css("--csg")},
-    {key: "flow_out_bpm", colour: css("--bhp"), scale: 10},
-    {key: "flow_in_bpm", colour: css("--dp"), scale: 10},
-  ], []);
+function drawTripTankChart() {
+  drawPanel("c-tt", [{key: "trip_tank_bbl", colour: css("--csg")}], []);
+}
+
+/* ---------------------------------- DCU --------------------------------- */
+/* The two gauges a driller watches for a kick, then the pressures and the
+   pump rates. Pit deviation is bipolar because that is the question: has the
+   needle left centre, not has it reached a number. */
+function drawDcu(g) {
+  const pit = g.pits, flow = g.return_flow, tt = g.trip_tank;
+
+  $("dial-pit").innerHTML = dial({
+    value: Math.max(-50, Math.min(50, pit.deviation_bbl)),
+    min: -50, max: 50, label: "Pit Deviation", unit: "bbl",
+    size: 190, ticks: 5, decimals: 1,
+    leftLabel: "LOSS", rightLabel: "GAIN", colour: "#c62828",
+    zones: [
+      {from: -50, to: (pit.alarm.low ?? -10), colour: "#b4530e"},
+      {from: (pit.alarm.high ?? 10), to: 50, colour: "#c4302a"},
+    ],
+  });
+  $("dial-flow").innerHTML = dial({
+    value: Math.max(0, Math.min(20, flow.flow_out_bpm)),
+    max: 20, label: "Return Flow", unit: "bbl/min",
+    size: 190, ticks: 5, decimals: 1, colour: "#c62828",
+  });
+  $("dial-spp2").innerHTML = dial({
+    value: g.drill_pipe_psi, max: Math.max(2000, chartFull()),
+    label: "Stand Pipe", unit: "psi", size: 190, colour: "#c62828",
+  });
+  $("dial-p1").innerHTML = dial({
+    value: g.pumps[0].spm, max: 120, label: "Pump 1", unit: "spm",
+    size: 190, ticks: 7,
+  });
+  $("dial-p2").innerHTML = dial({
+    value: g.pumps[1].spm, max: 120, label: "Pump 2", unit: "spm",
+    size: 190, ticks: 7,
+  });
+
+  // Lamps say which way the alarm went; the horn is separate from the lamp,
+  // so a silenced alarm still shows.
+  $("lamp-pit-low").innerHTML = lamp(pit.alarm.low_active, "Loss", "#e0a020");
+  $("lamp-pit-high").innerHTML = lamp(pit.alarm.high_active, "Gain", "#e2453d");
+  $("lamp-flow-low").innerHTML = lamp(flow.alarm.low_active, "Low flow", "#e0a020");
+  $("lamp-flow-high").innerHTML = lamp(flow.alarm.high_active, "High flow", "#e2453d");
+  $("lamp-tt-low").innerHTML = lamp(tt.alarm.low_active, "Low level", "#e0a020");
+  $("lamp-tt-high").innerHTML = lamp(tt.alarm.high_active, "High level", "#e2453d");
+
+  setpoint("sp-pit-low", pit.alarm.low);
+  setpoint("sp-pit-high", pit.alarm.high);
+  setpoint("sp-flow-low", flow.alarm.low);
+  setpoint("sp-flow-high", flow.alarm.high);
+  setpoint("sp-tt-low", tt.alarm.low);
+  setpoint("sp-tt-high", tt.alarm.high);
+  armButton("arm-pit", pit.alarm.armed);
+  armButton("arm-flow", flow.alarm.armed);
+  armButton("arm-tt", tt.alarm.armed);
+
+  const dr = g.drilling;
+  $("dial-wob").innerHTML = dial({
+    value: dr.wob_klbf, max: 60, label: "WOB", unit: "klbf",
+    size: 190, ticks: 7, decimals: 1,
+  });
+  $("dial-torque").innerHTML = dial({
+    value: dr.torque_kftlb, max: 40, label: "Torque", unit: "kft-lb",
+    size: 190, ticks: 5, decimals: 1,
+  });
+  $("dial-rpm").innerHTML = dial({
+    value: dr.rpm, max: 200, label: "Rotary", unit: "rpm", size: 190, ticks: 5,
+  });
+  $("dial-rop").innerHTML = dial({
+    value: Math.min(200, dr.rop_ft_per_hr), max: 200, label: "ROP",
+    unit: "ft/hr", size: 190, ticks: 5, colour: "#c62828",
+  });
+  setpoint("set-wob", dr.auto_driller ? dr.wob_setpoint_klbf : dr.wob_commanded_klbf);
+  setpoint("set-rpm", dr.rpm_commanded);
+  armButton2("auto-driller", dr.auto_driller);
+  $("rop-note").textContent = g.drilling_ahead
+    ? `Drilling · ${g.hole_drilled_ft} ft made · bit dulled `
+      + `${Math.round(dr.bit_wear * 100)}%`
+    : "Not making hole.";
+
+  $("flow-pct").textContent = flow.flowing_with_the_pump_off
+    ? "Flowing with the pump off."
+    : (flow.percent === null ? "Pump off." : `${flow.percent.toFixed(0)}% of flow in`);
+}
+
+/* Do not fight the student for the box they are typing in. */
+function setpoint(id, value) {
+  const el = $(id);
+  if (!el || el === document.activeElement || value === null || value === undefined) return;
+  el.value = value;
+}
+
+function armButton2(id, on) {
+  const el = $(id);
+  if (!el) return;
+  el.classList.toggle("off", !on);
+  el.textContent = on ? "Auto driller on" : "Auto driller off";
+}
+
+function armButton(id, armed) {
+  const el = $(id);
+  if (!el) return;
+  el.classList.toggle("off", !armed);
+  el.textContent = armed ? "Alarm armed" : "Alarm off";
+}
+
+function chartFull() {
+  return Math.max(2000, Math.ceil((maaspPsi || 1500) * 1.6 / 500) * 500);
+}
+
+/* ------------------------------ choke bank ------------------------------ */
+const CHOKE_LABELS = {
+  choke_1: "Remote choke 1", choke_2: "Remote choke 2",
+  manual_choke_1: "Manual choke 1", manual_choke_2: "Manual choke 2",
+};
+
+function drawChokeBank() {
+  const g = lastGauges; if (!g || !g.chokes) return;
+  $("choke-bank").innerHTML = Object.keys(CHOKE_LABELS).map(name => {
+    const c = g.chokes[name] || {position: 0, commanded: 0};
+    const live = g.choke_in_service === name;
+    const open = valveState(name) === "open";
+    return `<div class="chokecell ${live ? "live" : ""}">
+      <h3>${CHOKE_LABELS[name]}</h3>
+      ${dial({value: c.position, max: 100, label: "", unit: "% open",
+              size: 130, ticks: 6, decimals: 0})}
+      <div class="row" style="margin-top:6px">
+        <input type="range" min="0" max="100" step="1" value="${c.commanded}"
+               data-chokeset="${name}">
+        <div class="readback">${c.commanded.toFixed(0)}</div>
+      </div>
+      <div class="btns">
+        <button data-valve-toggle="${name}">${open ? "Isolate" : "Line up"}</button>
+      </div>
+      <div class="state">${open ? "on the return route" : "isolated"}${
+        live ? " &middot; in service" : ""}</div>
+    </div>`;
+  }).join("");
+}
+
+/* ------------------------------- trip tank ------------------------------ */
+/* The tank, the two pits, and the lines between them. Levels are drawn to
+   scale against each vessel's own capacity, because the point of the screen
+   is that a 35 bbl tank resolves what an 800 bbl system cannot. */
+function drawTripTank() {
+  const g = lastGauges; if (!g || !g.trip_tank) return;
+  const tt = g.trip_tank, pits = g.pits;
+  const bits = [];
+
+  const vessel = (x, y, w, h, frac, title, sub, colour) => {
+    const fh = Math.max(0, Math.min(1, frac)) * h;
+    return `
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4"
+            fill="#10151b" stroke="#7b8a96" stroke-width="2"/>
+      <rect x="${x + 2}" y="${y + h - fh + 2}" width="${w - 4}"
+            height="${Math.max(0, fh - 4)}" rx="2" fill="${colour}" opacity="0.85"/>
+      <text x="${x + w / 2}" y="${y - 8}" text-anchor="middle" fill="#17120c"
+            font-size="12" font-weight="700" font-family="system-ui">${title}</text>
+      <text x="${x + w / 2}" y="${y + h + 16}" text-anchor="middle" fill="#4a3311"
+            font-size="11" font-family="Consolas, monospace">${sub}</text>`;
+  };
+
+  // Trip tank, with its alarm set points marked on the side of the glass.
+  bits.push(vessel(40, 60, 110, 170, tt.level_fraction, "Trip tank",
+    `${tt.volume_bbl.toFixed(1)} / ${tt.capacity_bbl} bbl`, "#c98a12"));
+  [["low", tt.alarm.low, "#e0a020"], ["high", tt.alarm.high, "#c4302a"]]
+    .forEach(([, level, colour]) => {
+      if (level === null || level === undefined) return;
+      const y = 60 + 170 * (1 - level / tt.capacity_bbl);
+      bits.push(`<line x1="34" y1="${y}" x2="156" y2="${y}" stroke="${colour}"
+        stroke-width="2" stroke-dasharray="5 3"/>`);
+    });
+
+  bits.push(vessel(230, 60, 120, 170,
+    pits.active_bbl / pits.active_capacity_bbl, "Active",
+    `${pits.active_bbl.toFixed(0)} / ${pits.active_capacity_bbl} bbl`, "#8a5a20"));
+  bits.push(vessel(410, 60, 110, 170,
+    pits.reserve_bbl / pits.reserve_capacity_bbl, "Reserve",
+    `${pits.reserve_bbl.toFixed(0)} / ${pits.reserve_capacity_bbl} bbl`, "#6a4a18"));
+
+  // The lines, coloured live when their pump is running.
+  const line = (x1, y1, x2, y2, on, label) => `
+    <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+          stroke="${on ? "#3fdc6a" : "#7b8a96"}" stroke-width="${on ? 5 : 3}"/>
+    <text x="${(x1 + x2) / 2}" y="${y1 - 7}" text-anchor="middle"
+          fill="#17120c" font-size="10" font-weight="600"
+          font-family="system-ui">${label}</text>`;
+  bits.push(line(150, 105, 230, 105, tt.fill_pump, "fill"));
+  bits.push(line(230, 185, 150, 185, tt.drain_pump, "drain"));
+  bits.push(line(350, 145, 410, 145, pits.transfer_pump, "transfer"));
+
+  // Down to the well, which is the line that matters.
+  const inService = g.trip_tank_in_service;
+  bits.push(`<line x1="95" y1="230" x2="95" y2="300"
+    stroke="${inService ? "#3fdc6a" : "#7b8a96"}" stroke-width="${inService ? 5 : 3}"/>`);
+  bits.push(`<text x="95" y="320" text-anchor="middle" fill="#17120c"
+    font-size="11" font-weight="700" font-family="system-ui">
+    ${inService ? "fill-up line — hole being kept full" : "fill-up line — not running"}</text>`);
+  bits.push(`<text x="95" y="336" text-anchor="middle" fill="#4a3311"
+    font-size="11" font-family="Consolas, monospace">${
+      tt.change_bbl >= 0 ? "+" : ""}${tt.change_bbl.toFixed(2)} bbl from mark</text>`);
+
+  $("triptank").innerHTML = bits.join("");
+
+  const el = $("tt-service");
+  el.textContent = inService
+    ? "IN SERVICE — the trip is being measured"
+    : "NOT IN SERVICE — valve and fill-up pump both needed";
+  el.classList.toggle("out", !inService);
+
+  document.querySelectorAll("[data-tt]").forEach(b => {
+    const running = {
+      trip_tank_fillup: tt.fillup_pump, trip_tank_fill: tt.fill_pump,
+      trip_tank_drain: tt.drain_pump, pit_transfer: pits.transfer_pump,
+    }[b.dataset.tt];
+    b.classList.toggle("on", Boolean(running));
+  });
+}
+
+/* -------------------------------- trends -------------------------------- */
+/* Both forms, because a student who will sit a commercial box later should be
+   able to read its overlaid parallel-axis plot, and everyone else is better
+   served by stacked tracks on a shared axis. Tracks are the default. */
+const TRACKS = [
+  {key: "drill_pipe_psi", label: "Drill pipe", unit: "psi", colour: "--dp"},
+  {key: "casing_psi", label: "Casing", unit: "psi", colour: "--csg"},
+  {key: "bottomhole_psi", label: "Bottomhole", unit: "psi", colour: "--bhp", downhole: true},
+  {key: "shoe_psi", label: "Shoe", unit: "psi", colour: "--shoe", downhole: true},
+  {key: "pit_gain_bbl", label: "Pit gain", unit: "bbl", colour: "--gas"},
+  {key: "flow_out_bpm", label: "Flow out", unit: "bbl/min", colour: "--killmud"},
+];
+
+function trendSeries() {
+  return TRACKS.filter(t => !t.downhole || downholeVisible);
+}
+
+function drawTrends() {
+  const parallel = $("trend-view").value === "parallel";
+  $("c-parallel").style.display = parallel ? "block" : "none";
+  $("trend-tracks").style.display = parallel ? "none" : "block";
+  $("trend-note").textContent = parallel
+    ? "Six scales on one plot, as the commercial panel draws it. Every trace "
+      + "shares the plot area, so each axis on the left belongs to one colour."
+    : "One track per measurement, all sharing the axis below. Easier to read, "
+      + "and the shape of each trace is not flattened by the others.";
+  if (parallel) drawParallel(); else drawTracks();
+}
+
+function drawTracks() {
+  const host = $("trend-tracks");
+  const series = trendSeries();
+  if (host.childElementCount !== series.length) {
+    host.innerHTML = series.map((t, i) => `
+      <div class="track">
+        <div class="tlabel"><span>${t.label}</span><span>${t.unit}</span></div>
+        <canvas id="trk-${i}" class="strip"></canvas>
+      </div>`).join("");
+  }
+  series.forEach((t, i) => {
+    const marks = [];
+    if (t.key === "casing_psi" && maaspPsi) marks.push({value: maaspPsi, label: "MAASP"});
+    if (t.key === "bottomhole_psi" && formationPsi) marks.push({value: formationPsi, label: "formation"});
+    if (t.key === "shoe_psi" && fracPsi) marks.push({value: fracPsi, label: "fracture"});
+    drawPanel(`trk-${i}`, [{key: t.key, colour: css(t.colour)}], marks);
+  });
+}
+
+function drawParallel() {
+  const c = $("c-parallel"); if (!c) return;
+  const ratio = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return;
+  c.width = w * ratio; c.height = h * ratio;
+  const x2 = c.getContext("2d"); x2.scale(ratio, ratio); x2.clearRect(0, 0, w, h);
+  if (trace.length < 2) return;
+
+  const series = trendSeries();
+  const axisW = 46, pad = {l: axisW * series.length + 10, r: 14, t: 12, b: 26};
+  const xKey = $("trend-x").value;
+  const t0 = trace[0][xKey] || 0;
+  const t1 = trace[trace.length - 1][xKey] || t0 + 1;
+  const X = t => pad.l + (t - t0) / Math.max(1e-9, t1 - t0) * (w - pad.l - pad.r);
+
+  x2.strokeStyle = "#232e39"; x2.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = Math.round(pad.t + (h - pad.t - pad.b) * i / 4) + 0.5;
+    x2.beginPath(); x2.moveTo(pad.l, y); x2.lineTo(w - pad.r, y); x2.stroke();
+  }
+
+  series.forEach((t, i) => {
+    let lo = Infinity, hi = -Infinity;
+    trace.forEach(p => {
+      const v = p[t.key]; if (v === undefined || v === null) return;
+      lo = Math.min(lo, v); hi = Math.max(hi, v);
+    });
+    if (!isFinite(lo)) return;
+    if (hi - lo < 1) hi = lo + 1;
+    const colour = css(t.colour);
+    const Y = v => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b);
+
+    // Its own axis, in its own colour -- which is the only thing making the
+    // overlaid form readable at all.
+    const ax = 12 + i * axisW;
+    x2.strokeStyle = colour; x2.lineWidth = 2;
+    x2.beginPath(); x2.moveTo(ax, pad.t); x2.lineTo(ax, h - pad.b); x2.stroke();
+    x2.fillStyle = colour; x2.font = "9px Consolas, monospace";
+    for (let k = 0; k <= 4; k++) {
+      const v = lo + (hi - lo) * (1 - k / 4);
+      x2.fillText(Math.round(v).toLocaleString(), ax + 3, pad.t + (h - pad.t - pad.b) * k / 4 + 3);
+    }
+    x2.save();
+    x2.translate(ax - 4, h - pad.b); x2.rotate(-Math.PI / 2);
+    x2.fillText(t.label, 0, 0);
+    x2.restore();
+
+    x2.strokeStyle = colour; x2.lineWidth = 2; x2.beginPath();
+    let started = false;
+    trace.forEach(p => {
+      const v = p[t.key]; if (v === undefined || v === null) return;
+      const px = X(p[xKey] || 0), py = Y(v);
+      if (!started) { x2.moveTo(px, py); started = true; } else x2.lineTo(px, py);
+    });
+    x2.stroke();
+  });
+
+  x2.fillStyle = css("--faint"); x2.font = "10px Consolas, monospace";
+  x2.fillText(xKey === "strokes" ? "strokes" : "seconds", pad.l, h - 8);
 }
 
 function drawPanel(id, series, thresholds) {
@@ -1536,8 +2157,8 @@ function drawLineup(valves) {
 
 async function toggleValve(name) {
   const v = lineupCache.find(x => x.name === name);
-  if (!v || !sessionId) return;
-  const r = await api(`/api/sessions/${sessionId}/valve`, {
+  if (!v || !ready()) return;
+  const r = await api(`${base()}/valve`, {
     method: "POST",
     body: JSON.stringify({name, state: v.state === "open" ? "closed" : "open"})
   });
@@ -1547,8 +2168,8 @@ async function toggleValve(name) {
 
 /* ------------------------------ kill sheet ----------------------------- */
 async function loadSheet() {
-  if (!sessionId) return;
-  const k = await api(`/api/sessions/${sessionId}/killsheet`);
+  if (!ready()) return;
+  const k = await api(`${base()}/killsheet`);
   const row = (a, b, u) => `<tr><td>${a}</td><td class="num">${b}${u ? " " + u : ""}</td></tr>`;
 
   if (!k.available) {
@@ -1594,9 +2215,9 @@ async function loadSheet() {
 
 /* -------------------------------- debrief ------------------------------ */
 async function loadDebrief() {
-  if (!sessionId) return;
+  if (!ready()) return;
   // Left unchecked, the scenario's own standard applies.
-  const d = await api(`/api/sessions/${sessionId}/debrief`
+  const d = await api(`${base()}/debrief`
     + ($("db-require").checked ? "?require_kill=true" : ""));
   $("db-grade").textContent = d.grade.toUpperCase();
   $("db-grade").className = "verdict " + d.grade;
@@ -1630,8 +2251,8 @@ $("pump").addEventListener("change", () => send("pump", {spm: Number($("pump").v
 $("strip").addEventListener("change", () => send("strip", {feet_per_min: Number($("strip").value)}));
 
 async function send(what, body) {
-  if (!sessionId) return;
-  paint((await api(`/api/sessions/${sessionId}/${what}`, {
+  if (!ready()) return;
+  paint((await api(`${base()}/${what}`, {
     method: "POST", body: JSON.stringify(body)
   })).gauges);
 }
@@ -1648,7 +2269,81 @@ document.querySelectorAll("[data-pump]").forEach(b => b.onclick = () => {
 document.querySelectorAll("[data-strip]").forEach(b => b.onclick = () => {
   $("strip").value = b.dataset.strip; send("strip", {feet_per_min: Number(b.dataset.strip)});
 });
+document.querySelectorAll("[data-pump2]").forEach(b => b.onclick = () => {
+  $("pump2").value = b.dataset.pump2;
+  send("pump", {spm: Number(b.dataset.pump2), pump: 2});
+});
 $("speed").addEventListener("change", () => send("speed", {speed: Number($("speed").value)}));
+
+/* ---- stage 3 controls: the mud system and the choke bank ---- */
+$("pump2").addEventListener("change", () =>
+  send("pump", {spm: Number($("pump2").value), pump: 2}));
+$("pump2").addEventListener("input", () =>
+  $("pump2-read").textContent = $("pump2").value);
+
+document.querySelectorAll("[data-tt]").forEach(b => b.onclick = async () => {
+  // Toggle against what the panel last saw, so the button follows the pump
+  // rather than the other way round.
+  const running = b.classList.contains("on");
+  await send("transfer", {name: b.dataset.tt, running: !running});
+});
+
+document.querySelectorAll("[data-zero]").forEach(b => b.onclick = () =>
+  send("zero", {instrument: b.dataset.zero}));
+
+const ALARM_FIELDS = {
+  "sp-pit-low": ["pit_deviation", "low"], "sp-pit-high": ["pit_deviation", "high"],
+  "sp-flow-low": ["return_flow", "low"], "sp-flow-high": ["return_flow", "high"],
+  "sp-tt-low": ["trip_tank_level", "low"], "sp-tt-high": ["trip_tank_level", "high"],
+};
+Object.keys(ALARM_FIELDS).forEach(id => {
+  const el = $(id); if (!el) return;
+  el.addEventListener("change", () => {
+    const [name, which] = ALARM_FIELDS[id];
+    send("alarm", {name, [which]: Number(el.value)});
+  });
+});
+
+const ARM_BUTTONS = {
+  "arm-pit": "pit_deviation", "arm-flow": "return_flow", "arm-tt": "trip_tank_level",
+};
+Object.keys(ARM_BUTTONS).forEach(id => {
+  const el = $(id); if (!el) return;
+  el.onclick = () => send("alarm", {
+    name: ARM_BUTTONS[id], armed: el.classList.contains("off"),
+  });
+});
+
+// The choke bank is rebuilt on every redraw, so its handlers are delegated.
+$("choke-bank").addEventListener("input", e => {
+  const slider = e.target.closest("[data-chokeset]"); if (!slider) return;
+  slider.nextElementSibling.textContent = Number(slider.value).toFixed(0);
+});
+$("choke-bank").addEventListener("change", e => {
+  const slider = e.target.closest("[data-chokeset]"); if (!slider) return;
+  send("choke", {percent: Number(slider.value), choke: slider.dataset.chokeset});
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-valve-toggle]"); if (!b) return;
+  toggleValve(b.dataset.valveToggle);
+});
+
+$("set-wob").addEventListener("change", () => {
+  const v = Number($("set-wob").value);
+  // The same box drives both, because a driller thinks in one number: the
+  // weight they want on bottom, whoever is holding it.
+  if ($("auto-driller").classList.contains("off")) send("wob", {klbf: v});
+  else send("autodriller", {on: true, setpoint_klbf: v});
+});
+$("set-rpm").addEventListener("change", () =>
+  send("rotary", {rpm: Number($("set-rpm").value)}));
+$("auto-driller").onclick = () => send("autodriller", {
+  on: $("auto-driller").classList.contains("off"),
+  setpoint_klbf: Number($("set-wob").value) || undefined,
+});
+
+$("trend-view").addEventListener("change", drawTrends);
+$("trend-x").addEventListener("change", drawTrends);
 $("restart").onclick = () => start();
 $("scenario").addEventListener("change", () => start());
 $("db-require").addEventListener("change", loadDebrief);
@@ -1661,11 +2356,40 @@ $("tabs").addEventListener("click", e => {
   $("s-" + screen).classList.add("active");
   if (screen === "sheet") loadSheet();
   else if (screen === "debrief") loadDebrief();
+  else if (screen === "dcu" && lastGauges) drawDcu(lastGauges);
   redraw();
 });
 window.addEventListener("resize", redraw);
 
-loadScenarios().then(start).then(() => setInterval(poll, 250));
+/* ------------------------------- boot ---------------------------------- */
+/* Which mode are we in? Ask the server rather than reading a flag: the class
+   token is an httpOnly cookie precisely so no script can see it, and a probe
+   that succeeds is the only honest way to find out. */
+async function boot() {
+  let me = null;
+  try { me = await api("/api/me"); } catch (e) { me = null; }
+
+  if (me) {
+    classMode = true;
+    $("solo-controls").style.display = "none";
+    $("class-controls").style.display = "";
+    $("class-name").textContent = me.classroom.name;
+    $("student-name").textContent = me.student.name;
+    // The Well cross-section and the Debrief are the instructor's in a class.
+    // A live cross-section shows where the gas is, which is the thing the
+    // student is meant to be working out, and a debrief mid-exercise is a
+    // running score rather than a review.
+    document.querySelectorAll('#tabs button[data-screen="well"], '
+      + '#tabs button[data-screen="debrief"]').forEach(b => b.remove());
+    nextEvent = 0; trace = [];
+    return;
+  }
+
+  await loadScenarios();
+  await start();
+}
+
+boot().then(() => setInterval(poll, 250));
 </script>
 </body>
 </html>

@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instructor Station — Well Control Simulator</title>
+<style>
+/* Self-contained by design: a rig has no internet, and a test pins that no
+   external resource is referenced from any page here.
+
+   This is a monitoring station rather than an instrument face, so it does not
+   wear the orange console of the student panel -- an instructor is reading a
+   room, not working a choke. Status colours are the reserved
+   good/warning/serious/critical steps, and every one of them is paired with a
+   word: colour never carries the meaning alone. */
+:root {
+  --surface: #1a1a19;
+  --raised: #24241f;
+  --sunk: #0e0e0c;
+  --line: #35352e;
+  --text: #ffffff;
+  --text-2: #c3c2b7;
+  --muted: #86857c;
+  --readout: #4bf07e;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: .01em; }
+h2 { font-size: 13px; margin: 0 0 10px; color: var(--text-2);
+     text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+button {
+  font: inherit; color: var(--text); background: var(--raised);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button.primary { background: #2a78d6; border-color: #2a78d6; }
+button.danger { border-color: var(--critical); color: #ffb3b3; }
+button.on { background: var(--readout); border-color: var(--readout); color: #08160c; }
+input, select {
+  font: inherit; color: var(--text); background: var(--sunk);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
+}
+label.lbl { color: var(--muted); font-size: 12px; }
+
+header {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 18px; background: var(--raised);
+  border-bottom: 1px solid var(--line);
+}
+.grow { flex: 1; }
+main { padding: 18px; max-width: 1600px; margin: 0 auto; }
+
+.card {
+  background: var(--raised); border: 1px solid var(--line);
+  border-radius: 10px; padding: 16px; margin-bottom: 16px;
+}
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* -- login ------------------------------------------------------------- */
+#login { max-width: 380px; margin: 12vh auto; }
+#login p { color: var(--text-2); margin: 0 0 14px; }
+.error { color: #ffb3b3; min-height: 18px; font-size: 13px; }
+
+/* -- the code, read out to the room ------------------------------------ */
+.code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 40px; font-weight: 700; letter-spacing: .12em;
+  color: var(--readout); background: var(--sunk);
+  padding: 12px 22px; border-radius: 8px; display: inline-block;
+  border: 1px solid var(--line);
+}
+.code-note { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+/* -- the grid ----------------------------------------------------------- */
+#grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+}
+.tile {
+  background: var(--raised); border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: 8px; padding: 12px;
+}
+.tile.good     { border-left-color: var(--good); }
+.tile.warning  { border-left-color: var(--warning); }
+.tile.serious  { border-left-color: var(--serious); }
+.tile.critical { border-left-color: var(--critical); background: #2a1d1c; }
+.tile-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.tile-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis;
+             white-space: nowrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good);
+       flex: none; }
+.dot.off { background: var(--muted); }
+
+/* Status is an icon plus a word plus a colour -- never the colour alone. */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.chip.good { color: var(--good); }
+.chip.warning { color: var(--warning); }
+.chip.serious { color: var(--serious); }
+.chip.critical { color: var(--critical); }
+
+.readout { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px;
+           margin: 10px 0; }
+.r { background: var(--sunk); border-radius: 5px; padding: 5px 8px; }
+.r .k { color: var(--muted); font-size: 10px; text-transform: uppercase;
+        letter-spacing: .06em; display: block; }
+.r .v { font-family: ui-monospace, Consolas, monospace; font-size: 15px;
+        color: var(--readout); }
+.r .v.bad { color: #ff9a9a; }
+.truth { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px;
+         font-size: 12px; color: var(--text-2); }
+.truth b { color: var(--text); font-family: ui-monospace, Consolas, monospace;
+           font-weight: 500; }
+.tile-actions { display: flex; gap: 6px; margin-top: 10px; }
+.tile-actions button { padding: 4px 9px; font-size: 12px; flex: 1; }
+.empty { color: var(--muted); padding: 30px; text-align: center; }
+.hidden { display: none !important; }
+
+/* -- drill-down and recordings ------------------------------------------ */
+.detail-cols { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; margin-top: 10px; }
+@media (max-width: 900px) { .detail-cols { grid-template-columns: 1fr; } }
+.logbox {
+  background: var(--sunk); border-radius: 5px; padding: 10px; max-height: 340px;
+  overflow-y: auto; font: 12px/1.5 ui-monospace, Consolas, monospace;
+}
+.logbox div { margin-bottom: 3px; color: var(--text-2); }
+.logbox div.critical { color: #ff9a9a; }
+.logbox div.warning { color: #ffd48a; }
+.reclist { display: grid; gap: 6px; margin-top: 10px; }
+.recrow {
+  display: flex; gap: 12px; align-items: center; background: var(--sunk);
+  border-radius: 5px; padding: 8px 10px; font-size: 13px;
+}
+.recrow .who { flex: 1; font-weight: 600; }
+.recrow .when { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+.recrow .grade { font-weight: 700; }
+.recrow .grade.pass { color: var(--good); }
+.recrow .grade.fail { color: var(--critical); }
+.tile-actions button.detail { flex: 1.4; }
+#review-chart {
+  width: 100%; height: 230px; display: block; margin-top: 10px;
+  background: var(--sunk); border: 1px solid var(--line); border-radius: 6px;
+}
+.legend { display: flex; gap: 14px; font-size: 11px; color: var(--text-2);
+          margin-top: 6px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 12px; height: 2px;
+            vertical-align: middle; margin-right: 5px; }
+.metric { display: flex; gap: 10px; padding: 5px 8px; background: var(--sunk);
+          border-radius: 5px; margin-bottom: 4px; font-size: 12px; }
+.metric .mname { flex: 1; }
+.metric .mval { font-family: ui-monospace, Consolas, monospace; }
+.metric.failed .mval { color: #ff9a9a; }
+.metric.passed .mval { color: var(--good); }
+</style>
+</head>
+<body>
+
+<!-- ============================== LOGIN ============================== -->
+<div id="login" class="card">
+  <h1 style="margin-bottom:6px">Instructor Station</h1>
+  <p>Well Control Simulator</p>
+  <div class="row">
+    <input id="pw" type="password" placeholder="Password" style="flex:1"
+           autocomplete="current-password">
+    <button class="primary" id="login-go">Sign in</button>
+  </div>
+  <div class="error" id="login-err"></div>
+</div>
+
+<!-- ============================= CONSOLE ============================= -->
+<div id="console" class="hidden">
+<header>
+  <h1>Instructor Station</h1>
+  <select id="class-picker"></select>
+  <button id="new-class">New class</button>
+  <span class="grow"></span>
+  <span class="mono" id="tick-note" style="color:var(--muted);font-size:12px"></span>
+  <button id="logout">Sign out</button>
+</header>
+
+<main>
+  <!-- new class -->
+  <div class="card hidden" id="new-panel">
+    <h2>Open a class</h2>
+    <div class="row">
+      <input id="nc-name" placeholder="Class name" value="Well Control 101">
+      <select id="nc-scenario"></select>
+      <label class="lbl">Seats</label>
+      <input id="nc-capacity" type="number" value="16" min="1" max="200"
+             style="width:80px">
+      <label class="lbl">Hours</label>
+      <input id="nc-ttl" type="number" value="12" min="1" max="72"
+             style="width:70px">
+      <button class="primary" id="nc-go">Open</button>
+      <button id="nc-cancel">Cancel</button>
+    </div>
+    <div class="error" id="nc-err"></div>
+  </div>
+
+  <!-- the running class -->
+  <div id="running" class="hidden">
+    <div class="card">
+      <div class="row" style="align-items:flex-start">
+        <div>
+          <h2>Class code</h2>
+          <div class="code" id="code">—</div>
+          <div class="code-note" id="code-note"></div>
+        </div>
+        <span class="grow"></span>
+        <div>
+          <h2>Clock</h2>
+          <div class="row">
+            <button data-speed="1">1&times;</button>
+            <button data-speed="10">10&times;</button>
+            <button data-speed="60">60&times;</button>
+            <button id="pause">Pause all</button>
+            <button id="resume">Resume all</button>
+          </div>
+          <div class="code-note" id="clock-note"></div>
+        </div>
+        <span class="grow"></span>
+        <div>
+          <h2>Class</h2>
+          <div class="row">
+            <button id="close-class">Stop admitting</button>
+            <button class="danger" id="end-class">End class</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fault induction. Deliberately here rather than buried: it is the
+         thing an instructor reaches for mid-exercise, and the student is
+         never told a human chose the moment. -->
+    <div class="card">
+      <div class="row">
+        <h2 style="margin:0;flex:0 0 auto">Induce a fault</h2>
+        <select id="fault-kind"></select>
+        <select id="fault-target"><option value="">Whole class</option></select>
+        <input id="fault-message" placeholder="What their log says (optional)"
+               style="flex:1;min-width:180px">
+        <button class="danger" id="fault-go">Break it</button>
+      </div>
+      <div class="code-note" id="fault-note">
+        The student sees a rig fault and nothing else — same log entry as a
+        fault written into the exercise. Leave the message blank to use the
+        fault's own wording.
+      </div>
+    </div>
+
+    <div id="grid"></div>
+    <div class="empty" id="empty">
+      Nobody has joined yet. Read the code out.
+    </div>
+  </div>
+
+  <!-- Drill-down: what one student is actually looking at. -->
+  <div class="card hidden" id="detail">
+    <div class="row">
+      <h2 style="margin:0;flex:1" id="detail-name">Student</h2>
+      <button id="detail-record">Keep this run</button>
+      <button id="detail-close">Close</button>
+    </div>
+    <div class="detail-cols">
+      <div>
+        <h2>Their gauges</h2>
+        <div class="readout" id="detail-gauges"></div>
+        <h2 style="margin-top:14px">Kill sheet</h2>
+        <div class="r" id="detail-sheet" style="padding:10px"></div>
+      </div>
+      <div>
+        <h2>Their log</h2>
+        <div class="logbox" id="detail-log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recordings outlive the class they came from. -->
+  <div class="card">
+    <div class="row">
+      <h2 style="margin:0;flex:1">Recordings</h2>
+      <button id="rec-refresh">Refresh</button>
+    </div>
+    <div class="reclist" id="reclist"></div>
+
+    <div class="hidden" id="review">
+      <div class="row" style="margin-top:14px">
+        <h2 style="margin:0;flex:1" id="review-name">Run</h2>
+        <button id="review-close">Close</button>
+      </div>
+      <canvas id="review-chart"></canvas>
+      <div class="legend" id="review-legend"></div>
+      <div class="detail-cols">
+        <div>
+          <h2>Verdict</h2>
+          <div id="review-verdict"></div>
+        </div>
+        <div>
+          <h2>What happened</h2>
+          <div class="logbox" id="review-log"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let token = null, currentId = null, timer = null, confirming = null;
+let detailId = null;   // student whose drill-down is open, if any
+
+async function api(path, options) {
+  const opts = Object.assign({headers: {}}, options || {});
+  opts.headers["Content-Type"] = "application/json";
+  if (token) opts.headers["Authorization"] = "Bearer " + token;
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.text()) || r.status);
+  return r.status === 204 ? null : r.json();
+}
+
+function detail(e) {
+  try { return JSON.parse(e.message).detail || e.message; }
+  catch (_) { return e.message; }
+}
+
+/* ------------------------------- login -------------------------------- */
+async function login() {
+  $("login-err").textContent = "";
+  try {
+    const body = await api("/api/instructor/login",
+      {method: "POST", body: JSON.stringify({password: $("pw").value})});
+    token = body.token;
+    sessionStorage.setItem("wc_instructor_token", token);
+    $("login").classList.add("hidden");
+    $("console").classList.remove("hidden");
+    await loadScenarios();
+    await loadFaultKinds();
+    await refreshClasses();
+    loadRecordings();
+    timer = setInterval(tick, 1000);
+  } catch (e) { $("login-err").textContent = detail(e); }
+}
+$("login-go").onclick = login;
+$("pw").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+
+$("logout").onclick = async () => {
+  clearInterval(timer);
+  try { await api("/api/instructor/logout", {method: "POST"}); } catch (_) {}
+  sessionStorage.removeItem("wc_instructor_token");
+  location.reload();
+};
+
+/* ---------------------------- class setup ----------------------------- */
+async function loadScenarios() {
+  const list = (await api("/api/scenarios")).scenarios;
+  // Free configuration first, then the library. Faults are never named -- the
+  // listing carries only that an exercise has some.
+  $("nc-scenario").innerHTML =
+    '<option value="">Shut-in kick (vertical, surface)</option>'
+    + list.map(s => `<option value="${s.key}">${s.name}`
+        + `${s.has_faults ? " — faults" : ""}</option>`).join("");
+}
+
+async function refreshClasses() {
+  const classes = (await api("/api/instructor/classes")).classes;
+  $("class-picker").innerHTML = classes.length
+    ? classes.map(c =>
+        `<option value="${c.classroom_id}">${c.name} (${c.student_count})</option>`
+      ).join("")
+    : '<option value="">No classes open</option>';
+  if (classes.length) {
+    if (!classes.some(c => c.classroom_id === currentId)) {
+      currentId = classes[0].classroom_id;
+    }
+    $("class-picker").value = currentId;
+    $("running").classList.remove("hidden");
+  } else {
+    currentId = null;
+    $("running").classList.add("hidden");
+  }
+}
+
+$("class-picker").addEventListener("change", () => {
+  currentId = $("class-picker").value || null;
+  tick();
+});
+
+$("new-class").onclick = () => $("new-panel").classList.remove("hidden");
+$("nc-cancel").onclick = () => $("new-panel").classList.add("hidden");
+
+$("nc-go").onclick = async () => {
+  $("nc-err").textContent = "";
+  try {
+    const made = await api("/api/instructor/classes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: $("nc-name").value,
+        scenario: $("nc-scenario").value || null,
+        capacity: Number($("nc-capacity").value),
+        ttl_hours: Number($("nc-ttl").value),
+      })
+    });
+    currentId = made.classroom_id;
+    $("new-panel").classList.add("hidden");
+    await refreshClasses();
+    tick();
+  } catch (e) { $("nc-err").textContent = detail(e); }
+};
+
+/* ------------------------------ controls ------------------------------ */
+document.querySelectorAll("[data-speed]").forEach(b => b.onclick = async () => {
+  if (!currentId) return;
+  await api(`/api/instructor/classes/${currentId}/speed`,
+    {method: "POST", body: JSON.stringify({speed: Number(b.dataset.speed)})});
+  tick();
+});
+$("pause").onclick = async () => {
+  if (currentId) { await api(`/api/instructor/classes/${currentId}/pause`,
+    {method: "POST"}); tick(); }
+};
+$("resume").onclick = async () => {
+  if (currentId) { await api(`/api/instructor/classes/${currentId}/resume`,
+    {method: "POST"}); tick(); }
+};
+$("close-class").onclick = async () => {
+  if (currentId) { await api(`/api/instructor/classes/${currentId}/close`,
+    {method: "POST"}); tick(); }
+};
+
+/* Ending a class throws everyone out, so it takes two clicks rather than a
+   modal dialog -- a browser confirm() would block the poll loop. */
+$("end-class").onclick = async () => {
+  if (!currentId) return;
+  if (confirming !== "end") {
+    confirming = "end";
+    $("end-class").textContent = "Really end it?";
+    setTimeout(() => {
+      if (confirming === "end") {
+        confirming = null; $("end-class").textContent = "End class";
+      }
+    }, 4000);
+    return;
+  }
+  confirming = null; $("end-class").textContent = "End class";
+  await api(`/api/instructor/classes/${currentId}`, {method: "DELETE"});
+  currentId = null;
+  await refreshClasses();
+};
+
+/* -------------------------------- grid -------------------------------- */
+function severity(t) {
+  if (t.shoe_broken) return ["critical", "Shoe broken down"];
+  if (t.over_maasp) return ["critical", "Over MAASP"];
+  if (t.well_is_dead) return ["good", "Well dead"];
+  if (t.additional_influx_bbl > 1.0) return ["serious", "Taking influx"];
+  if (Math.abs(t.overbalance_psi) > 200) return ["warning", "Off bottomhole"];
+  return ["good", t.status];
+}
+
+const ICON = {good: "●", warning: "▲", serious: "▲", critical: "■"};
+
+function tileHtml(t) {
+  const [level, label] = severity(t);
+  const psi = v => v === null || v === undefined ? "—" : v.toLocaleString();
+  const ob = t.overbalance_psi;
+  const shoe = t.frac_psi
+    ? `${psi(t.shoe_psi)} / ${psi(t.frac_psi)} psi` : `${psi(t.shoe_psi)} psi`;
+  return `
+    <div class="tile ${level}">
+      <div class="tile-head">
+        <span class="dot ${t.connected ? "" : "off"}"></span>
+        <span class="tile-name">${escapeHtml(t.name)}</span>
+        <span class="chip ${level}">${ICON[level]} ${label}</span>
+      </div>
+      <div class="readout">
+        <div class="r"><span class="k">Drill pipe</span>
+             <span class="v">${psi(t.drill_pipe_psi)}</span></div>
+        <div class="r"><span class="k">Casing</span>
+             <span class="v">${psi(t.casing_psi)}</span></div>
+        <div class="r"><span class="k">Pit gain</span>
+             <span class="v">${t.pit_gain_bbl} bbl</span></div>
+        <div class="r"><span class="k">Choke</span>
+             <span class="v">${t.choke_percent}%</span></div>
+      </div>
+      <div class="truth">
+        Bottomhole <b>${psi(t.bottomhole_psi)}</b> psi
+        (<b>${ob >= 0 ? "+" : ""}${psi(ob)}</b> on formation)<br>
+        Shoe <b>${shoe}</b><br>
+        Influx <b>${t.influx_bbl}</b> bbl${
+          t.additional_influx_bbl > 0.1
+            ? ` &middot; <b>+${t.additional_influx_bbl}</b> since start` : ""}
+        ${t.connected ? "" :
+          `<br><span style="color:var(--muted)">Screen quiet ${t.quiet_s}s</span>`}
+        ${t.downhole_visible ? "" :
+          `<br><span style="color:var(--muted)">Still detecting — gauges masked</span>`}
+      </div>
+      <div class="tile-actions">
+        <button class="detail" data-detail="${t.student_id}">Look</button>
+        <button data-restart="${t.student_id}">Restart</button>
+        <button data-drop="${t.student_id}">Drop</button>
+      </div>
+    </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+let ticks = 0;
+
+async function tick() {
+  if (!currentId) return;
+  // The picker carries each class's head count, which goes stale as people
+  // join. Refreshing it every tick would rebuild the dropdown under the
+  // instructor's cursor, so it is done occasionally instead.
+  if (++ticks % 10 === 0) {
+    try { await refreshClasses(); } catch (_) {}
+  }
+  let grid;
+  try {
+    grid = await api(`/api/instructor/classes/${currentId}/monitor`);
+  } catch (e) { return; }
+
+  const c = grid.classroom;
+  $("code").textContent = c.open ? c.code : "CLOSED";
+  $("code-note").textContent = c.open
+    ? `${c.student_count} of ${c.capacity} seats · expires in `
+      + `${Math.round(c.seconds_remaining / 3600)}h`
+    : "No longer admitting. Students already in keep their wells.";
+  $("clock-note").textContent = c.paused
+    ? "Paused — no well is moving." : `Running at ${c.speed}×`;
+  document.querySelectorAll("[data-speed]").forEach(b =>
+    b.classList.toggle("on", !c.paused && Number(b.dataset.speed) === c.speed));
+
+  $("empty").classList.toggle("hidden", grid.students.length > 0);
+  $("grid").innerHTML = grid.students.map(tileHtml).join("");
+  fillFaultTargets(grid.students);
+  if (detailId) loadDetail();
+
+  document.querySelectorAll("[data-detail]").forEach(b => b.onclick = () => {
+    detailId = b.dataset.detail;
+    $("detail").classList.remove("hidden");
+    loadDetail();
+  });
+  document.querySelectorAll("[data-restart]").forEach(b => b.onclick = async () => {
+    await api(`/api/instructor/classes/${currentId}`
+      + `/students/${b.dataset.restart}/restart`, {method: "POST"});
+    tick();
+  });
+  document.querySelectorAll("[data-drop]").forEach(b => b.onclick = async () => {
+    if (confirming !== b.dataset.drop) {
+      confirming = b.dataset.drop; b.textContent = "Sure?";
+      setTimeout(() => { if (confirming === b.dataset.drop) confirming = null; }, 4000);
+      return;
+    }
+    confirming = null;
+    await api(`/api/instructor/classes/${currentId}`
+      + `/students/${b.dataset.drop}`, {method: "DELETE"});
+    tick();
+  });
+}
+
+/* ---------------------------- fault induction --------------------------- */
+async function loadFaultKinds() {
+  const kinds = (await api("/api/fault-kinds")).kinds;
+  $("fault-kind").innerHTML = kinds
+    .map(k => `<option value="${k.kind}">${escapeHtml(k.label)}</option>`).join("");
+}
+
+function fillFaultTargets(students) {
+  const picker = $("fault-target");
+  const chosen = picker.value;
+  picker.innerHTML = '<option value="">Whole class</option>'
+    + students.map(t =>
+        `<option value="${t.student_id}">${escapeHtml(t.name)}</option>`).join("");
+  // Do not move the instructor's selection out from under them mid-poll.
+  if (students.some(t => t.student_id === chosen)) picker.value = chosen;
+}
+
+$("fault-go").onclick = async () => {
+  if (!currentId) return;
+  const body = {
+    kind: $("fault-kind").value,
+    message: $("fault-message").value || "",
+  };
+  const target = $("fault-target").value;
+  if (target) body.student_id = target;
+  try {
+    const r = await api(`/api/instructor/classes/${currentId}/faults`,
+      {method: "POST", body: JSON.stringify(body)});
+    $("fault-note").textContent =
+      `Broken for ${r.count} ${r.count === 1 ? "student" : "students"}. `
+      + "They see a rig fault and nothing else.";
+    $("fault-message").value = "";
+  } catch (e) { $("fault-note").textContent = detail(e); }
+  tick();
+};
+
+/* ------------------------------ drill-down ------------------------------ */
+$("detail-close").onclick = () => {
+  detailId = null; $("detail").classList.add("hidden");
+};
+
+$("detail-record").onclick = async () => {
+  if (!currentId || !detailId) return;
+  try {
+    await api(`/api/instructor/classes/${currentId}/students/${detailId}/record`,
+      {method: "POST"});
+    loadRecordings();
+  } catch (e) { console.error(e); }
+};
+
+async function loadDetail() {
+  if (!currentId || !detailId) return;
+  let d;
+  try {
+    d = await api(`/api/instructor/classes/${currentId}/students/${detailId}`);
+  } catch (e) { detailId = null; $("detail").classList.add("hidden"); return; }
+
+  $("detail-name").textContent = d.student.name;
+
+  const g = d.gauges, iv = d.instructor_view;
+  const cell = (k, v) => `<div class="r"><span class="k">${k}</span>
+    <span class="v">${v}</span></div>`;
+  const num = (v, dp = 0) =>
+    (v === null || v === undefined) ? "—" : Number(v).toFixed(dp);
+  $("detail-gauges").innerHTML =
+    cell("Drill pipe", num(g.drill_pipe_psi)) +
+    cell("Casing", num(g.casing_psi)) +
+    cell("Pit gain", num(g.pit_gain_bbl, 1)) +
+    cell("Choke %", num(g.choke_percent, 1)) +
+    cell("Strokes", num(g.strokes)) +
+    cell("Pump spm", num(g.pump_spm, 1)) +
+    cell("Bottomhole", num(iv.bottomhole_psi)) +
+    cell("On formation", (iv.overbalance_psi >= 0 ? "+" : "") + num(iv.overbalance_psi)) +
+    cell("Shoe", num(iv.shoe_psi)) +
+    cell("Trip tank", num(g.trip_tank.change_bbl, 2));
+
+  const sheet = d.kill_sheet;
+  $("detail-sheet").innerHTML = sheet.available
+    ? `<div style="font-family:ui-monospace,Consolas,monospace;font-size:12px">
+         SIDPP ${sheet.sidpp_psi} psi &middot; SICP ${sheet.sicp_psi} psi<br>
+         Kill mud ${sheet.kill_mud_weight_ppg} ppg &middot;
+         ICP ${sheet.icp_psi} &rarr; FCP ${sheet.fcp_psi} psi<br>
+         Strokes to bit ${sheet.strokes_to_bit} &middot;
+         total ${sheet.total_strokes}<br>
+         <span style="color:var(--muted)">Now: ${sheet.actual_strokes} strokes,
+         ${sheet.actual_drill_pipe_psi} psi drill pipe</span>
+       </div>`
+    : `<span style="color:var(--muted)">${escapeHtml(sheet.reason || "Not yet.")}</span>`;
+
+  $("detail-log").innerHTML = d.events.events.length
+    ? d.events.events.slice(-80).map(e =>
+        `<div class="${e.severity}">${e.clock} &nbsp;${escapeHtml(e.message)}</div>`
+      ).reverse().join("")
+    : '<div style="color:var(--muted)">Nothing logged yet.</div>';
+}
+
+/* ------------------------------ recordings ------------------------------ */
+async function loadRecordings() {
+  let rows;
+  try { rows = (await api("/api/instructor/recordings")).recordings; }
+  catch (e) { return; }
+  $("reclist").innerHTML = rows.length
+    ? rows.map(r => `
+      <div class="recrow">
+        <span class="who">${escapeHtml(r.student_name || "—")}</span>
+        <span>${escapeHtml(r.scenario || r.classroom_name || "")}</span>
+        <span class="when">${escapeHtml((r.recorded_at || "").replace("T", " ").slice(0, 16))}</span>
+        <span>${Math.round((r.duration_s || 0) / 60)} min</span>
+        <span class="grade ${r.passed ? "pass" : "fail"}">${
+          escapeHtml(r.grade || "—")}</span>
+        <button data-recview="${r.recording_id}">View</button>
+        <button data-recdel="${r.recording_id}">Delete</button>
+      </div>`).join("")
+    : '<div class="empty">No runs kept yet.</div>';
+
+  document.querySelectorAll("[data-recview]").forEach(b => b.onclick = () =>
+    openRecording(b.dataset.recview));
+  document.querySelectorAll("[data-recdel]").forEach(b => b.onclick = async () => {
+    if (confirming !== b.dataset.recdel) {
+      confirming = b.dataset.recdel; b.textContent = "Sure?";
+      setTimeout(() => { if (confirming === b.dataset.recdel) confirming = null; }, 4000);
+      return;
+    }
+    confirming = null;
+    await api(`/api/instructor/recordings/${b.dataset.recdel}`, {method: "DELETE"});
+    loadRecordings();
+  });
+}
+$("rec-refresh").onclick = loadRecordings;
+
+/* -------------------------------- review -------------------------------- */
+/* Drawing a recording, not re-running it. The run already happened; a
+   re-simulation could disagree with what the student actually saw, which
+   would make it useless as evidence. */
+const REVIEW_SERIES = [
+  {key: "drill_pipe_psi", label: "Drill pipe", colour: "#3987e5"},
+  {key: "casing_psi", label: "Casing", colour: "#c98500"},
+  {key: "bottomhole_psi", label: "Bottomhole", colour: "#199e70"},
+  {key: "shoe_psi", label: "Shoe", colour: "#9085e9"},
+];
+
+$("review-close").onclick = () => $("review").classList.add("hidden");
+
+async function openRecording(id) {
+  let rec;
+  try { rec = await api(`/api/instructor/recordings/${id}`); }
+  catch (e) { return; }
+
+  $("review").classList.remove("hidden");
+  $("review-name").textContent =
+    `${rec.student_name || "—"} · ${(rec.recorded_at || "").replace("T", " ").slice(0, 16)}`;
+
+  const d = rec.debrief || {};
+  $("review-verdict").innerHTML =
+    `<div style="font-size:15px;font-weight:700;margin-bottom:8px">`
+    + `${escapeHtml(d.grade || "—")}`
+    + `<span style="color:var(--muted);font-weight:400;font-size:12px">`
+    + ` · ${d.killed ? "well killed" : "not killed"}`
+    + ` · ${Math.round(d.duration_min || 0)} min</span></div>`
+    + (d.metrics || []).map(m => `
+      <div class="metric ${m.passed ? "passed" : "failed"}">
+        <span class="mname">${escapeHtml(m.name)}</span>
+        <span class="mval">${m.value}${m.limit === null ? "" : " / " + m.limit}
+          ${escapeHtml(m.unit || "")}</span>
+      </div>`).join("");
+
+  $("review-log").innerHTML = (rec.events || []).length
+    ? rec.events.map(e =>
+        `<div class="${e.severity}">${e.clock} &nbsp;${escapeHtml(e.message)}</div>`
+      ).join("")
+    : '<div style="color:var(--muted)">Nothing logged.</div>';
+
+  drawReview(rec.trace || []);
+}
+
+function drawReview(rows) {
+  const c = $("review-chart");
+  const ratio = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return;
+  c.width = w * ratio; c.height = h * ratio;
+  const x = c.getContext("2d"); x.scale(ratio, ratio); x.clearRect(0, 0, w, h);
+
+  const present = REVIEW_SERIES.filter(s =>
+    rows.some(p => p[s.key] !== undefined && p[s.key] !== null));
+  $("review-legend").innerHTML = present.map(s =>
+    `<span><i style="background:${s.colour}"></i>${s.label}</span>`).join("");
+  if (rows.length < 2 || !present.length) return;
+
+  const pad = {l: 52, r: 12, t: 10, b: 20};
+  let lo = Infinity, hi = -Infinity;
+  rows.forEach(p => present.forEach(s => {
+    const v = p[s.key];
+    if (v === undefined || v === null) return;
+    lo = Math.min(lo, v); hi = Math.max(hi, v);
+  }));
+  if (!isFinite(lo)) return;
+  if (hi - lo < 10) hi = lo + 10;
+
+  const t0 = rows[0].time_s, t1 = rows[rows.length - 1].time_s || t0 + 1;
+  const X = t => pad.l + (t - t0) / Math.max(1e-9, t1 - t0) * (w - pad.l - pad.r);
+  const Y = v => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b);
+
+  x.strokeStyle = "#2a2a26"; x.fillStyle = "#86857c";
+  x.font = "10px ui-monospace, Consolas, monospace"; x.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + (hi - lo) * i / 4, y = Math.round(Y(v)) + 0.5;
+    x.beginPath(); x.moveTo(pad.l, y); x.lineTo(w - pad.r, y); x.stroke();
+    x.fillText(Math.round(v).toLocaleString(), 4, y + 3);
+  }
+  x.fillText(`${Math.round((t1 - t0) / 60)} min`, w - pad.r - 40, h - 6);
+
+  present.forEach(s => {
+    x.strokeStyle = s.colour; x.lineWidth = 2; x.beginPath();
+    let started = false;
+    rows.forEach(p => {
+      const v = p[s.key];
+      if (v === undefined || v === null) return;
+      const px = X(p.time_s), py = Y(v);
+      if (!started) { x.moveTo(px, py); started = true; } else x.lineTo(px, py);
+    });
+    x.stroke();
+  });
+}
+
+
+/* Resume a signed-in console across a reload. sessionStorage rather than
+   localStorage: closing the tab should end the session. */
+const saved = sessionStorage.getItem("wc_instructor_token");
+if (saved) {
+  token = saved;
+  api("/api/instructor/classes").then(async () => {
+    $("login").classList.add("hidden");
+    $("console").classList.remove("hidden");
+    await loadScenarios();
+    await loadFaultKinds();
+    await refreshClasses();
+    loadRecordings();
+    tick();
+    timer = setInterval(tick, 1000);
+  }).catch(() => sessionStorage.removeItem("wc_instructor_token"));
+}
+</script>
+</body>
+</html>

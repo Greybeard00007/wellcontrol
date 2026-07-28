@@ -365,12 +365,17 @@ class TestScreens:
         assert response.status_code == 200
         assert "Well Control Simulator" in response.text
 
-    def test_all_seven_screens_exist(self, client):
+    def test_every_operator_screen_exists(self, client):
+        """The screens the reference console has, plus ours.
+
+        Manifolds are two screens rather than one because they are two panels
+        in two places, and a student is sent to one or the other.
+        """
         text = client.get("/").text
-        for screen in ("driller", "choke", "bop", "manifolds", "well",
-                       "sheet", "debrief"):
-            assert f'data-screen="{screen}"' in text
-            assert f'id="s-{screen}"' in text
+        for screen in ("choke", "dcu", "bop", "spmanifold", "chokemanifold",
+                       "triptank", "trends", "well", "sheet", "debrief"):
+            assert f'data-screen="{screen}"' in text, screen
+            assert f'id="s-{screen}"' in text, screen
 
     def test_both_bop_panels_are_drawn(self, client):
         """A rig has two: a red remote panel, and a subsea monitoring screen."""
@@ -397,10 +402,61 @@ class TestScreens:
         assert 'id="standpipe"' in text
         assert 'id="ckmanifold"' in text
 
-    def test_the_drillers_console_carries_its_instruments(self, client):
+    def test_the_dcu_carries_its_instruments(self, client):
+        """The gauges a kick is *noticed* on, which is a different job from
+        the choke panel next door where something is done about it."""
         text = client.get("/").text
-        for element in ("d-spp", "d-spm", "d-pit", "d-flow", "d-hook", "d-tt"):
-            assert element in text
+        for element in (
+            "dial-pit",      # pit deviation, LOSS/GAIN either side of centre
+            "dial-flow",     # return flow
+            "dial-p1", "dial-p2",   # both mud pumps
+            "d-stk", "d-bit", "d-hole", "d-hook",
+            "d-active", "d-reserve",
+        ):
+            assert element in text, element
+
+    def test_the_dcu_alarms_have_set_points_and_lamps(self, client):
+        text = client.get("/").text
+        for element in (
+            "sp-pit-low", "sp-pit-high", "sp-flow-low", "sp-flow-high",
+            "lamp-pit-high", "lamp-flow-high", "arm-pit", "arm-flow",
+        ):
+            assert element in text, element
+
+    def test_the_trip_tank_screen_is_operable(self, client):
+        """Both halves of the lineup, and a way to mark the tank."""
+        text = client.get("/").text
+        for element in (
+            'data-tt="trip_tank_fillup"', 'data-tt="trip_tank_fill"',
+            'data-tt="trip_tank_drain"', 'data-tt="pit_transfer"',
+            'data-valve-toggle="trip_tank_valve"',
+            'data-zero="trip_tank"', "tt-service",
+        ):
+            assert element in text, element
+
+    def test_the_choke_bank_offers_all_four(self, client):
+        text = client.get("/").text
+        assert "choke-bank" in text
+        for name in ("choke_1", "choke_2", "manual_choke_1", "manual_choke_2"):
+            assert name in text, name
+
+    def test_the_dcu_carries_the_drilling_instruments(self, client):
+        """WOB, torque, rotary and rate -- and the auto-driller a real rig
+        mostly leaves on."""
+        text = client.get("/").text
+        for element in (
+            "dial-wob", "dial-torque", "dial-rpm", "dial-rop",
+            "set-wob", "set-rpm", "auto-driller",
+        ):
+            assert element in text, element
+
+    def test_the_trends_screen_offers_both_views(self, client):
+        """Stacked tracks by default, with the commercial panel's overlaid
+        parallel-axis form available for students who will sit that box."""
+        text = client.get("/").text
+        assert 'value="tracks" selected' in text
+        assert 'value="parallel"' in text
+        assert 'value="strokes"' in text, "should plot against strokes too"
 
     def test_stripping_is_operable(self, client):
         """The engine has supported it for a while; the panel now reaches it."""
