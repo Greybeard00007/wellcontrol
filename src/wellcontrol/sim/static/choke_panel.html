@@ -1432,6 +1432,39 @@ function pad(value, width) {
   return String(Math.max(0, Math.round(value || 0))).padStart(width, "0");
 }
 
+/* Press G to overlay the face's own coordinate system.
+   The panel is one SVG at a fixed viewBox, so with the grid up a layout note
+   can be exact -- "choke position to 600,240, r 90" -- instead of a paragraph
+   of prose that has to be interpreted. Off by default; it is a design tool,
+   not part of the panel. */
+let showGrid = false;
+document.addEventListener("keydown", e => {
+  if (e.key === "g" || e.key === "G") {
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test((e.target.tagName || ""))) return;
+    showGrid = !showGrid;
+    if (lastGauges) redraw(), paint(lastGauges);
+  }
+});
+
+function gridOverlay(w, h, step) {
+  const b = [];
+  for (let x = 0; x <= w; x += step) {
+    const major = x % (step * 2) === 0;
+    b.push(`<line x1="${x}" y1="0" x2="${x}" y2="${h}" stroke="#0a0d10"
+      stroke-width="${major ? 1 : 0.4}" opacity="${major ? 0.5 : 0.25}"/>`);
+    if (major) b.push(`<text x="${x + 3}" y="12" fill="#0a0d10" font-size="10"
+      font-family="Consolas, monospace" opacity="0.75">${x}</text>`);
+  }
+  for (let y = 0; y <= h; y += step) {
+    const major = y % (step * 2) === 0;
+    b.push(`<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="#0a0d10"
+      stroke-width="${major ? 1 : 0.4}" opacity="${major ? 0.5 : 0.25}"/>`);
+    if (major) b.push(`<text x="3" y="${y - 3}" fill="#0a0d10" font-size="10"
+      font-family="Consolas, monospace" opacity="0.75">${y}</text>`);
+  }
+  return b.join("");
+}
+
 function drawChokeFace(g) {
   const host = $("chokeface");
   if (!host) return;
@@ -1499,6 +1532,7 @@ function drawChokeFace(g) {
   b.push(stepper(1086, 594, 148, "Pump 2",
     pad(g.pumps[1].spm, 3), "p2-", "p2+", "spm"));
 
+  if (showGrid) b.push(gridOverlay(1440, 640, 40));
   host.innerHTML = b.join("");
 
   wireFace(host, g);
@@ -1817,6 +1851,7 @@ function drawDcuFace(g) {
   b.push(faceButton(956, 490, 104, 30,
     dr.auto_driller ? "Auto ON" : "Auto OFF", "auto", dr.auto_driller));
 
+  if (showGrid) b.push(gridOverlay(1080, 560, 40));
   host.innerHTML = b.join("");
   wireFace(host, g);
 }

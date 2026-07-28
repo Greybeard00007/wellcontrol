@@ -409,6 +409,44 @@ host survives because only its contents change, and the current gauges hang off
 it (`host._gauges`) rather than being captured in a closure that would go stale
 with them.
 
+### The agreed choke panel, and who controls what
+
+`simulator_screens/choke_panel_exact.jpg` is the **approved layout** for the
+choke panel — build to it verbatim. Casing gauge **left**, drill pipe
+**right** (deliberate, and confirmed: transposed from the reference box, which
+does not matter for this audience). Both gauges dominate the face. The centre
+is a single vertical control stack — choke position, joystick, Choke2/Choke1
+selector, choke control — so everything about the choke reads top to bottom in
+one line. Mud pumps bottom left with RESET above the counter it resets. The
+lamp row stays below the panel: *Above MAASP* and *Well dead* are worth
+peripheral vision even though the mockup omits them.
+
+`simulator_screens/current_screens/` holds screenshots of every screen as it
+stood on 27 July, for comparison.
+
+**The split of control between student and instructor is settled:**
+
+| | Student | Instructor |
+| --- | --- | --- |
+| Which exercise | no | yes |
+| Play / pause / stop their own run | yes | — |
+| See what speed they are running at | yes, read-only | — |
+| Change the speed multiplier | **no** | yes |
+| Auto choke | no | yes — can put a student on it |
+
+**A student never picks the speed.** They get a transport — play, pause, stop —
+and an indicator showing the multiplier they are on. Speeding a student up is
+the instructor's call, because the whole point of 10x is to skip the long
+circulating stretches on the instructor's schedule, not the student's.
+
+**Auto choke is new engine work.** The instructor can put a student's well on
+an automatic choke that holds bottomhole pressure — the same PD controller the
+autopilot in `tests/test_simulator.py` uses to validate the forward model
+against the inverse one, promoted out of the tests and into the engine. It
+needs its derivative term for the reason given there: proportional control
+alone limit-cycles at about 65 psi on a 25-second period, which is a mediocre
+driller rather than an automatic one.
+
 ### Open: a 422 on two of the controls
 
 The choke selector and the travel-speed steppers reach the server and come back
