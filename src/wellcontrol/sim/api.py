@@ -178,6 +178,19 @@ class PumpCommand(BaseModel):
     pump: int = Field(default=1, ge=1, le=2, description="Rig pump 1 or 2.")
 
 
+class ChokeSpeedCommand(BaseModel):
+    percent_per_second: float = Field(
+        ge=1.0, le=40.0,
+        description="How fast the choke travels. The knob beside the joystick.",
+    )
+
+
+class ChokeSelectCommand(BaseModel):
+    choke: str = Field(
+        description="choke_1, choke_2, manual_choke_1 or manual_choke_2."
+    )
+
+
 class RotaryCommand(BaseModel):
     rpm: float = Field(ge=0.0, le=250.0)
 
@@ -431,6 +444,19 @@ def instructor_page() -> FileResponse:
     return FileResponse(STATIC / "instructor.html")
 
 
+@app.get("/instructor/panel", include_in_schema=False)
+def instructor_panel() -> FileResponse:
+    """A student's own screens, for the instructor to watch.
+
+    Serves the *same page the student is looking at*. It reads the class and
+    student from the query string and polls the instructor's drill-down
+    endpoint instead of /api/me, so what appears is genuinely their panel --
+    their gauges, their lineup, their lamps -- rather than a second rendering
+    of the same numbers that could drift from it.
+    """
+    return FileResponse(STATIC / "choke_panel.html")
+
+
 @app.get("/api/speeds")
 def speeds() -> dict:
     return {"speeds": list(SPEEDS)}
@@ -504,6 +530,22 @@ def set_pump(session_id: str, body: PumpCommand) -> dict:
     session.set_pump(body.spm, body.pump)
     return {"gauges": session.gauges()}
 
+
+@app.post("/api/sessions/{session_id}/chokespeed")
+def set_choke_speed(session_id: str, body: ChokeSpeedCommand) -> dict:
+    session = _session(session_id)
+    session.set_choke_speed(body.percent_per_second)
+    return {"gauges": session.gauges()}
+
+
+@app.post("/api/sessions/{session_id}/chokeselect")
+def select_choke(session_id: str, body: ChokeSelectCommand) -> dict:
+    session = _session(session_id)
+    try:
+        session.select_choke(body.choke)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"gauges": session.gauges(), "lineup": session.lineup()}
 
 @app.post("/api/sessions/{session_id}/rotary")
 def set_rotary(session_id: str, body: RotaryCommand) -> dict:
@@ -1009,6 +1051,30 @@ def my_pump(
     student.session.set_pump(body.spm, body.pump)
     return {"gauges": student.session.gauges()}
 
+
+@app.post("/api/me/chokespeed")
+@exclusive
+def my_choke_speed(
+    body: ChokeSpeedCommand,
+    who: tuple[Classroom, Student] = Depends(require_student),
+) -> dict:
+    _, student = who
+    student.session.set_choke_speed(body.percent_per_second)
+    return {"gauges": student.session.gauges()}
+
+
+@app.post("/api/me/chokeselect")
+@exclusive
+def my_choke_select(
+    body: ChokeSelectCommand,
+    who: tuple[Classroom, Student] = Depends(require_student),
+) -> dict:
+    _, student = who
+    try:
+        student.session.select_choke(body.choke)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"gauges": student.session.gauges(), "lineup": student.session.lineup()}
 
 @app.post("/api/me/rotary")
 @exclusive

@@ -420,9 +420,33 @@ class TestScreens:
             "Bit Depth (ft)", "Well Depth (ft)",
             "Stand Pipe Pressure",
             "Pump 1 Stroke Rate", "Pump 2 Stroke Rate",
-            "WOB Set Point (kilo-lbs)", "Auto Driller",
+            "Drawworks", "Top Drive", "Rotary", "Hookload",
         ):
             assert label in text, label
+
+    def test_every_face_control_is_dispatched(self, client):
+        """A control drawn but not handled is worse than one absent.
+
+        A student learns the panel and then finds half of it inert. So every
+        `data-face` value the faces draw has to appear in faceAction's switch.
+        """
+        import re
+
+        text = client.get("/").text
+        drawn = set(re.findall(r'data-face="([a-z0-9+-]+)"', text))
+        drawn -= {"${act}", "none"}
+        handled = set(re.findall(r'case "([a-z0-9+-]+)":', text))
+        # The joystick and block lever are dragged, not clicked.
+        missing = drawn - handled - {"stick"}
+        assert not missing, f"drawn but not handled: {sorted(missing)}"
+
+    def test_the_choke_panel_carries_the_pump_controls(self, client):
+        """The driller brings the pump to kill rate while watching these two
+        gauges, so the reference keeps the pumps on this panel."""
+        text = client.get("/").text
+        assert "Mud Pumps" in text
+        for act in ('"p1-"', '"p1+"', '"p2-"', '"p2+"'):
+            assert act in text, act
 
     def test_the_pit_deviation_gauge_reads_loss_and_gain(self, client):
         """Bipolar with zero centred: the question is whether the needle has

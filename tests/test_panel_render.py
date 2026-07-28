@@ -59,6 +59,7 @@ function element(id) {
     getContext: () => ctx(),
     closest: () => null,
     querySelectorAll: () => [],
+    querySelector: () => null,
     getBoundingClientRect: () => ({left: 0, top: 0, width: 600, height: 200}),
   };
   el.nextElementSibling = {textContent: ""};

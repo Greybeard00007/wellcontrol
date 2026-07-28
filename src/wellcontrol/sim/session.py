@@ -275,6 +275,41 @@ class Session:
             )
         chokes[choke].command(float(percent))
 
+    def set_choke_speed(self, percent_per_second: float) -> None:
+        """How fast the choke travels when the handle is moved.
+
+        The speed knob beside the joystick. It matters more than it looks: a
+        choke that slams shut takes a pressure spike the well has to absorb,
+        and a choke that crawls loses the driller the moment they were
+        reacting to. Learning to pick the rate is part of learning the panel.
+        """
+        self.advance()
+        rate = max(1.0, min(float(percent_per_second), 40.0))
+        for choke in self.simulator.chokes.values():
+            choke.travel_rate = rate
+
+    def select_choke(self, name: str) -> None:
+        """Put one choke in service and isolate the others.
+
+        This is the rotary selector on the panel, and it is a *lineup* change
+        rather than a setting -- it opens one throttling valve and shuts the
+        rest, which is exactly what the switch does on the manifold.
+
+        Raises:
+            KeyError: if there is no such choke.
+        """
+        self.advance()
+        chokes = self.simulator.chokes
+        if name not in chokes:
+            raise KeyError(
+                f"No choke '{name}'. Available: {', '.join(sorted(chokes))}"
+            )
+        path = self.simulator.flow_path
+        for other in chokes:
+            path.set_valve(
+                other, ValveState.OPEN if other == name else ValveState.CLOSED
+            )
+
     def set_pump(self, spm: float, pump: int = 1) -> None:
         """Set a rig pump's speed. ``pump`` is 1 or 2.
 
@@ -491,6 +526,7 @@ class Session:
                 }
                 for name, choke in self.simulator.chokes.items()
             },
+            "choke_travel_rate": round(self.simulator.choke.travel_rate, 1),
             "choke_in_service": next(
                 (
                     valve.name
