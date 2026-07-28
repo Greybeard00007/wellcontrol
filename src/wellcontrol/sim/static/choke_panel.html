@@ -90,9 +90,16 @@
 
   /* The dark strip of screen-select keys along the bottom of the reference
      panel, brought to the top because that is where a browser expects tabs. */
+  /* `safe center` rather than plain `center`: centred flex items that overflow
+     spill off *both* ends, and the first tab becomes unreachable because there
+     is nothing to scroll back to. Safe alignment falls back to flex-start the
+     moment the strip is too narrow, which is exactly when centring stops
+     being worth having. */
   nav {
     display: flex; gap: 0; padding: 0 10px; background: #14181c;
     border-bottom: 2px solid #000; overflow-x: auto;
+    justify-content: center;
+    justify-content: safe center;
   }
   nav button {
     background: none; border: none; border-bottom: 3px solid transparent;
@@ -233,8 +240,17 @@
     background: var(--sunk); color: var(--readout); border: 1px solid #33383d;
     border-radius: 3px; padding: 4px 6px; }
   .setrow label { font-size: 11px; color: var(--dim); }
-  #dcuface { width: 100%; height: auto; display: block;
-    max-height: calc(100vh - 150px); margin: 0 auto 12px; }
+  /* Same treatment, and the same reason, as #chokeface: wall to wall, and no
+     `max-height`. The cap was not shrinking this face, it was **cutting it
+     off** -- measured at 369px tall against a natural 639, so the bottom row
+     of the DCU (standpipe and both pump rates) was simply not on the screen
+     and nothing said so. An SVG given an explicit width clips rather than
+     scales when you cap its height. */
+  #dcuface {
+    display: block; height: auto;
+    width: calc(100% + 32px);
+    margin: -16px -16px 12px;
+  }
   .armbtn.off { opacity: .55; text-decoration: line-through; }
 
   /* ---- choke bank ---- */
@@ -326,14 +342,23 @@
   /* The face fills the width and keeps its aspect; nothing reflows. */
   /* The face fits the viewport. A panel you scroll is not a panel: the
      whole point is that the scan is spatial and everything is in view. */
-  /* Width-driven, but capped by what the viewport has left after the header,
-     the tab strip and the lamp row -- 2.25 is the face's own aspect. A
-     `max-height` alone does not work here: with an explicit width the browser
-     clips the SVG rather than scaling it, which silently loses the pump block
-     off the bottom. Capping the width instead keeps the whole face on screen. */
+  /* **The face is bolted to the wall, so it goes wall to wall.** It fills the
+     viewport's full width and breaks out of `main`'s padding to do it -- the
+     negative margins cancel the 16px on three sides exactly, so there is no
+     slate showing beside it or above it. Console orange runs to the edge of
+     the screen the way it runs to the edge of the box on a rig.
+
+     Height follows from the width through the viewBox's own 2.25 aspect. It
+     is deliberately *not* capped against the viewport: capping the width to
+     fit the height is what left the dark strips down either side, and a
+     `max-height` is worse than useless here -- with an explicit width the
+     browser clips the SVG rather than scaling it, which silently loses the
+     pump block off the bottom. On a short screen the lamp row and the cards
+     below it scroll instead, which is the right thing to give up. */
   #chokeface {
-    width: 100%; height: auto; display: block; margin: 0 auto;
-    max-width: min(100%, calc((100vh - 200px) * 2.25));
+    display: block; height: auto;
+    width: calc(100% + 32px);
+    margin: -16px -16px 0;
   }
   .dials { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .dials.small { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
@@ -1412,8 +1437,15 @@ function joystick(cx, cy, moving) {
   /* The handle leans the way it is being pushed, about the pivot at the top
      of the boot. Without this the stick was a picture that never moved while
      the choke did, which is why it read as broken: on a rig the handle's
-     angle *is* the feedback that you are still commanding travel. */
-  const lean = (STICK.deflection / STICK.FULL) * STICK.MAX_LEAN_DEG;
+     angle *is* the feedback that you are still commanding travel.
+
+     **Negated, and it has to be.** `deflection` is positive to the left,
+     because left is open; SVG's rotate is positive *clockwise*, which swings
+     everything above the pivot -- shaft and ball -- to the right. Left drag,
+     right lean. The choke was going the right way the whole time and the
+     handle was reporting the opposite, which is a worse fault than either
+     direction being wrong: the panel disagreed with itself. */
+  const lean = -(STICK.deflection / STICK.FULL) * STICK.MAX_LEAN_DEG;
   b.push(`<g transform="rotate(${lean.toFixed(2)} ${cx} ${cy})">`);
   b.push(`<rect x="${cx - 10}" y="${cy - 44}" width="20" height="44" rx="5"
     fill="#c3cad0" stroke="#8b949c"/>`);

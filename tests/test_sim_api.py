@@ -479,9 +479,26 @@ class TestScreens:
         assert "STICK.deflection / STICK.FULL" in body
         # The handle leans, and springs back when let go.
         assert "MAX_LEAN_DEG" in text
-        assert "rotate(" in text.split("function joystick(")[1][:2000]
+        assert "rotate(" in text.split("function joystick(")[1][:2600]
         stop = text.split("function stopStick(")[1][:300]
         assert "STICK.deflection = 0" in stop
+
+    def test_the_handle_leans_the_way_it_is_pushed(self, client):
+        """The panel must not disagree with itself.
+
+        `deflection` is positive to the left because left is open, and SVG's
+        rotate is positive *clockwise*, which swings everything above the
+        pivot to the right. Unnegated, a left push opened the choke correctly
+        while the handle leaned right -- a worse fault than either direction
+        being wrong on its own, because the two halves of one control
+        contradicted each other.
+        """
+        text = client.get("/").text
+        assert "const lean = -(STICK.deflection / STICK.FULL)" in text
+        # And the open end of the arc is the end the handle opens towards.
+        assert '[[-1, "Open", "open"], [1, "Close", "close"]]' in text
+        assert "STICK.deflection = Math.max(-STICK.FULL," in text
+        assert "Math.min(STICK.FULL, from - e.clientX)" in text
 
     def test_the_student_has_a_transport_but_not_a_speed(self, client):
         """There is no solo mode: an instructor sets every run up, so the
@@ -681,6 +698,32 @@ class TestScreens:
 
 
 class TestPanel:
+
+    def test_the_face_runs_to_the_edges_of_the_screen(self, client):
+        """Console orange to the edge, like a box bolted into a room.
+
+        The negative margins cancel `main`'s padding exactly, so there is no
+        slate showing beside the face. A `max-height` must not come back: with
+        an explicit width the browser clips the SVG rather than scaling it,
+        and what goes off the bottom is the mud pump block.
+        """
+        text = client.get("/").text
+        for host in ("#chokeface {", "#dcuface {"):
+            face = text.split(host)[1].split("}")[0]
+            assert "width: calc(100% + 32px)" in face, host
+            assert "margin: -16px -16px" in face, host
+            # The DCU's cap was not shrinking that face, it was cutting it off:
+            # 369px tall against a natural 639, so the bottom row of the DCU
+            # was off the screen and nothing said so.
+            assert "max-height" not in face, host
+            assert "max-width" not in face, host
+
+    def test_the_screen_tabs_are_centred(self, client):
+        """`safe center`, not plain centring: centred flex items that overflow
+        spill off both ends and the first tab becomes unreachable."""
+        text = client.get("/").text
+        nav = text.split("\n  nav {")[1].split("}")[0]
+        assert "justify-content: safe center" in nav
 
     def test_the_panel_is_self_contained(self, client):
         """No CDN: the rig has no internet and neither should this."""

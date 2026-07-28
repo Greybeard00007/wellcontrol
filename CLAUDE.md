@@ -367,6 +367,24 @@ everything positioned on it, and the same will go for the rest. A gauge that
 moves because a column reflowed has stopped being readable without being read,
 which is the entire argument for a needle over a number.
 
+**And it goes wall to wall.** The face fills the viewport's full width and
+breaks out of `main`'s padding to do it (`width: calc(100% + 32px)` against
+`margin: -16px -16px`), so console orange runs to the edge of the screen the
+way it runs to the edge of the box on a rig. Height follows from the width
+through the viewBox's aspect and is deliberately **not** capped: fitting the
+height is what left dark strips down either side, and on a short screen the
+lamp row and the cards below it scroll instead, which is the right thing to
+give up. The screen-select tabs are centred over it with `justify-content:
+safe center` — plain `center` spills an overflowing strip off *both* ends and
+makes the first tab unreachable.
+
+**Never put a `max-height` on one of these faces.** An SVG given an explicit
+width *clips* rather than scales when its height is capped, and it does so
+silently. This was live on the DCU: measured at 369px tall against a natural
+639, so the bottom row of that screen — standpipe and both pump rates — was
+simply not being drawn, on a face whose whole purpose is that a kick is
+noticed on it. A test asserts neither face carries one.
+
 **Every control on the face must work.** The joystick drives the choke in 5%
 steps; decoration would be worse than nothing, because a student learns the
 panel and then finds half of it inert.
@@ -521,6 +539,12 @@ the actuator. Three things in `startStick` are load-bearing:
 - **The lean is redrawn on `requestAnimationFrame`, not on the poll.** A
   quarter second of lag on a control you are holding is the difference between
   a joystick and a form field.
+- **The lean is negated, and it has to be.** `deflection` is positive to the
+  left because left is open; SVG's `rotate` is positive *clockwise*, which
+  swings everything above the pivot to the right. Unnegated, a left push
+  opened the choke correctly while the handle leaned right — which is a worse
+  fault than either direction being wrong on its own, because the two halves
+  of one control contradicted each other. A test pins the sign.
 
 **Each mud pump has its own SHUTDOWN**, to the right of its steppers, so a
 pump row reads `−5 [spm] +5 SHUTDOWN`. Stepping down to zero is five or six
