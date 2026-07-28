@@ -215,6 +215,15 @@
     border-radius: 3px; padding: 3px 4px;
   }
   .setpoints .armbtn, .zero { grid-column: 1 / -1; margin-top: 5px; }
+  .setrow { display: flex; gap: 9px; align-items: center; flex-wrap: wrap;
+            margin-bottom: 7px; }
+  .setrow > span:first-child { min-width: 108px; }
+  .setrow input { width: 74px; font: 600 12px Consolas, monospace;
+    background: var(--sunk); color: var(--readout); border: 1px solid #33383d;
+    border-radius: 3px; padding: 4px 6px; }
+  .setrow label { font-size: 11px; color: var(--dim); }
+  #dcuface { width: 100%; height: auto; display: block;
+    max-height: calc(100vh - 150px); margin: 0 auto 12px; }
   .armbtn.off { opacity: .55; text-decoration: line-through; }
 
   /* ---- choke bank ---- */
@@ -304,7 +313,12 @@
   /* Dials. Two big ones for the pressures a kill is flown on, three smaller
      for the settings, exactly as the panel is laid out on a rig. */
   /* The face fills the width and keeps its aspect; nothing reflows. */
-  #chokeface { width: 100%; height: auto; display: block; }
+  /* The face fits the viewport. A panel you scroll is not a panel: the
+     whole point is that the scan is spatial and everything is in view. */
+  #chokeface {
+    width: 100%; height: auto; display: block;
+    max-height: calc(100vh - 150px); margin: 0 auto;
+  }
   .dials { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .dials.small { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
   .dials > div { max-width: 260px; margin: 0 auto; width: 100%; }
@@ -381,6 +395,9 @@
      to notice that something is wrong, which is a different job from the
      choke panel next door where they do something about it. -->
 <section class="screen" id="s-dcu">
+  <svg id="dcuface" viewBox="0 0 1200 620" role="img"
+       aria-label="Driller's console"></svg>
+
   <div class="card" id="briefing-card">
     <h2>Briefing</h2>
     <div style="font-weight:700;margin-bottom:5px;font-size:15px" id="brief-name">—</div>
@@ -393,62 +410,31 @@
   </div>
 
   <div class="card">
-    <h2>Driller's console</h2>
-    <div class="dcu-row">
-      <div>
-        <div id="dial-pit"></div>
-        <div class="alarm-box">
-          <div class="alarm-lamps">
-            <span id="lamp-pit-low"></span><span id="lamp-pit-high"></span>
-          </div>
-          <div class="setpoints">
-            <label>Low</label><input type="number" id="sp-pit-low" step="1">
-            <label>High</label><input type="number" id="sp-pit-high" step="1">
-            <button id="arm-pit" class="armbtn">Alarm</button>
-          </div>
-          <button class="zero" data-zero="pits">Zero pits</button>
-        </div>
-      </div>
-      <div>
-        <div id="dial-flow"></div>
-        <div class="alarm-box">
-          <div class="alarm-lamps">
-            <span id="lamp-flow-low"></span><span id="lamp-flow-high"></span>
-          </div>
-          <div class="setpoints">
-            <label>Low</label><input type="number" id="sp-flow-low" step="0.1">
-            <label>High</label><input type="number" id="sp-flow-high" step="0.1">
-            <button id="arm-flow" class="armbtn">Alarm</button>
-          </div>
-          <div class="note" id="flow-pct">&mdash;</div>
-        </div>
-      </div>
-      <div><div id="dial-spp2"></div></div>
-      <div><div id="dial-p1"></div></div>
-      <div><div id="dial-p2"></div></div>
+    <h2>Alarm set points</h2>
+    <div class="setrow">
+      <span><b>Pit deviation</b></span>
+      <label>Loss</label><input type="number" id="sp-pit-low" step="1">
+      <label>Gain</label><input type="number" id="sp-pit-high" step="1">
+      <button id="arm-pit" class="armbtn">Alarm</button>
+      <button class="zero" data-zero="pits">Zero pits</button>
     </div>
-
-    <!-- Making hole. The rate is the earliest kick indicator a rig
-         has: it rises when the mud stops holding the cuttings down. -->
-    <div class="dcu-row" style="margin-top:12px">
-      <div><div id="dial-wob"></div></div>
-      <div><div id="dial-torque"></div></div>
-      <div><div id="dial-rpm"></div></div>
-      <div><div id="dial-rop"></div></div>
-      <div>
-        <div class="alarm-box">
-          <div class="setpoints">
-            <label>WOB</label>
-            <input type="number" id="set-wob" step="1" min="0" max="60">
-            <label>RPM</label>
-            <input type="number" id="set-rpm" step="10" min="0" max="200">
-            <button id="auto-driller" class="armbtn">Auto driller</button>
-          </div>
-          <div class="note" id="rop-note">&mdash;</div>
-        </div>
-      </div>
+    <div class="setrow">
+      <span><b>Return flow</b></span>
+      <label>Low</label><input type="number" id="sp-flow-low" step="0.1">
+      <label>High</label><input type="number" id="sp-flow-high" step="0.1">
+      <button id="arm-flow" class="armbtn">Alarm</button>
+      <span class="note" id="flow-pct">&mdash;</span>
     </div>
+    <div class="setrow">
+      <span><b>Weight on bit</b></span>
+      <label>WOB</label><input type="number" id="set-wob" step="1" min="0" max="60">
+      <label>RPM</label><input type="number" id="set-rpm" step="10" min="0" max="200">
+      <button id="auto-driller" class="armbtn">Auto driller</button>
+      <span class="note" id="rop-note">&mdash;</span>
+    </div>
+  </div>
 
+  <div class="card">
     <div class="stats">
       <div class="s"><div class="k">Stroke counter</div><div class="v" id="d-stk">—</div></div>
       <div class="s"><div class="k">Bit depth (ft)</div><div class="v" id="d-bit">—</div></div>
@@ -522,12 +508,12 @@
 </section>
 
 <!-- ============================= CHOKE ============================= -->
-<section class="screen" id="s-choke">
+<section class="screen active" id="s-choke">
   <!-- The panel face. Positions come from the reference console, not from
        a layout engine: a driller's scan is spatial, and moving a gauge
        because a column reflowed would break the thing that makes it
        readable without being read. -->
-  <svg id="chokeface" viewBox="0 0 1200 640" role="img"
+  <svg id="chokeface" viewBox="0 0 1200 560" role="img"
        aria-label="Choke panel"></svg>
   <div class="lamps" id="lamps" style="margin:10px 0 14px"></div>
 
@@ -1195,163 +1181,164 @@ function dial(opts) {
    is. Everything below is positioned against that 1200x640 viewBox. */
 
 const FACE = {
-  dp:      {cx: 218, cy: 218, r: 148},
-  csg:     {cx: 982, cy: 218, r: 148},
-  chokePos:{cx: 1010, cy: 505, r: 96},
-  stick:   {cx: 600, cy: 455},
+  dp:       {cx: 196, cy: 196, r: 116},
+  csg:      {cx: 1004, cy: 196, r: 116},
+  chokePos: {cx: 1010, cy: 452, r: 84},
+  stick:    {cx: 600, cy: 430},
 };
 
+/* The reference instrument is a fixed 0-5000 psi / 0-350 bar gauge. Fixed
+   matters: a needle at two o'clock means the same pressure on every well, so
+   a driller reads position rather than digits. A scale that rescaled itself
+   to the well would destroy exactly that. */
+const GAUGE_PSI = 5000;
+const PSI_TICKS = [0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+const BAR_TICKS = [0, 50, 100, 150, 200, 250, 300, 350];
+const BAR_FULL = 350;
+
 function bolt(cx, cy) {
-  return `<circle cx="${cx}" cy="${cy}" r="5" fill="#8b949c" stroke="#333c44"/>`
-    + `<circle cx="${cx}" cy="${cy}" r="2" fill="#333c44"/>`;
+  return `<circle cx="${cx}" cy="${cy}" r="4" fill="#8b949c" stroke="#333c44"/>`
+    + `<circle cx="${cx}" cy="${cy}" r="1.6" fill="#333c44"/>`;
 }
 
-/* A rig pressure gauge: dark bolted bezel, white face, psi outer in black and
-   bar inner in red -- both scales, as the reference has. */
-function pressureGauge(cx, cy, r, value, maxPsi, label) {
+function pressureGauge(cx, cy, r, value, label) {
   const b = [];
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#454f59" stroke="#2b333b" stroke-width="3"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 14}" fill="#f4f6f7" stroke="#aab4bd" stroke-width="2"/>`);
+  const A = 135, SW = 270;
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#4a545e" stroke="#2b333b" stroke-width="3"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 11}" fill="#f5f7f8" stroke="#aab4bd" stroke-width="1.5"/>`);
   [[-0.72, -0.72], [0.72, -0.72], [-0.72, 0.72], [0.72, 0.72]].forEach(
     ([dx, dy]) => b.push(bolt(cx + dx * r, cy + dy * r)));
 
-  const A = 135, SW = 270;
-  const maxBar = maxPsi / 14.5038;
-  // psi: outer ring, black.
-  for (let i = 0; i <= 40; i++) {
-    const f = i / 40, major = i % 4 === 0;
-    const deg = A + f * SW;
-    const [x1, y1] = polar(cx, cy, r - 18, deg);
-    const [x2, y2] = polar(cx, cy, r - (major ? 30 : 24), deg);
-    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="${major ? 2 : 1}"/>`);
-    if (major) {
-      const [tx, ty] = polar(cx, cy, r - 42, deg);
-      b.push(`<text x="${tx}" y="${ty + 4}" text-anchor="middle" fill="#1d252c"
-        font-size="12" font-family="system-ui">${Math.round(maxPsi * f)}</text>`);
-    }
+  // psi, outer, black -- 500 psi majors with four minors between.
+  for (let i = 0; i <= 50; i++) {
+    const f = i / 50, major = i % 5 === 0, deg = A + f * SW;
+    const [x1, y1] = polar(cx, cy, r - 14, deg);
+    const [x2, y2] = polar(cx, cy, r - (major ? 24 : 19), deg);
+    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="${major ? 2 : 0.8}"/>`);
   }
-  // bar: inner ring, red -- the second scale every rig gauge carries.
-  for (let i = 0; i <= 7; i++) {
-    const f = i / 7, deg = A + f * SW;
-    const [tx, ty] = polar(cx, cy, r - 66, deg);
-    b.push(`<text x="${tx}" y="${ty + 4}" text-anchor="middle" fill="#c0392b"
-      font-size="11" font-family="system-ui">${Math.round(maxBar * f / 50) * 50}</text>`);
-  }
-  b.push(`<text x="${cx}" y="${cy + r - 44}" text-anchor="middle" fill="#c0392b"
-    font-size="12" font-family="system-ui">bar</text>`);
-  b.push(`<text x="${cx}" y="${cy + r - 30}" text-anchor="middle" fill="#1d252c"
-    font-size="14" font-family="system-ui">psi</text>`);
+  PSI_TICKS.forEach((psi, i) => {
+    const deg = A + (i / (PSI_TICKS.length - 1)) * SW;
+    const [tx, ty] = polar(cx, cy, r - 35, deg);
+    b.push(`<text x="${tx}" y="${ty + 3}" text-anchor="middle" fill="#1d252c"
+      font-size="10.5" font-family="system-ui">${psi}</text>`);
+  });
+  // bar, inner, red -- its own fixed ladder, not derived from the psi one.
+  BAR_TICKS.forEach((bar, i) => {
+    const deg = A + (bar / BAR_FULL) * SW;
+    const [tx, ty] = polar(cx, cy, r - 55, deg);
+    b.push(`<text x="${tx}" y="${ty + 3}" text-anchor="middle" fill="#c0392b"
+      font-size="9.5" font-family="system-ui">${bar}</text>`);
+  });
+  b.push(`<text x="${cx}" y="${cy + 44}" text-anchor="middle" fill="#c0392b"
+    font-size="10" font-family="system-ui">bar</text>`);
+  b.push(`<text x="${cx}" y="${cy + 58}" text-anchor="middle" fill="#1d252c"
+    font-size="12" font-family="system-ui">psi</text>`);
 
-  const frac = Math.max(0, Math.min(1, (value || 0) / maxPsi));
-  const [nx, ny] = polar(cx, cy, r - 26, A + frac * SW);
-  b.push(`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#12181d" stroke-width="3"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="13" fill="#2b333b"/>`);
-  b.push(`<circle cx="${cx - 22}" cy="${cy + 22}" r="3" fill="#9aa4ac"/>`);
-  b.push(`<circle cx="${cx + 22}" cy="${cy + 22}" r="3" fill="#9aa4ac"/>`);
-  b.push(`<text x="${cx}" y="${cy + r + 22}" text-anchor="middle" fill="#17120c"
-    font-size="14" font-weight="700" font-family="system-ui">${label}</text>`);
+  const frac = Math.max(0, Math.min(1, (value || 0) / GAUGE_PSI));
+  const deg = A + frac * SW;
+  const [nx, ny] = polar(cx, cy, r - 20, deg);
+  const [t1x, t1y] = polar(cx, cy, 9, deg + 90);
+  const [t2x, t2y] = polar(cx, cy, 9, deg - 90);
+  b.push(`<polygon points="${nx},${ny} ${t1x},${t1y} ${t2x},${t2y}" fill="#12181d"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="11" fill="#2b333b"/>`);
+  b.push(`<circle cx="${cx - 18}" cy="${cy + 18}" r="2.4" fill="#9aa4ac"/>`);
+  b.push(`<circle cx="${cx + 18}" cy="${cy + 18}" r="2.4" fill="#9aa4ac"/>`);
+  b.push(`<text x="${cx}" y="${cy + r + 20}" text-anchor="middle" fill="#17120c"
+    font-size="13" font-weight="700" font-family="system-ui">${label}</text>`);
   return b.join("");
 }
 
-/* Black window, red seven-segment lettering, silkscreened label above it. */
 function segment(x, y, w, h, text, label, size) {
-  const s = size || 26;
+  const s = size || 22;
   return `
     <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3"
-          fill="#0a0d10" stroke="#8f99a2" stroke-width="2"/>
-    <text x="${x + w - 10}" y="${y + h / 2 + s * 0.36}" text-anchor="end"
+          fill="#0a0d10" stroke="#8f99a2" stroke-width="1.5"/>
+    <text x="${x + w - 9}" y="${y + h / 2 + s * 0.36}" text-anchor="end"
           fill="#ff2d2d" font-size="${s}" font-weight="700"
           font-family="Consolas, ui-monospace, monospace"
-          letter-spacing="2">${text}</text>
-    ${label ? `<text x="${x + w / 2}" y="${y - 7}" text-anchor="middle"
-          fill="#17120c" font-size="12" font-weight="700"
+          letter-spacing="1.5">${text}</text>
+    ${label ? `<text x="${x + w / 2}" y="${y - 6}" text-anchor="middle"
+          fill="#17120c" font-size="11" font-weight="700"
           font-family="system-ui">${label}</text>` : ""}`;
 }
 
-/* Choke position, scaled in eighths from Open round to Close. */
 function chokePositionDial(cx, cy, r, percent) {
   const b = [];
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#454f59" stroke="#2b333b" stroke-width="3"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 11}" fill="#f4f6f7" stroke="#aab4bd" stroke-width="2"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#4a545e" stroke="#2b333b" stroke-width="3"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 9}" fill="#f5f7f8" stroke="#aab4bd" stroke-width="1.5"/>`);
   const A = 135, SW = 270;
   const marks = ["Open", "7/8", "3/4", "5/8", "1/2", "3/8", "1/4", "1/8", "Close"];
-  // Open at the left end of the sweep, Close at the right: the handle travels
-  // the way the reference gauge reads.
   marks.forEach((m, i) => {
     const f = i / (marks.length - 1), deg = A + f * SW;
-    const [x1, y1] = polar(cx, cy, r - 14, deg);
-    const [x2, y2] = polar(cx, cy, r - 22, deg);
-    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="2"/>`);
-    const [tx, ty] = polar(cx, cy, r - 34, deg);
+    const [x1, y1] = polar(cx, cy, r - 11, deg);
+    const [x2, y2] = polar(cx, cy, r - 18, deg);
+    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="1.6"/>`);
+    const [tx, ty] = polar(cx, cy, r - 29, deg);
     b.push(`<text x="${tx}" y="${ty + 3}" text-anchor="middle" fill="#1d252c"
-      font-size="10" font-family="system-ui">${m}</text>`);
+      font-size="9" font-family="system-ui">${m}</text>`);
   });
   const frac = Math.max(0, Math.min(1, 1 - (percent || 0) / 100));
-  const [nx, ny] = polar(cx, cy, r - 24, A + frac * SW);
-  b.push(`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#c0392b" stroke-width="3"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="9" fill="#2b333b"/>`);
-  b.push(`<text x="${cx}" y="${cy + r + 20}" text-anchor="middle" fill="#17120c"
-    font-size="13" font-weight="700" font-family="system-ui">Choke Position</text>`);
+  const [nx, ny] = polar(cx, cy, r - 20, A + frac * SW);
+  b.push(`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#c0392b" stroke-width="2.5"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="7" fill="#2b333b"/>`);
+  b.push(`<text x="${cx}" y="${cy + r + 17}" text-anchor="middle" fill="#17120c"
+    font-size="12" font-weight="700" font-family="system-ui">Choke Position</text>`);
   return b.join("");
 }
 
-/* The joystick, its Hold arc and the Open/Close arrows. Clicking the arrows
-   drives the choke, so the control on screen is the control on the panel. */
 function joystick(cx, cy, moving) {
   const b = [];
-  const ax = cx, ay = cy - 60, ar = 132;
+  const ax = cx, ay = cy - 34, ar = 104;
   b.push(`<path d="M ${ax - ar} ${ay} A ${ar} ${ar} 0 0 1 ${ax + ar} ${ay}"
-    fill="none" stroke="#17120c" stroke-width="2"/>`);
-  b.push(`<text x="${ax}" y="${ay - ar + 44}" text-anchor="middle" fill="#17120c"
-    font-size="13" font-weight="700" font-family="system-ui">Hold</text>`);
+    fill="none" stroke="#17120c" stroke-width="1.6"/>`);
+  b.push(`<text x="${ax}" y="${ay - ar + 32}" text-anchor="middle" fill="#17120c"
+    font-size="12" font-weight="700" font-family="system-ui">Hold</text>`);
 
   [[-1, "Open", "open"], [1, "Close", "close"]].forEach(([dir, text, act]) => {
-    const hx = ax + dir * (ar - 18), hy = ay - 26;
-    b.push(`<path d="M ${hx - dir * 26} ${hy - 26} l ${dir * 34} 30 l ${-dir * 9} 9
-      l ${-dir * 34} -30 z" fill="#7d8891"/>`);
+    const hx = ax + dir * (ar - 8), hy = ay - 14;
+    b.push(`<path d="M ${hx - dir * 20} ${hy - 20} l ${dir * 26} 23 l ${-dir * 7} 7
+      l ${-dir * 26} -23 z" fill="#7d8891"/>`);
     b.push(`<g class="hit" data-face="${act}" style="cursor:pointer">
-      <rect x="${hx - 34}" y="${hy + 14}" width="68" height="26" rx="3"
+      <rect x="${hx - 29}" y="${hy + 12}" width="58" height="22" rx="3"
             fill="#e6e9ec" stroke="#6d777f"/>
-      <text x="${hx}" y="${hy + 32}" text-anchor="middle" fill="#17120c"
-            font-size="13" font-family="system-ui">${text}</text></g>`);
+      <text x="${hx}" y="${hy + 27}" text-anchor="middle" fill="#17120c"
+            font-size="12" font-family="system-ui">${text}</text></g>`);
   });
 
-  // Base, shaft, ball.
-  b.push(`<path d="M ${cx - 66} ${cy + 92} L ${cx - 48} ${cy + 8}
-    L ${cx + 48} ${cy + 8} L ${cx + 66} ${cy + 92} z" fill="#3b444c"/>`);
-  b.push(`<rect x="${cx - 14}" y="${cy - 52}" width="28" height="64" rx="6"
+  b.push(`<path d="M ${cx - 52} ${cy + 72} L ${cx - 38} ${cy + 6}
+    L ${cx + 38} ${cy + 6} L ${cx + 52} ${cy + 72} z" fill="#3b444c"/>`);
+  b.push(`<rect x="${cx - 11}" y="${cy - 40}" width="22" height="50" rx="5"
     fill="#c3cad0" stroke="#8b949c"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy - 62}" r="30" fill="#20262b"/>`);
-  b.push(`<circle cx="${cx - 9}" cy="${cy - 72}" r="9" fill="#3d464e" opacity="0.8"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy - 48}" r="24" fill="#20262b"/>`);
+  b.push(`<circle cx="${cx - 7}" cy="${cy - 56}" r="7" fill="#3d464e" opacity="0.8"/>`);
   if (moving) {
-    b.push(`<circle cx="${cx}" cy="${cy - 62}" r="36" fill="none"
-      stroke="#4bf07e" stroke-width="2" opacity="0.8"/>`);
+    b.push(`<circle cx="${cx}" cy="${cy - 48}" r="29" fill="none"
+      stroke="#4bf07e" stroke-width="2" opacity="0.85"/>`);
   }
   return b.join("");
 }
 
-/* The Choke2 / Choke1 rotary selector, and the speed knob. */
 function rotarySelector(cx, cy, r, rightHand) {
   const deg = rightHand ? 20 : 160;
-  const [px, py] = polar(cx, cy, r + 16, deg);
+  const [px, py] = polar(cx, cy, r + 12, deg);
   return `
-    <circle cx="${cx}" cy="${cy}" r="${r + 22}" fill="none" stroke="#c96a0e" stroke-width="2"/>
+    <circle cx="${cx}" cy="${cy}" r="${r + 18}" fill="none" stroke="#c96a0e" stroke-width="2"/>
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="#6c757d" stroke="#3b444c" stroke-width="2"/>
-    <circle cx="${cx}" cy="${cy}" r="${r * 0.55}" fill="#8b949c"/>
-    <line x1="${cx}" y1="${cy}" x2="${px}" y2="${py}" stroke="#3b444c" stroke-width="9"
+    <circle cx="${cx}" cy="${cy}" r="${r * 0.5}" fill="#8b949c"/>
+    <line x1="${cx}" y1="${cy}" x2="${px}" y2="${py}" stroke="#3b444c" stroke-width="7"
           stroke-linecap="round"/>
-    <text x="${cx - r - 30}" y="${cy + 4}" text-anchor="end" fill="#17120c"
-          font-size="12" font-weight="700" font-family="system-ui">Choke2</text>
-    <text x="${cx + r + 30}" y="${cy + 4}" fill="#17120c"
-          font-size="12" font-weight="700" font-family="system-ui">Choke1</text>`;
+    <text x="${cx - r - 24}" y="${cy + 4}" text-anchor="end" fill="#17120c"
+          font-size="11" font-weight="700" font-family="system-ui">Choke2</text>
+    <text x="${cx + r + 24}" y="${cy + 4}" fill="#17120c"
+          font-size="11" font-weight="700" font-family="system-ui">Choke1</text>`;
 }
 
 function knob(cx, cy, r, label) {
   return `
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="#3b444c" stroke="#20262b" stroke-width="2"/>
     <circle cx="${cx - r * 0.3}" cy="${cy - r * 0.3}" r="${r * 0.3}" fill="#59636c"/>
-    <text x="${cx}" y="${cy + r + 15}" text-anchor="middle" fill="#17120c"
-          font-size="11" font-family="system-ui">${label}</text>`;
+    <text x="${cx}" y="${cy + r + 13}" text-anchor="middle" fill="#17120c"
+          font-size="10" font-family="system-ui">${label}</text>`;
 }
 
 function pad(value, width) {
@@ -1361,49 +1348,48 @@ function pad(value, width) {
 function drawChokeFace(g) {
   const host = $("chokeface");
   if (!host) return;
-  const full = Math.max(2000, Math.ceil((maaspPsi || 1500) * 1.6 / 500) * 500);
   const b = [];
+  b.push(`<rect x="0" y="0" width="1200" height="560" fill="var(--bg)"/>`);
 
-  b.push(`<rect x="0" y="0" width="1200" height="640" fill="var(--bg)"/>`);
-
+  // Gauges, each with its window tucked against it -- the reference pairs
+  // them so the eye reads needle and digits without travelling.
   b.push(pressureGauge(FACE.dp.cx, FACE.dp.cy, FACE.dp.r,
-    g.drill_pipe_psi, full, "Drill Pipe Pressure"));
-  b.push(segment(388, 246, 152, 54, pad(g.drill_pipe_psi, 4), ""));
+    g.drill_pipe_psi, "Drill Pipe Pressure"));
+  b.push(segment(300, 250, 124, 42, pad(g.drill_pipe_psi, 4), ""));
 
   b.push(pressureGauge(FACE.csg.cx, FACE.csg.cy, FACE.csg.r,
-    g.casing_psi, full, "Casing Pressure"));
-  b.push(segment(660, 246, 152, 54, pad(g.casing_psi, 4), ""));
+    g.casing_psi, "Casing Pressure"));
+  b.push(segment(776, 250, 124, 42, pad(g.casing_psi, 4), ""));
 
-  b.push(segment(452, 74, 150, 48, pad(g.pumps[0].spm + g.pumps[1].spm, 5),
-    "Stroke Rate", 22));
-  b.push(segment(700, 74, 150, 48, pad(g.strokes, 5), "Stroke Counter", 22));
+  b.push(segment(430, 52, 140, 42,
+    pad(g.pumps[0].spm + g.pumps[1].spm, 5), "Stroke Rate"));
+  b.push(segment(668, 52, 140, 42, pad(g.strokes, 5), "Stroke Counter"));
   b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
-    <circle cx="651" cy="98" r="21" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
-    <circle cx="645" cy="92" r="6" fill="#3fd4bd" opacity="0.7"/>
-    <text x="651" y="134" text-anchor="middle" fill="#17120c" font-size="11"
+    <circle cx="619" cy="73" r="19" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
+    <circle cx="613" cy="67" r="5" fill="#3fd4bd" opacity="0.7"/>
+    <text x="619" y="106" text-anchor="middle" fill="#17120c" font-size="10"
           font-family="system-ui">Reset</text></g>`);
 
-  b.push(segment(540, 168, 170, 46, pad(g.kill_line_psi, 5),
-    "Kill Line Pressure", 22));
+  b.push(segment(524, 146, 152, 40, pad(g.kill_line_psi, 5), "Kill Line Pressure"));
 
   b.push(joystick(FACE.stick.cx, FACE.stick.cy,
     Math.abs(g.choke_commanded - g.choke_percent) > 0.5));
-  b.push(knob(714, 522, 21, "Speed"));
-  b.push(`<text x="756" y="510" fill="#17120c" font-size="11"
+  b.push(knob(700, 470, 18, "Speed"));
+  b.push(`<text x="736" y="462" fill="#17120c" font-size="10"
     font-family="system-ui">Increase</text>`);
 
-  b.push(rotarySelector(224, 512, 44, g.choke_in_service !== "choke_2"));
+  b.push(rotarySelector(200, 452, 38, g.choke_in_service !== "choke_2"));
 
   b.push(chokePositionDial(FACE.chokePos.cx, FACE.chokePos.cy, FACE.chokePos.r,
     g.choke_percent));
-  b.push(segment(806, 486, 130, 44,
-    (g.choke_percent || 0).toFixed(1) + "%", "", 22));
+  b.push(segment(790, 434, 108, 38,
+    (g.choke_percent || 0).toFixed(1) + "%", ""));
 
   host.innerHTML = b.join("");
 
   host.querySelectorAll("[data-face]").forEach(el => el.onclick = () => {
     const act = el.dataset.face;
-    if (act === "reset") return;               // stroke counter reset: display only
+    if (act === "reset") return;
     const step = act === "open" ? 5 : -5;
     const next = Math.max(0, Math.min(100, Number($("choke").value || 0) + step));
     $("choke").value = next;
@@ -1441,43 +1427,183 @@ function drawTripTankChart() {
 /* The two gauges a driller watches for a kick, then the pressures and the
    pump rates. Pit deviation is bipolar because that is the question: has the
    needle left centre, not has it reached a number. */
+
+/* ------------------------------ the DCU face ---------------------------- */
+/* Positions follow driller_screen.JPG: the two kick gauges down the left with
+   their alarm blocks, the drilling instruments across the top, the digital
+   windows in the middle, standpipe and both pumps along the bottom. */
+
+/* A plain rig dial: white face, dark bezel, one scale, digital inset. */
+function rigDial(o) {
+  const {cx, cy, r, value, min = 0, max, ticks, label, unit,
+         decimals = 0, digits, leftLabel, rightLabel, redFrom} = o;
+  const b = [], A = 135, SW = 270, span = max - min;
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#4a545e" stroke="#2b333b" stroke-width="2.5"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 9}" fill="#f5f7f8" stroke="#aab4bd" stroke-width="1.5"/>`);
+  const n = (ticks.length - 1) * 5;
+  for (let i = 0; i <= n; i++) {
+    const f = i / n, major = i % 5 === 0, deg = A + f * SW;
+    const [x1, y1] = polar(cx, cy, r - 11, deg);
+    const [x2, y2] = polar(cx, cy, r - (major ? 20 : 16), deg);
+    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="${major ? 1.8 : 0.7}"/>`);
+  }
+  ticks.forEach((t, i) => {
+    const deg = A + (i / (ticks.length - 1)) * SW;
+    const [tx, ty] = polar(cx, cy, r - 30, deg);
+    const red = redFrom !== undefined && Math.abs(t) >= redFrom;
+    b.push(`<text x="${tx}" y="${ty + 3}" text-anchor="middle"
+      fill="${red ? "#c0392b" : "#1d252c"}" font-size="9.5"
+      font-family="system-ui">${Math.abs(t)}</text>`);
+  });
+  if (leftLabel) {
+    b.push(`<text x="${cx - r * 0.38}" y="${cy - 6}" text-anchor="middle" fill="#7a4a12"
+      font-size="9" font-weight="700" font-family="system-ui">${leftLabel}</text>`);
+    b.push(`<text x="${cx + r * 0.38}" y="${cy - 6}" text-anchor="middle" fill="#7a4a12"
+      font-size="9" font-weight="700" font-family="system-ui">${rightLabel}</text>`);
+  }
+  // Digital inset, under the hub as the reference has it.
+  const bw = r * 0.86, bh = r * 0.3;
+  b.push(`<rect x="${cx - bw / 2}" y="${cy + r * 0.16}" width="${bw}" height="${bh}"
+    rx="2" fill="#0a0d10" stroke="#8f99a2"/>`);
+  b.push(`<text x="${cx}" y="${cy + r * 0.16 + bh * 0.76}" text-anchor="middle"
+    fill="#ff2d2d" font-size="${r * 0.22}" font-weight="700"
+    font-family="Consolas, ui-monospace, monospace">${
+      digits !== undefined ? digits
+        : (value || 0).toLocaleString(undefined,
+            {minimumFractionDigits: decimals, maximumFractionDigits: decimals})}</text>`);
+  if (unit) {
+    b.push(`<text x="${cx}" y="${cy + r * 0.62}" text-anchor="middle" fill="#c0392b"
+      font-size="8.5" font-family="system-ui">${unit}</text>`);
+  }
+  const frac = Math.max(0, Math.min(1, ((value || 0) - min) / span));
+  const deg = A + frac * SW;
+  const [nx, ny] = polar(cx, cy, r - 16, deg);
+  const [t1x, t1y] = polar(cx, cy, 6, deg + 90);
+  const [t2x, t2y] = polar(cx, cy, 6, deg - 90);
+  b.push(`<polygon points="${nx},${ny} ${t1x},${t1y} ${t2x},${t2y}" fill="#c0392b"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.16}" fill="#2b333b"/>`);
+  b.push(`<text x="${cx}" y="${cy + r + 16}" text-anchor="middle" fill="#17120c"
+    font-size="11.5" font-weight="700" font-family="system-ui">${label}</text>`);
+  return b.join("");
+}
+
+/* The alarm block beside each kick gauge: bell, ON/OFF, two lamps, a red
+   alarm light between them, and the set points in their own windows. */
+function alarmBlock(x, y, alarm, lowLabel, highLabel, decimals) {
+  const b = [];
+  b.push(`<rect x="${x}" y="${y}" width="128" height="150" rx="4"
+    fill="#ef8320" stroke="#a8540a"/>`);
+  b.push(`<text x="${x + 64}" y="${y + 18}" text-anchor="middle" fill="#17120c"
+    font-size="15" font-family="system-ui">&#128276;</text>`);
+  // ON/OFF toggle, its handle following the armed state.
+  b.push(`<rect x="${x + 48}" y="${y + 24}" width="32" height="46" rx="4"
+    fill="#e6e9ec" stroke="#6d777f"/>`);
+  b.push(`<text x="${x + 64}" y="${y + 34}" text-anchor="middle" fill="#17120c"
+    font-size="8" font-family="system-ui">ON</text>`);
+  b.push(`<text x="${x + 64}" y="${y + 67}" text-anchor="middle" fill="#17120c"
+    font-size="8" font-family="system-ui">OFF</text>`);
+  b.push(`<rect x="${x + 55}" y="${alarm.armed ? y + 36 : y + 50}" width="18"
+    height="14" rx="3" fill="#8b949c" stroke="#3b444c"/>`);
+
+  b.push(`<circle cx="${x + 22}" cy="${y + 92}" r="14"
+    fill="${alarm.low_active ? "#e0a020" : "#20262b"}" stroke="#12181d" stroke-width="2"/>`);
+  b.push(`<circle cx="${x + 106}" cy="${y + 92}" r="14"
+    fill="${alarm.high_active ? "#e2453d" : "#20262b"}" stroke="#12181d" stroke-width="2"/>`);
+  b.push(`<circle cx="${x + 64}" cy="${y + 92}" r="6"
+    fill="${alarm.sounding ? "#ff2d2d" : "#5a2020"}"/>`);
+  b.push(`<text x="${x + 64}" y="${y + 112}" text-anchor="middle" fill="#17120c"
+    font-size="8" font-family="system-ui">Alarm</text>`);
+  b.push(`<text x="${x + 22}" y="${y + 72}" text-anchor="middle" fill="#17120c"
+    font-size="8" font-family="system-ui">${lowLabel}</text>`);
+  b.push(`<text x="${x + 106}" y="${y + 72}" text-anchor="middle" fill="#17120c"
+    font-size="8" font-family="system-ui">${highLabel}</text>`);
+
+  const fmt = v => v === null || v === undefined ? "--"
+    : Number(v).toFixed(decimals);
+  b.push(segment(x + 4, y + 120, 56, 24, fmt(alarm.low), "", 13));
+  b.push(segment(x + 68, y + 120, 56, 24, fmt(alarm.high), "", 13));
+  return b.join("");
+}
+
+function drawDcuFace(g) {
+  const host = $("dcuface");
+  if (!host) return;
+  const b = [], dr = g.drilling, pit = g.pits, flow = g.return_flow;
+  b.push(`<rect x="0" y="0" width="1200" height="620" fill="var(--bg)"/>`);
+
+  // -- the two gauges a kick is noticed on, down the left ------------------
+  b.push(rigDial({
+    cx: 128, cy: 150, r: 104, value: Math.max(-50, Math.min(50, pit.deviation_bbl)),
+    min: -50, max: 50, ticks: [-50, -25, 0, 25, 50], decimals: 1,
+    label: "Pit Deviation", unit: "bbls", leftLabel: "LOSS", rightLabel: "GAIN",
+  }));
+  b.push(alarmBlock(250, 76, pit.alarm, "Low", "High", 1));
+
+  b.push(rigDial({
+    cx: 128, cy: 448, r: 104, value: Math.max(0, Math.min(20, flow.flow_out_bpm)),
+    max: 20, ticks: [0, 5, 10, 15, 20], decimals: 1,
+    label: "Return Flow", unit: "bbls/min",
+  }));
+  b.push(alarmBlock(250, 374, flow.alarm, "Low", "High", 1));
+
+  // -- drilling instruments across the top ---------------------------------
+  b.push(rigDial({cx: 470, cy: 128, r: 84, value: dr.torque_kftlb, max: 200,
+    ticks: [0, 50, 100, 150, 200], decimals: 1, label: "TD Torque", unit: "k-ft-lb"}));
+  b.push(rigDial({cx: 650, cy: 128, r: 84, value: dr.rpm, max: 200,
+    ticks: [0, 50, 100, 150, 200], label: "RPM", unit: "rpm"}));
+  b.push(rigDial({cx: 830, cy: 128, r: 84, value: dr.wob_klbf, max: 60,
+    ticks: [0, 15, 30, 45, 60], decimals: 1, label: "WOB", unit: "kilo-lbs"}));
+
+  // -- the digital windows in the middle -----------------------------------
+  b.push(segment(400, 258, 150, 40, pad(g.strokes, 5), "Stroke Counter (#)", 20));
+  b.push(segment(576, 258, 150, 40,
+    (dr.rop_ft_per_hr || 0).toFixed(2), "ROP (ft/hr)", 20));
+  b.push(segment(400, 320, 150, 40,
+    (g.bit_md_ft || 0).toFixed(1).padStart(7, "0"), "Bit Depth (ft)", 20));
+  b.push(segment(576, 320, 150, 40,
+    (g.hole_md_ft || 0).toFixed(1).padStart(7, "0"), "Well Depth (ft)", 20));
+
+  // -- standpipe and both pumps along the bottom ---------------------------
+  b.push(rigDial({cx: 470, cy: 448, r: 84, value: g.drill_pipe_psi, max: 5000,
+    ticks: [0, 1000, 2000, 3000, 4000, 5000], label: "Stand Pipe Pressure",
+    unit: "psi", digits: pad(g.drill_pipe_psi, 4)}));
+  b.push(rigDial({cx: 650, cy: 448, r: 84, value: g.pumps[0].spm, max: 200,
+    ticks: [0, 50, 100, 150, 200], label: "Pump 1 Stroke Rate", unit: "spm",
+    digits: pad(g.pumps[0].spm, 4)}));
+  b.push(rigDial({cx: 830, cy: 448, r: 84, value: g.pumps[1].spm, max: 200,
+    ticks: [0, 50, 100, 150, 200], label: "Pump 2 Stroke Rate", unit: "spm",
+    digits: pad(g.pumps[1].spm, 4)}));
+
+  // -- the auto driller, where the reference puts it ------------------------
+  b.push(`<rect x="960" y="250" width="216" height="86" rx="5"
+    fill="#ef8320" stroke="#a8540a"/>`);
+  b.push(`<text x="1068" y="270" text-anchor="middle" fill="#17120c"
+    font-size="10" font-weight="700" font-family="system-ui">WOB Set Point (kilo-lbs)</text>`);
+  b.push(`<rect x="976" y="280" width="112" height="34" rx="3" fill="#0a0d10"
+    stroke="#8f99a2"/>`);
+  b.push(`<text x="1032" y="303" text-anchor="middle"
+    fill="${dr.auto_driller ? "#4bf07e" : "#5a6b5e"}" font-size="14"
+    font-weight="700" font-family="system-ui">Auto Driller</text>`);
+  b.push(segment(1096, 280, 64, 34, (dr.wob_setpoint_klbf || 0).toFixed(0), "", 17));
+  b.push(`<text x="1068" y="330" text-anchor="middle" fill="#4a3311"
+    font-size="9" font-family="system-ui">bit dulled ${
+      Math.round((dr.bit_wear || 0) * 100)}%</text>`);
+
+  // Hookload, which the reference carries on its WOB cluster.
+  b.push(`<text x="1068" y="150" text-anchor="middle" fill="#17120c"
+    font-size="10" font-weight="700" font-family="system-ui">Hookload</text>`);
+  b.push(segment(996, 158, 144, 40, (g.hookload_klbf || 0).toFixed(0), "", 20));
+  b.push(`<text x="1068" y="214" text-anchor="middle" fill="#4a3311"
+    font-size="9" font-family="system-ui">klbf</text>`);
+
+  host.innerHTML = b.join("");
+}
+
 function drawDcu(g) {
-  const pit = g.pits, flow = g.return_flow, tt = g.trip_tank;
+  drawDcuFace(g);
 
-  $("dial-pit").innerHTML = dial({
-    value: Math.max(-50, Math.min(50, pit.deviation_bbl)),
-    min: -50, max: 50, label: "Pit Deviation", unit: "bbl",
-    size: 190, ticks: 5, decimals: 1,
-    leftLabel: "LOSS", rightLabel: "GAIN", colour: "#c62828",
-    zones: [
-      {from: -50, to: (pit.alarm.low ?? -10), colour: "#b4530e"},
-      {from: (pit.alarm.high ?? 10), to: 50, colour: "#c4302a"},
-    ],
-  });
-  $("dial-flow").innerHTML = dial({
-    value: Math.max(0, Math.min(20, flow.flow_out_bpm)),
-    max: 20, label: "Return Flow", unit: "bbl/min",
-    size: 190, ticks: 5, decimals: 1, colour: "#c62828",
-  });
-  $("dial-spp2").innerHTML = dial({
-    value: g.drill_pipe_psi, max: Math.max(2000, chartFull()),
-    label: "Stand Pipe", unit: "psi", size: 190, colour: "#c62828",
-  });
-  $("dial-p1").innerHTML = dial({
-    value: g.pumps[0].spm, max: 120, label: "Pump 1", unit: "spm",
-    size: 190, ticks: 7,
-  });
-  $("dial-p2").innerHTML = dial({
-    value: g.pumps[1].spm, max: 120, label: "Pump 2", unit: "spm",
-    size: 190, ticks: 7,
-  });
-
-  // Lamps say which way the alarm went; the horn is separate from the lamp,
-  // so a silenced alarm still shows.
-  $("lamp-pit-low").innerHTML = lamp(pit.alarm.low_active, "Loss", "#e0a020");
-  $("lamp-pit-high").innerHTML = lamp(pit.alarm.high_active, "Gain", "#e2453d");
-  $("lamp-flow-low").innerHTML = lamp(flow.alarm.low_active, "Low flow", "#e0a020");
-  $("lamp-flow-high").innerHTML = lamp(flow.alarm.high_active, "High flow", "#e2453d");
+  const pit = g.pits, flow = g.return_flow, tt = g.trip_tank, dr = g.drilling;
+  // The trip tank screen keeps its own lamps; the DCU's are on the face.
   $("lamp-tt-low").innerHTML = lamp(tt.alarm.low_active, "Low level", "#e0a020");
   $("lamp-tt-high").innerHTML = lamp(tt.alarm.high_active, "High level", "#e2453d");
 
@@ -1487,37 +1613,18 @@ function drawDcu(g) {
   setpoint("sp-flow-high", flow.alarm.high);
   setpoint("sp-tt-low", tt.alarm.low);
   setpoint("sp-tt-high", tt.alarm.high);
+  setpoint("set-wob", dr.auto_driller ? dr.wob_setpoint_klbf : dr.wob_commanded_klbf);
+  setpoint("set-rpm", dr.rpm_commanded);
   armButton("arm-pit", pit.alarm.armed);
   armButton("arm-flow", flow.alarm.armed);
   armButton("arm-tt", tt.alarm.armed);
-
-  const dr = g.drilling;
-  $("dial-wob").innerHTML = dial({
-    value: dr.wob_klbf, max: 60, label: "WOB", unit: "klbf",
-    size: 190, ticks: 7, decimals: 1,
-  });
-  $("dial-torque").innerHTML = dial({
-    value: dr.torque_kftlb, max: 40, label: "Torque", unit: "kft-lb",
-    size: 190, ticks: 5, decimals: 1,
-  });
-  $("dial-rpm").innerHTML = dial({
-    value: dr.rpm, max: 200, label: "Rotary", unit: "rpm", size: 190, ticks: 5,
-  });
-  $("dial-rop").innerHTML = dial({
-    value: Math.min(200, dr.rop_ft_per_hr), max: 200, label: "ROP",
-    unit: "ft/hr", size: 190, ticks: 5, colour: "#c62828",
-  });
-  setpoint("set-wob", dr.auto_driller ? dr.wob_setpoint_klbf : dr.wob_commanded_klbf);
-  setpoint("set-rpm", dr.rpm_commanded);
   armButton2("auto-driller", dr.auto_driller);
-  $("rop-note").textContent = g.drilling_ahead
-    ? `Drilling · ${g.hole_drilled_ft} ft made · bit dulled `
-      + `${Math.round(dr.bit_wear * 100)}%`
-    : "Not making hole.";
 
   $("flow-pct").textContent = flow.flowing_with_the_pump_off
     ? "Flowing with the pump off."
     : (flow.percent === null ? "Pump off." : `${flow.percent.toFixed(0)}% of flow in`);
+  $("rop-note").textContent = g.drilling_ahead
+    ? `Drilling · ${g.hole_drilled_ft} ft made` : "Not making hole.";
 }
 
 /* Do not fight the student for the box they are typing in. */

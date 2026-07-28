@@ -402,26 +402,45 @@ class TestScreens:
         assert 'id="standpipe"' in text
         assert 'id="ckmanifold"' in text
 
-    def test_the_dcu_carries_its_instruments(self, client):
-        """The gauges a kick is *noticed* on, which is a different job from
-        the choke panel next door where something is done about it."""
+    def test_the_dcu_is_one_instrument_face(self, client):
+        """The reference is a single dense console, not rows of cards."""
         text = client.get("/").text
-        for element in (
-            "dial-pit",      # pit deviation, LOSS/GAIN either side of centre
-            "dial-flow",     # return flow
-            "dial-p1", "dial-p2",   # both mud pumps
-            "d-stk", "d-bit", "d-hole", "d-hook",
-            "d-active", "d-reserve",
+        assert 'id="dcuface"' in text
+        assert "function drawDcuFace(" in text
+        assert "function rigDial(" in text
+        assert "function alarmBlock(" in text
+
+    def test_the_dcu_carries_its_instruments(self, client):
+        """Everything driller_screen.JPG has, by the name it prints on it."""
+        text = client.get("/").text
+        for label in (
+            "Pit Deviation", "Return Flow",        # the two kick gauges
+            "TD Torque", "RPM", "WOB",             # drilling
+            "Stroke Counter (#)", "ROP (ft/hr)",
+            "Bit Depth (ft)", "Well Depth (ft)",
+            "Stand Pipe Pressure",
+            "Pump 1 Stroke Rate", "Pump 2 Stroke Rate",
+            "WOB Set Point (kilo-lbs)", "Auto Driller",
         ):
-            assert element in text, element
+            assert label in text, label
+
+    def test_the_pit_deviation_gauge_reads_loss_and_gain(self, client):
+        """Bipolar with zero centred: the question is whether the needle has
+        left centre, not whether it reached a number."""
+        text = client.get("/").text
+        assert 'leftLabel: "LOSS", rightLabel: "GAIN"' in text
+        assert "min: -50, max: 50" in text
 
     def test_the_dcu_alarms_have_set_points_and_lamps(self, client):
         text = client.get("/").text
         for element in (
             "sp-pit-low", "sp-pit-high", "sp-flow-low", "sp-flow-high",
-            "lamp-pit-high", "lamp-flow-high", "arm-pit", "arm-flow",
+            "arm-pit", "arm-flow", "set-wob", "set-rpm", "auto-driller",
         ):
             assert element in text, element
+        # The lamps are drawn on the face by alarmBlock, from the alarm state.
+        assert "alarm.low_active" in text and "alarm.high_active" in text
+        assert "alarm.sounding" in text
 
     def test_the_trip_tank_screen_is_operable(self, client):
         """Both halves of the lineup, and a way to mark the tank."""
@@ -439,16 +458,6 @@ class TestScreens:
         assert "choke-bank" in text
         for name in ("choke_1", "choke_2", "manual_choke_1", "manual_choke_2"):
             assert name in text, name
-
-    def test_the_dcu_carries_the_drilling_instruments(self, client):
-        """WOB, torque, rotary and rate -- and the auto-driller a real rig
-        mostly leaves on."""
-        text = client.get("/").text
-        for element in (
-            "dial-wob", "dial-torque", "dial-rpm", "dial-rop",
-            "set-wob", "set-rpm", "auto-driller",
-        ):
-            assert element in text, element
 
     def test_the_trends_screen_offers_both_views(self, client):
         """Stacked tracks by default, with the commercial panel's overlaid
@@ -471,6 +480,34 @@ class TestScreens:
 
     def test_the_accumulator_is_shown(self, client):
         assert "acc-psi" in client.get("/").text
+
+    def test_exactly_one_screen_starts_visible(self, client):
+        """The whole page rendered blank for a while and nothing caught it.
+
+        `.screen` is display:none until it carries `active`. Renaming the tabs
+        dropped that class from every section, so every screen was hidden --
+        the header still painted, so it looked like a styling problem rather
+        than a page with no visible content at all. No test noticed, because
+        every test asked the HTML what it *contained*, not what it would
+        *show*.
+        """
+        import re
+
+        text = client.get("/").text
+        sections = re.findall(r'<section class="screen([^"]*)" id="s-([a-z]+)"', text)
+        assert sections, "no screens found at all"
+        visible = [name for cls, name in sections if "active" in cls]
+        assert len(visible) == 1, (
+            f"expected exactly one screen visible on load, got {visible}"
+        )
+
+        # And it must be the tab that is highlighted, or the page opens showing
+        # one screen with a different tab lit.
+        tab = re.search(r'<button data-screen="([a-z]+)" class="active"', text)
+        assert tab, "no tab is marked active"
+        assert tab.group(1) == visible[0], (
+            f'tab "{tab.group(1)}" is lit but screen "{visible[0]}" is shown'
+        )
 
     def test_the_choke_panel_is_one_instrument_face(self, client):
         """Not cards containing gauges -- the console the reference photographs.
