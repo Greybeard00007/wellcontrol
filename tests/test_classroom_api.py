@@ -234,6 +234,50 @@ class TestStudentAccess:
             "/api/me/speed", json={"speed": 60.0}, headers=auth(token)
         ).status_code in (404, 405)
 
+    def test_a_student_can_stop_and_restart_their_own_well(self, client):
+        """The transport is theirs even though the multiplier is not.
+
+        They have to be able to stop the well to read a kill sheet or think.
+        What they cannot do is choose how fast it runs when it is running:
+        resuming puts them back on the instructor's clock, whatever that is
+        now, rather than on a figure of their own.
+        """
+        instructor = instructor_token(client)
+        summary = make_class(client, instructor)
+        token = join(client, summary["code"])["token"]
+        client.post(
+            f"/api/instructor/classes/{summary['classroom_id']}/speed",
+            json={"speed": 10.0}, headers=auth(instructor),
+        )
+
+        paused = client.post(
+            "/api/me/pause", json={"paused": True}, headers=auth(token)
+        )
+        assert paused.status_code == 200
+        assert paused.json()["gauges"]["paused"] is True
+        assert paused.json()["gauges"]["speed"] == 0
+
+        resumed = client.post(
+            "/api/me/pause", json={"paused": False}, headers=auth(token)
+        )
+        assert resumed.json()["gauges"]["paused"] is False
+        assert resumed.json()["gauges"]["speed"] == 10.0
+
+    def test_pausing_is_one_student_not_the_class(self, client):
+        """Otherwise a student could stop the room by stopping themselves."""
+        instructor = instructor_token(client)
+        summary = make_class(client, instructor)
+        one = join(client, summary["code"], "One")["token"]
+        two = join(client, summary["code"], "Two")["token"]
+        client.post(
+            f"/api/instructor/classes/{summary['classroom_id']}/speed",
+            json={"speed": 10.0}, headers=auth(instructor),
+        )
+
+        client.post("/api/me/pause", json={"paused": True}, headers=auth(one))
+        assert client.get("/api/me", headers=auth(one)).json()["gauges"]["paused"]
+        assert not client.get("/api/me", headers=auth(two)).json()["gauges"]["paused"]
+
     def test_a_removed_student_is_locked_out_at_once(self, client):
         """There is no token blacklist and no need for one: the roster is
         checked on every request."""

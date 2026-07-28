@@ -448,6 +448,58 @@ class TestScreens:
         for act in ('"p1-"', '"p1+"', '"p2-"', '"p2+"'):
             assert act in text, act
 
+    def test_each_pump_has_its_own_shutdown(self, client):
+        """One action, not six presses of minus.
+
+        Stepping down to zero is five or six presses, and the moment a driller
+        wants a pump off is exactly the moment they have something else to
+        watch. The shutdowns are per pump because a kill on one pump with the
+        other cracked open is a lineup a student can get into.
+        """
+        text = client.get("/").text
+        assert text.count("SHUTDOWN") >= 2
+        for act in ('"p1off"', '"p2off"'):
+            assert act in text, act
+        assert 'send("pump", {spm: 0, pump: 1})' in text
+        assert 'send("pump", {spm: 0, pump: 2})' in text
+
+    def test_the_joystick_is_proportional_and_spring_centred(self, client):
+        """Held deflection sets a rate; it is not a swipe that lands on release.
+
+        The three things that made the first version feel dead are each pinned:
+        the handle leans while held, the step is integrated against measured
+        elapsed time rather than the timer's nominal interval, and the rate is
+        the choke's own travel speed at full deflection.
+        """
+        text = client.get("/").text
+        body = text.split("function startStick(")[1].split("function stopStick(")[0]
+        assert "performance.now()" in body            # measured, not nominal
+        assert "STICK.target" in body                 # local, not read back
+        assert "choke_travel_rate" in body            # capped at travel speed
+        assert "STICK.deflection / STICK.FULL" in body
+        # The handle leans, and springs back when let go.
+        assert "MAX_LEAN_DEG" in text
+        assert "rotate(" in text.split("function joystick(")[1][:2000]
+        stop = text.split("function stopStick(")[1][:300]
+        assert "STICK.deflection = 0" in stop
+
+    def test_the_student_has_a_transport_but_not_a_speed(self, client):
+        """There is no solo mode: an instructor sets every run up, so the
+        multiplier is theirs and the student gets an indicator of it.
+
+        The transport is a separate thing and the student does have it -- they
+        must be able to stop their own well to read a kill sheet.
+        """
+        text = client.get("/").text
+        assert 'id="speed-pill"' in text
+        assert 'id="play"' in text and 'id="pause"' in text
+        # No exercise or speed *control* on the student's header. The scenario
+        # select survives only hidden, as the way a server with no class on it
+        # starts something to look at.
+        assert "<select id=\"speed\"" not in text
+        assert '<select id="scenario" hidden' in text
+        assert 'send("pause", {paused})' in text
+
     def test_the_pit_deviation_gauge_reads_loss_and_gain(self, client):
         """Bipolar with zero centred: the question is whether the needle has
         left centre, not whether it reached a number."""

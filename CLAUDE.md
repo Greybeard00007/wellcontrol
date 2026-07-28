@@ -462,15 +462,26 @@ left with RESET above the counter it resets. The lamp row stays below the
 panel: *Above MAASP* and *Well dead* are worth peripheral vision even though
 the mockup omits them.
 
-**Still to do on this screen: the header row.** The mockup carries a transport
-— play, pause, stop — and a Restart button, and carries *no* exercise or speed
-dropdown; ours still has both. Two things have to be decided before that can be
-built rather than guessed at. In class mode there is deliberately **no**
-`/api/me/speed` route at all, so a student transport needs new routes and a
-ruling on what a student pausing means while the instructor has the class
-running. And solo mode has no instructor to pick the exercise or the
-multiplier, so the table below cannot simply be applied to it — the solo
-student is their own instructor. The dropdowns stay until that is settled.
+**There is no solo mode, and there never will be.** Every run is set up by an
+instructor — a class of one is still a class. That settles what the header is:
+the exercise and speed dropdowns are gone from the student's page, the
+multiplier is an indicator (`#speed-pill`) rather than a control, and Restart
+is hidden in a class because a student who could reset their own well could
+take a kick twice and hand in whichever went better.
+
+The transport is theirs, though, and `/api/me/pause` is the route for it —
+**a transport, not a clock**. Pausing stops that one student's well so they
+can read a kill sheet or think; resuming puts them back on whatever the
+instructor's multiplier is *now*, not on a remembered figure of their own.
+There is still no `/api/me/speed`, and there should not be.
+
+`<select id="scenario">` survives, hidden. It is not a student control: it is
+how a server with no class on it starts something to look at, which is the
+harness this page is developed and tested against. The mockup's third
+transport glyph — stop — is **not** built, because ending a run is a concept
+the session does not have (there is no finished state, and the debrief tab is
+the instructor's in a class). Drawing it would be decoration, which this panel
+does not do.
 
 `simulator_screens/current_screens/` holds screenshots of every screen as it
 stood on 27 July, for comparison.
@@ -485,10 +496,36 @@ stood on 27 July, for comparison.
 | Change the speed multiplier | **no** | yes |
 | Auto choke | no | yes — can put a student on it |
 
-**A student never picks the speed.** They get a transport — play, pause, stop —
+**A student never picks the speed.** They get a transport — play and pause —
 and an indicator showing the multiplier they are on. Speeding a student up is
 the instructor's call, because the whole point of 10x is to skip the long
 circulating stretches on the instructor's schedule, not the student's.
+
+**The joystick is a proportional control, not a swipe.** It used to read the
+distance dragged and send one command on release, so nothing moved until you
+let go and the size of the movement was a guess — which is why it read as
+broken. It is now held: deflection sets a *rate*, the handle leans while it is
+held and springs back to centre when let go, and full deflection commands
+travel at the choke's own `Travel speed` so the command never runs ahead of
+the actuator. Three things in `startStick` are load-bearing:
+
+- **The step is integrated against measured elapsed time**, not the timer's
+  nominal interval. Each post repaints the whole face, and Chrome throttles a
+  hidden tab's timers to about 1 Hz — either way the callbacks come late, and
+  a handle held hard over moved the choke at a quarter of the speed it
+  advertises. The `dt` clamp that guards a suspended tab has to be generous
+  for the same reason: set near the tick, it silently halves the travel.
+- **The target is held locally** rather than read back off the gauges each
+  tick, or every step waits for a round trip and the handle feels like it is
+  negotiating with the server rather than driving a choke.
+- **The lean is redrawn on `requestAnimationFrame`, not on the poll.** A
+  quarter second of lag on a control you are holding is the difference between
+  a joystick and a form field.
+
+**Each mud pump has its own SHUTDOWN**, to the right of its steppers, so a
+pump row reads `−5 [spm] +5 SHUTDOWN`. Stepping down to zero is five or six
+presses, and the moment a driller wants a pump off is exactly the moment they
+have something else to watch.
 
 **Auto choke is new engine work.** The instructor can put a student's well on
 an automatic choke that holds bottomhole pressure — the same PD controller the
@@ -511,13 +548,17 @@ different hat.** `--reload` is necessary and not sufficient:
 
 - **No `--reload` at all**: newly added routes 404, and changed models 422,
   while the source plainly has them.
-- **`--reload` on, but the reloader died and orphaned its worker.** The log
-  said `StatReload detected changes … Reloading...` and then never said
-  `Started server process` again — the parent was gone and the child kept the
-  socket and the old code. A `zero` call answered with an error message that
-  had been edited out of the source ten minutes earlier. If the server is
-  answering with words that are no longer in the file, check that the process
-  holding port 8020 has a live parent before doubting anything else.
+- **`--reload` on, and the reload wedges anyway. This is reproducible on this
+  box, not a one-off.** The log says `StatReload detected changes …
+  Reloading...` and then never says `Started server process` again: the new
+  worker cannot take the port because the old one still holds it, so the old
+  code keeps answering. Seen twice in one session, once with the reloader
+  parent dead and once with three python processes alive at the same time. A
+  `zero` call answered with an error message that had been edited out of the
+  source ten minutes earlier. **Do not trust `--reload` for Python changes
+  here** — after editing anything under `src/`, kill every process on port
+  8020 and start it again. If the server is answering with words that are no
+  longer in the file, that is what has happened.
 - **The browser caches the page.** `navigate` to the same URL re-serves from
   cache; only a hard reload picks up an edited `choke_panel.html`. A hit target
   measured at its old size is the giveaway.
@@ -784,9 +825,17 @@ file.
 
 ### What the student sees, for now
 
-`/` serves the same page solo or in a class; it probes `/api/me` to find out
-which, because the class token is an httpOnly cookie it cannot read. Every call
-goes through `base()`, which is the only thing that knows the difference.
+`/` probes `/api/me` to find out whether there is a class behind it, because
+the class token is an httpOnly cookie it cannot read. Every call goes through
+`base()`, which is the only thing that knows the difference.
+
+**The no-class branch is a development harness, not a product mode.** There is
+no solo mode and there never will be: every run is set up by an instructor,
+even a class of one. What the branch buys is a server you can point a browser
+at without standing a class up first, which is how the screens are built and
+how `tests/test_sim_api.py` drives them. Nothing student-facing should be
+designed around it — see *The agreed choke panel* for what that settled about
+the header.
 
 In class mode the **Well cross-section and Debrief tabs are removed** — a live
 cross-section shows where the gas is, which is what the student is meant to be

@@ -214,6 +214,13 @@ class TransferPumpCommand(BaseModel):
     running: bool
 
 
+class PauseCommand(BaseModel):
+    paused: bool = Field(
+        description="True stops this student's well; false puts it back on "
+        "the instructor's clock. Never sets a multiplier.",
+    )
+
+
 class ZeroCommand(BaseModel):
     instrument: str = Field(description="pits, trip_tank or strokes")
 
@@ -1118,6 +1125,26 @@ def my_transfer_pump(
         student.session.set_transfer_pump(body.name, body.running)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"gauges": student.session.gauges()}
+
+
+@app.post("/api/me/pause")
+@exclusive
+def my_pause(
+    body: PauseCommand, who: tuple[Classroom, Student] = Depends(require_student)
+) -> dict:
+    """Stop or restart *this student's* well. Not the class, and not a speed.
+
+    There is deliberately no student route that sets a multiplier -- 10x exists
+    to skip the long circulating stretches on the instructor's schedule, not
+    the student's. But a student has to be able to stop their own well to read
+    a kill sheet or think, so this is a transport rather than a clock: pausing
+    holds it where it is, and resuming puts them back on whatever the
+    instructor's clock is currently set to rather than on a remembered figure
+    of their own.
+    """
+    classroom, student = who
+    student.session.set_speed(0.0 if body.paused else classroom.speed)
     return {"gauges": student.session.gauges()}
 
 

@@ -365,26 +365,21 @@
   <span class="pill mono" id="clock">00:00:00</span>
   <span class="pill" id="deadpill" style="display:none">Well dead</span>
   <span class="grow"></span>
-  <!-- Solo controls. Hidden in a class: the exercise and the clock are the
-       instructor's, and a student picking their own would not be flying the
-       same lesson as the room. -->
-  <span id="solo-controls">
-    <label class="lbl">Exercise</label>
-    <select id="scenario"></select>
-    <label class="lbl">Speed</label>
-    <select id="speed">
-      <option value="0">Paused</option>
-      <option value="1">1&times;</option>
-      <option value="10" selected>10&times;</option>
-      <option value="60">60&times;</option>
-    </select>
-    <button id="restart">Restart</button>
+  <span class="pill" id="class-name" style="display:none">—</span>
+  <span class="pill" id="student-name" style="display:none">—</span>
+  <!-- **The student never picks the exercise or the speed.** There is no solo
+       mode: every run is set up by an instructor, even a class of one. So the
+       speed is an indicator rather than a control, and the exercise selector
+       below is not shown at all -- it survives only as the way a bare server
+       with no class on it starts something to look at, which is the harness
+       this page is developed and tested against. -->
+  <span class="pill mono" id="speed-pill" title="Set by the instructor">—</span>
+  <span id="transport">
+    <button id="play" title="Run">&#9654;</button>
+    <button id="pause" title="Pause">&#10073;&#10073;</button>
   </span>
-  <span id="class-controls" style="display:none">
-    <span class="pill" id="class-name">—</span>
-    <span class="pill" id="student-name">—</span>
-    <span class="pill" id="class-speed">Paused</span>
-  </span>
+  <button id="restart">Restart</button>
+  <select id="scenario" hidden aria-hidden="true"></select>
 </header>
 
 <!-- The operator screens a rig simulator actually has, in the order the
@@ -927,7 +922,7 @@ async function start() {
   nextEvent = 0; trace = []; schematicCache = null;
   $("log").innerHTML = "";
   await api(`/api/sessions/${sessionId}/speed`, {
-    method: "POST", body: JSON.stringify({speed: Number($("speed").value)})
+    method: "POST", body: JSON.stringify({speed: runSpeed})
   });
   drawLineup(created.lineup);
   paint(created.gauges);
@@ -946,10 +941,11 @@ async function poll() {
     lineupCache = snap.lineup;
     schematicCache = snap.schematic;
     if (classMode && snap.classroom) {
-      // The clock belongs to the instructor, so the student is told what it
-      // is doing rather than given a control for it.
-      $("class-speed").textContent = snap.classroom.paused
-        ? "Paused" : `${snap.classroom.speed}×`;
+      // The multiplier belongs to the instructor, so the student is told what
+      // it is rather than given a control for it. Their own transport can
+      // still stop their well; the pill shows the class setting, which is
+      // what they will be back on when they press play.
+      runSpeed = snap.classroom.speed || runSpeed;
     }
     paint(snap.gauges);
     redraw();
@@ -1090,9 +1086,13 @@ function paint(g) {
   $("pump-read").textContent = g.pump_spm.toFixed(0);
   if (document.activeElement !== $("strip")) $("strip").value = g.strip_rate_ft_per_min;
   $("strip-read").textContent = g.strip_rate_ft_per_min.toFixed(0);
-  if (document.activeElement !== $("speed") && Number($("speed").value) !== g.speed) {
-    $("speed").value = String(g.speed);
-  }
+  // The speed indicator reads the student's *own* well, not the class
+  // setting: if they have paused themselves it must say so, or the transport
+  // has no feedback at all.
+  $("speed-pill").textContent = g.paused ? "Paused" : `${g.speed}×`;
+  $("speed-pill").classList.toggle("warn", Boolean(g.paused));
+  $("play").disabled = !g.paused;
+  $("pause").disabled = Boolean(g.paused);
 }
 
 function addEvent(e) {
@@ -1273,12 +1273,13 @@ function stepper(x, y, w, label, value, downAct, upAct, unit) {
           fill="#5c4415" font-size="9" font-family="system-ui">${unit}</text>` : ""}`;
 }
 
-function faceButton(x, y, w, h, text, act, on) {
+function faceButton(x, y, w, h, text, act, on, size) {
+  const s = size || 12;
   return `<g class="hit" data-face="${act}" style="cursor:pointer">
     <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4"
           fill="${on ? "#12a08a" : "#d8dce0"}" stroke="#6d777f"/>
-    <text x="${x + w / 2}" y="${y + h / 2 + 5}" text-anchor="middle"
-          fill="${on ? "#eafff8" : "#17120c"}" font-size="12" font-weight="600"
+    <text x="${x + w / 2}" y="${y + h / 2 + s * 0.36}" text-anchor="middle"
+          fill="${on ? "#eafff8" : "#17120c"}" font-size="${s}" font-weight="600"
           font-family="system-ui">${text}</text></g>`;
 }
 
@@ -1407,10 +1408,18 @@ function joystick(cx, cy, moving) {
 
   b.push(`<path d="M ${cx - 46} ${cy + 48} L ${cx - 32} ${cy - 4}
     L ${cx + 32} ${cy - 4} L ${cx + 46} ${cy + 48} z" fill="#3b444c"/>`);
+
+  /* The handle leans the way it is being pushed, about the pivot at the top
+     of the boot. Without this the stick was a picture that never moved while
+     the choke did, which is why it read as broken: on a rig the handle's
+     angle *is* the feedback that you are still commanding travel. */
+  const lean = (STICK.deflection / STICK.FULL) * STICK.MAX_LEAN_DEG;
+  b.push(`<g transform="rotate(${lean.toFixed(2)} ${cx} ${cy})">`);
   b.push(`<rect x="${cx - 10}" y="${cy - 44}" width="20" height="44" rx="5"
     fill="#c3cad0" stroke="#8b949c"/>`);
-  // The ball itself works the choke: drag left to open, right to close. The
-  // buttons do the same in fixed steps for anyone on a touchscreen.
+  // The ball works the choke: push and hold left to open, right to close, and
+  // how far you push decides how fast it travels. The buttons at the ends of
+  // the arc step it 5% instead, for anyone on a touchscreen.
   b.push(`<g class="hit stickball" data-face="stick" style="cursor:ew-resize">
     <circle cx="${cx}" cy="${cy - 48}" r="22" fill="#20262b"/>
     <circle cx="${cx - 6}" cy="${cy - 55}" r="6" fill="#3d464e" opacity="0.8"/></g>`);
@@ -1418,8 +1427,36 @@ function joystick(cx, cy, moving) {
     b.push(`<circle cx="${cx}" cy="${cy - 48}" r="25" fill="none"
       stroke="#4bf07e" stroke-width="2" opacity="0.85"/>`);
   }
+  b.push(`</g>`);
   return b.join("");
 }
+
+/* The joystick's live state. Module level rather than on the drawn nodes,
+   which are thrown away four times a second, and rather than in a closure,
+   which would go stale with them.
+
+   **It is a proportional control, not a swipe.** It used to read the distance
+   dragged and send one command on release, so nothing moved until you let go
+   and the size of the movement was a guess. A rig joystick is held: deflection
+   sets a *rate*, the choke travels while you hold it, and the handle springs
+   back to centre when you let go. Full deflection commands travel at the choke's
+   own `Travel speed`, so the command never runs ahead of the actuator -- the
+   student would lose the feel of the handle if it did, and the number in the
+   choke control window would stop meaning anything. */
+const STICK = {
+  //: Pixels of drag that count as full deflection.
+  FULL: 90,
+  //: How far the handle leans at full deflection.
+  MAX_LEAN_DEG: 22,
+  //: How often a held stick commands the choke. Faster than the poll, or the
+  //: handle feels like it is catching up rather than leading -- but not so
+  //: fast that the repaint each post triggers starves everything else.
+  TICK_MS: 150,
+  deflection: 0,
+  target: 0,
+  last: 0,
+  timer: null,
+};
 
 function rotarySelector(cx, cy, r, rightHand) {
   // Clicking either label throws the switch, so the selector is a lineup
@@ -1539,35 +1576,45 @@ function drawChokeFace(g) {
   // on the console directly above it), and the two sets of controls. Spread
   // across the panel these read as unrelated instruments; together they are
   // one system with one story.
-  // RESET sits on bare console just above the counter it clears. It cannot
-  // go directly over the counter's centre: the casing gauge's lower-left arc
-  // comes through there, and the label ends up printed on the bezel.
-  // The transparent disc is the hit target, not the button. Drawn at the
-  // size the layout wants, this is the smallest control on the face -- about
-  // 24 css pixels across -- and a press that lands two pixels off does
-  // nothing, which reads as a dead button rather than a missed one.
-  // `transparent` rather than `none`: a fill of none is not hit-tested.
-  b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
-    <circle cx="140" cy="498" r="26" fill="transparent"/>
-    <text x="140" y="484" text-anchor="middle" fill="var(--console-ink)" font-size="10"
-          font-weight="700" font-family="system-ui">RESET</text>
-    <circle cx="140" cy="502" r="13" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
-    <circle cx="136" cy="498" r="4" fill="#3fd4bd" opacity="0.7"/></g>`);
-
-  b.push(`<rect x="6" y="520" width="262" height="116" rx="6"
+  // The block starts at y 530 because that is where the casing gauge ends:
+  // widening it to carry the two shutdowns would otherwise put Pump 2's
+  // button under the bezel, and a control you cannot see is not a control.
+  b.push(`<rect x="6" y="530" width="398" height="110" rx="6"
     fill="var(--console-panel)" stroke="var(--console-edge)"/>`);
-  b.push(`<text x="137" y="538" text-anchor="middle" fill="var(--console-ink)"
-    font-size="13" font-weight="700" letter-spacing="0.07em"
+  b.push(`<text x="205" y="544" text-anchor="middle" fill="var(--console-ink)"
+    font-size="12" font-weight="700" letter-spacing="0.07em"
     font-family="system-ui">MUD PUMPS</text>`);
 
-  b.push(segment(14, 556, 112, 22,
-    pad(g.pumps[0].spm + g.pumps[1].spm, 5), "STROKE RATE", 16));
-  b.push(segment(148, 556, 112, 22, pad(g.strokes, 5), "STROKE COUNTER", 16));
+  b.push(segment(14, 565, 112, 20,
+    pad(g.pumps[0].spm + g.pumps[1].spm, 5), "STROKE RATE", 15));
+  b.push(segment(216, 565, 112, 20, pad(g.strokes, 5), "STROKE COUNTER", 15));
 
-  // No unit under these two: the block ends at the bottom of the face and a
-  // caption below the buttons falls off it, which is where "spm" was going.
-  b.push(stepper(14, 600, 112, "Pump 1", pad(g.pumps[0].spm, 3), "p1-", "p1+", ""));
-  b.push(stepper(148, 600, 112, "Pump 2", pad(g.pumps[1].spm, 3), "p2-", "p2+", ""));
+  // RESET moved inside the block and alongside the counter it clears. On bare
+  // console above it, where the approved layout puts it, it collided with the
+  // casing gauge once the gauge grew to its mockup size.
+  // The transparent disc is the hit target, not the button: at the size the
+  // layout wants it this is the smallest control on the face, and a press
+  // landing two pixels off does nothing, which reads as a dead button rather
+  // than a missed one. `transparent`, not `none` -- a fill of none is not
+  // hit-tested at all.
+  b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
+    <circle cx="366" cy="575" r="24" fill="transparent"/>
+    <text x="366" y="561" text-anchor="middle" fill="var(--console-ink)" font-size="10"
+          font-weight="700" font-family="system-ui">RESET</text>
+    <circle cx="366" cy="575" r="12" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
+    <circle cx="362" cy="571" r="4" fill="#3fd4bd" opacity="0.7"/></g>`);
+
+  // Each pump reads left to right as one story: take five off, what it is
+  // doing now, put five on, and stop it. The shutdown is not the same as
+  // stepping down to zero -- a driller killing a pump does it in one action,
+  // and having to press minus six times while the well is doing something is
+  // exactly when it would be got wrong.
+  // No unit under the steppers: the block ends at the bottom of the face and
+  // a caption below the buttons falls off it, which is where "spm" was going.
+  b.push(stepper(14, 604, 112, "Pump 1", pad(g.pumps[0].spm, 3), "p1-", "p1+", ""));
+  b.push(faceButton(132, 604, 64, 34, "SHUTDOWN", "p1off", false, 9));
+  b.push(stepper(216, 604, 112, "Pump 2", pad(g.pumps[1].spm, 3), "p2-", "p2+", ""));
+  b.push(faceButton(334, 604, 64, 34, "SHUTDOWN", "p2off", false, 9));
 
   if (showGrid) b.push(gridOverlay(1440, 640, 40));
   host.innerHTML = b.join("");
@@ -1604,8 +1651,10 @@ function faceAction(act, g) {
     case "choke2":  send("chokeselect", {choke: "choke_2"}); break;
     case "p1-":     pumpBy(1, -5); break;
     case "p1+":     pumpBy(1, 5); break;
+    case "p1off":   send("pump", {spm: 0, pump: 1}); break;
     case "p2-":     pumpBy(2, -5); break;
     case "p2+":     pumpBy(2, 5); break;
+    case "p2off":   send("pump", {spm: 0, pump: 2}); break;
     case "rpm-":    send("rotary", {rpm: Math.max(0,
                       (g.drilling.rpm_commanded || 0) - 10)}); break;
     case "rpm+":    send("rotary", {rpm: Math.min(200,
@@ -1647,9 +1696,7 @@ function wireFace(host, g) {
      redraw can move it. */
   let from = null, kind = null;
   host.addEventListener("pointerdown", e => {
-    // Drag the joystick sideways, or the block lever up and down. A rig
-    // joystick is proportional: how far you push it decides how far the
-    // handle goes, which is how a choke gets slammed by someone in a hurry.
+    // Hold the joystick over, or drag the block lever up and down.
     if (e.target.closest(".stickball")) { kind = "choke"; from = e.clientX; }
     else if (e.target.closest(".blocklever")) { kind = "block"; from = e.clientY; }
     else {
@@ -1659,32 +1706,100 @@ function wireFace(host, g) {
       }
       return;
     }
+    if (kind === "choke") startStick(host);
     host.setPointerCapture(e.pointerId);
+    e.preventDefault();
   });
-  host.addEventListener("pointerup", e => {
+
+  host.addEventListener("pointermove", e => {
+    if (kind !== "choke") return;
+    // Left is open, right is close -- the same way round as the two buttons
+    // at the ends of the handle's own arc. It was once inverted, so the ball
+    // and the buttons beside it disagreed about which way the choke went.
+    STICK.deflection = Math.max(-STICK.FULL,
+      Math.min(STICK.FULL, from - e.clientX));
+    leanTheStick(host);
+  });
+
+  const release = e => {
     if (from === null) return;
-    const now = host._gauges;
-    if (kind === "choke") {
-      // Left is open, right is close -- the same way round as the two
-      // buttons at the ends of the handle's own arc. It used to be inverted,
-      // so the ball and the buttons beside it disagreed about which way the
-      // choke went.
-      const dx = from - e.clientX;
-      if (Math.abs(dx) >= 4) {
-        const next = Math.max(0, Math.min(100,
-          (now.choke_commanded || 0) + Math.round(dx / 5)));
-        $("choke").value = next;
-        send("choke", {percent: next});
-      }
-    } else if (kind === "block") {
+    if (kind === "block") {
       // Down is weight on: lowering the block puts the string on bottom.
       const dy = e.clientY - from;
       if (Math.abs(dy) >= 4) {
         send("wob", {klbf: Math.max(0, Math.min(60,
-          (now.drilling.wob_commanded_klbf || 0) + Math.round(dy / 8)))});
+          (host._gauges.drilling.wob_commanded_klbf || 0) + Math.round(dy / 8)))});
       }
+    } else if (kind === "choke") {
+      stopStick(host);          // spring back to centre, stop commanding
     }
     from = null; kind = null;
+  };
+  host.addEventListener("pointerup", release);
+  host.addEventListener("pointercancel", release);
+}
+
+/* Held deflection commands choke travel at a rate proportional to it, capped
+   at the choke's own Travel speed. Sending on a timer rather than on every
+   pointermove keeps the posts down however hard the handle is waggled, and
+   gives a stationary but still-held stick its due -- holding the handle over
+   without moving your hand has to keep the choke travelling.
+
+   **Two things here are load-bearing, and the first version had neither.**
+
+   The step is integrated against *measured elapsed time*, not against the
+   timer's nominal interval. Each post repaints the whole face, so at ten a
+   second the main thread starves its own timer: the ticks came 400 ms apart
+   instead of 100, and a handle held hard over moved the choke at a quarter of
+   the Travel speed it advertises. Reading the clock makes the rate right
+   whatever the browser is doing with the callbacks.
+
+   And the target is held here rather than read back off the gauges each tick.
+   Reading it back makes every step wait for a round trip, so the handle feels
+   like it is negotiating with the server rather than driving a choke. */
+function startStick(host) {
+  if (STICK.timer) return;
+  STICK.target = (host._gauges && host._gauges.choke_commanded) || 0;
+  STICK.last = performance.now();
+  STICK.timer = setInterval(() => {
+    const now = performance.now();
+    // Generous clamp, and it has to be. Chrome throttles a hidden tab's
+    // timers to about 1 Hz, so a clamp near the nominal tick would quietly
+    // scale the choke's travel down by whatever the browser felt like -- half
+    // speed, measured. It exists only to stop a tab that was suspended and
+    // resumed from slamming the choke over in one step.
+    const dt = Math.min(1.2, (now - STICK.last) / 1000);
+    STICK.last = now;
+    if (!STICK.deflection) return;
+    const g = host._gauges;
+    if (!g) return;
+    const rate = g.choke_travel_rate || 10;                // % per second
+    const next = Math.max(0, Math.min(100,
+      STICK.target + (STICK.deflection / STICK.FULL) * rate * dt));
+    if (Math.abs(next - STICK.target) < 0.05) return;
+    STICK.target = next;
+    $("choke").value = Math.round(next);
+    send("choke", {percent: Number(next.toFixed(1))});
+  }, STICK.TICK_MS);
+}
+
+function stopStick(host) {
+  clearInterval(STICK.timer);
+  STICK.timer = null;
+  STICK.deflection = 0;
+  leanTheStick(host);
+}
+
+/* Redraw the handle at once rather than waiting for the next poll. A quarter
+   of a second of lag on a control you are holding is the difference between
+   a joystick and a form field. Coalesced to one redraw a frame: a pointermove
+   arrives about sixty times a second and the face is rebuilt whole. */
+let stickFrame = null;
+function leanTheStick(host) {
+  if (stickFrame) return;
+  stickFrame = requestAnimationFrame(() => {
+    stickFrame = null;
+    if (host._gauges) drawChokeFace(host._gauges);
   });
 }
 
@@ -2892,7 +3007,19 @@ document.querySelectorAll("[data-pump2]").forEach(b => b.onclick = () => {
   $("pump2").value = b.dataset.pump2;
   send("pump", {spm: Number(b.dataset.pump2), pump: 2});
 });
-$("speed").addEventListener("change", () => send("speed", {speed: Number($("speed").value)}));
+/* The transport: play and pause the student's *own* well. Not the class --
+   there is deliberately no student route that sets a multiplier, so pausing
+   here is a stop rather than a slow-down, and play puts them back on whatever
+   the instructor's clock is set to. */
+let runSpeed = 10;
+$("play").onclick = () => sendPause(false);
+$("pause").onclick = () => sendPause(true);
+
+function sendPause(paused) {
+  if (watchOnly || !ready()) return;
+  if (classMode) return send("pause", {paused});
+  return send("speed", {speed: paused ? 0 : runSpeed});
+}
 
 /* ---- stage 3 controls: the mud system and the choke bank ---- */
 $("pump2").addEventListener("change", () =>
@@ -2987,8 +3114,9 @@ window.addEventListener("resize", redraw);
 async function boot() {
   if (watchOnly) {
     document.body.classList.add("watching");
-    $("solo-controls").style.display = "none";
-    $("class-controls").style.display = "";
+    $("transport").style.display = "none";
+    $("restart").style.display = "none";
+    $("class-name").style.display = "";
     $("class-name").textContent = "Watching";
     nextEvent = 0; trace = [];
     return;
@@ -2998,8 +3126,11 @@ async function boot() {
 
   if (me) {
     classMode = true;
-    $("solo-controls").style.display = "none";
-    $("class-controls").style.display = "";
+    // Restarting is the instructor's: a student who could reset their own
+    // well could take a kick twice and hand in whichever went better.
+    $("restart").style.display = "none";
+    $("class-name").style.display = "";
+    $("student-name").style.display = "";
     $("class-name").textContent = me.classroom.name;
     $("student-name").textContent = me.student.name;
     // The Well cross-section and the Debrief are the instructor's in a class.

@@ -556,6 +556,10 @@ class Session:
             "returns": route.description,
             "well_is_dead": state.well_is_dead,
             "speed": self.speed,
+            # The student's transport needs to know which way it is. A speed
+            # of zero is not the same statement: the panel says "Paused"
+            # rather than "0x", and only one of play or pause is live.
+            "paused": self.paused,
 
             # Driller's console and BOP panel.
             "hookload_klbf": round(self.simulator.hookload_lbf / 1000.0, 1),
