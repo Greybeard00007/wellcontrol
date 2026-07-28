@@ -16,3 +16,12 @@ htmlcov/
 
 # Deployment secrets: the instructor password hash and the token signing key.
 .env
+
+# Obsidian: the repository is the vault. app.json IS committed — two of its
+# settings are load-bearing for content.py, not preferences; see
+# .obsidian/README.md. Only the per-machine UI state is ignored.
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/graph.json
+.obsidian/hotkeys.json
+.obsidian/cache
