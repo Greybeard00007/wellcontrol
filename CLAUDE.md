@@ -425,10 +425,54 @@ Done so far:
   joystick arc, which named something the control does not do — the buttons at
   the ends of that arc step the choke 5% per click — and **"spm"** under the
   pump steppers, which fell off the bottom edge of the face.
-- **DCU.** Pit deviation and return flow down the left with their alarm blocks,
-  torque/RPM/WOB across the top, the stroke, ROP and depth windows in the
-  middle, standpipe and both pump rates along the bottom, and on the right a
-  drawworks lever and a top drive cluster with the auto-driller.
+- **DCU.** Pit deviation and return flow down the left with their alarm
+  blocks, torque/RPM/WOB across the top, the stroke, ROP and depth windows in
+  the middle, standpipe and both pump rates along the bottom, a drawworks
+  lever and a top drive cluster with the auto-driller, and on the far right
+  **the mud pump cluster** — the same one the choke panel carries. A kick is
+  noticed on this screen and the first thing done about it is usually to the
+  pumps, so making the student change screens to touch them is making them
+  look away from the gauge that just told them something.
+
+  **`mudPumpBlock` draws it for both faces.** The DCU stacks it into a column
+  because that is the shape of the space the reference leaves on the right of
+  that screen and the choke panel lays it out across the bottom, but the
+  windows, the reset, the steppers and the shutdowns are the same controls in
+  the same order. Drawing them separately is how two panels drift into
+  disagreeing about what a pump control looks like. The viewBox widened from
+  1080 to 1300 to carry it.
+
+  **The alarm blocks are controls now, not pictures of controls.** The ON/OFF
+  switch and both set points were inert: the numbers were live but nothing on
+  the block could be touched, so a student could see the pit alarm was going
+  to fire at 10 bbl and had no way to move it. `alarmBlock` takes a `keys`
+  object naming its five `data-face` actions, so the two blocks dispatch to
+  different alarms through one drawing. Set points move independently —
+  `set_alarm` takes each on its own, so sending only the one that changed
+  cannot drag the other back to whatever the page last drew — and low is
+  clamped at or below high, because crossed set points give an alarm that is
+  always in one state and tells a student nothing. `miniStepper` exists
+  because `stepper`'s 30-unit buttons do not fit a 120-unit row, and a set
+  point a student cannot reach is the same as no set point.
+
+  **Reset Zero** re-marks the gain against the level that is there now. A
+  reserve transfer raises the active level without the well having done
+  anything, and a pit alarm with no way to clear it is a pit alarm that gets
+  ignored — see *The mud system*.
+
+  **Return flow reads either bbl/min or percent of flow in**, switched on the
+  face. The reference carries a switch rather than picking one, and it is
+  right to: 100% is balanced whatever the pump is doing, so a student watching
+  percent sees the well contributing without holding the circulating rate in
+  their head — but percent says nothing at all with the pump off, and that is
+  exactly when flow out is the loudest indicator there is. The switch never
+  reaches the server, because the well has no opinion about units. **The set
+  points stay in bbl/min either way**, because the alarm is on the
+  *differential* rather than on the return rate.
+
+  Pit deviation and gain/loss are deliberately **one gauge**. In the engine
+  `deviation_bbl` and `gain_bbl` are the same number, and the reference panel
+  labels that single dial "Pit Deviation" with LOSS/GAIN across its face.
 
 ### Controls, and the trap under them
 

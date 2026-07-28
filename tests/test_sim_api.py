@@ -517,6 +517,63 @@ class TestScreens:
         assert '<select id="scenario" hidden' in text
         assert 'send("pause", {paused})' in text
 
+    def test_the_dcu_carries_the_same_pump_cluster(self, client):
+        """A kick is noticed on the DCU and the first thing done about it is
+        usually to the pumps.
+
+        Both faces draw it through one function, so the two panels cannot
+        drift into disagreeing about what a pump control looks like. The DCU
+        stacks it into a column because that is the shape of the space the
+        reference leaves on the right of that screen; the controls and their
+        order are the same.
+        """
+        text = client.get("/").text
+        assert "function mudPumpBlock(" in text
+        choke = text.split("function drawChokeFace(")[1].split("\nfunction ")[0]
+        dcu = text.split("function drawDcuFace(")[1].split("\nfunction ")[0]
+        assert "mudPumpBlock(" in choke
+        assert "mudPumpBlock(" in dcu
+        # And neither face hand-rolls its own copy of the controls.
+        for face in (choke, dcu):
+            assert '"p1off"' not in face and '"p2off"' not in face
+
+    def test_the_dcu_can_zero_the_gain(self, client):
+        """A reserve transfer raises the active level without the well having
+        done anything, and a pit alarm with no way to clear it is a pit alarm
+        that gets ignored."""
+        text = client.get("/").text
+        assert "Reset Zero" in text
+        assert '"zeropits"' in text
+        assert 'send("zero", {instrument: "pits"})' in text
+
+    def test_both_dcu_alarms_can_be_set_and_armed(self, client):
+        """The block used to be a picture of an alarm: the numbers were live
+        but nothing on it could be touched, so a student could see the pit
+        alarm was going to fire at 10 bbl and had no way to move it."""
+        text = client.get("/").text
+        for act in ('"pitlow-"', '"pitlow+"', '"pithigh-"', '"pithigh+"',
+                    '"flowlow-"', '"flowlow+"', '"flowhigh-"', '"flowhigh+"',
+                    '"pitarm"', '"flowarm"'):
+            assert act in text, act
+        # Each set point moves on its own, and they cannot cross.
+        assert "send(\"alarm\", {name, low: Math.min(a.high," in text
+        assert "send(\"alarm\", {name, high: Math.max(a.low," in text
+
+    def test_the_return_flow_dial_switches_percent_and_volume(self, client):
+        """Percent is the better kick indicator and the rate is the better
+        instrument, so the reference carries a switch rather than picking one.
+
+        The switch never reaches the server: the well does not have an opinion
+        about units.
+        """
+        text = client.get("/").text
+        assert '"flowunits"' in text
+        assert "Percent" in text and "Vol/Min" in text
+        assert "% of flow in" in text
+        dispatch = text.split('case "flowunits":')[1].split("case \"")[0]
+        assert "flowInPercent = !flowInPercent" in dispatch
+        assert "send(" not in dispatch
+
     def test_the_pit_deviation_gauge_reads_loss_and_gain(self, client):
         """Bipolar with zero centred: the question is whether the needle has
         left centre, not whether it reached a number."""

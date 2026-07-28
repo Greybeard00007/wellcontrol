@@ -431,7 +431,7 @@
      to notice that something is wrong, which is a different job from the
      choke panel next door where they do something about it. -->
 <section class="screen" id="s-dcu">
-  <svg id="dcuface" viewBox="0 0 1080 560" role="img"
+  <svg id="dcuface" viewBox="0 0 1300 560" role="img"
        aria-label="Driller's console"></svg>
 
   <div class="card" id="briefing-card">
@@ -1609,44 +1609,11 @@ function drawChokeFace(g) {
   // across the panel these read as unrelated instruments; together they are
   // one system with one story.
   // The block starts at y 530 because that is where the casing gauge ends:
-  // widening it to carry the two shutdowns would otherwise put Pump 2's
-  // button under the bezel, and a control you cannot see is not a control.
-  b.push(`<rect x="6" y="530" width="398" height="110" rx="6"
-    fill="var(--console-panel)" stroke="var(--console-edge)"/>`);
-  b.push(`<text x="205" y="544" text-anchor="middle" fill="var(--console-ink)"
-    font-size="12" font-weight="700" letter-spacing="0.07em"
-    font-family="system-ui">MUD PUMPS</text>`);
-
-  b.push(segment(14, 565, 112, 20,
-    pad(g.pumps[0].spm + g.pumps[1].spm, 5), "STROKE RATE", 15));
-  b.push(segment(216, 565, 112, 20, pad(g.strokes, 5), "STROKE COUNTER", 15));
-
-  // RESET moved inside the block and alongside the counter it clears. On bare
-  // console above it, where the approved layout puts it, it collided with the
-  // casing gauge once the gauge grew to its mockup size.
-  // The transparent disc is the hit target, not the button: at the size the
-  // layout wants it this is the smallest control on the face, and a press
-  // landing two pixels off does nothing, which reads as a dead button rather
-  // than a missed one. `transparent`, not `none` -- a fill of none is not
-  // hit-tested at all.
-  b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
-    <circle cx="366" cy="575" r="24" fill="transparent"/>
-    <text x="366" y="561" text-anchor="middle" fill="var(--console-ink)" font-size="10"
-          font-weight="700" font-family="system-ui">RESET</text>
-    <circle cx="366" cy="575" r="12" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
-    <circle cx="362" cy="571" r="4" fill="#3fd4bd" opacity="0.7"/></g>`);
-
-  // Each pump reads left to right as one story: take five off, what it is
-  // doing now, put five on, and stop it. The shutdown is not the same as
-  // stepping down to zero -- a driller killing a pump does it in one action,
-  // and having to press minus six times while the well is doing something is
-  // exactly when it would be got wrong.
-  // No unit under the steppers: the block ends at the bottom of the face and
-  // a caption below the buttons falls off it, which is where "spm" was going.
-  b.push(stepper(14, 604, 112, "Pump 1", pad(g.pumps[0].spm, 3), "p1-", "p1+", ""));
-  b.push(faceButton(132, 604, 64, 34, "SHUTDOWN", "p1off", false, 9));
-  b.push(stepper(216, 604, 112, "Pump 2", pad(g.pumps[1].spm, 3), "p2-", "p2+", ""));
-  b.push(faceButton(334, 604, 64, 34, "SHUTDOWN", "p2off", false, 9));
+  // any higher and Pump 2's shutdown sits under the bezel, and a control you
+  // cannot see is not a control. Its twin is on the DCU -- one function draws
+  // both, so the two panels cannot drift into disagreeing about what a pump
+  // control looks like.
+  b.push(mudPumpBlock(6, 530, g, false));
 
   if (showGrid) b.push(gridOverlay(1440, 640, 40));
   host.innerHTML = b.join("");
@@ -1668,6 +1635,23 @@ function faceAction(act, g) {
     const now = g.pumps[which - 1].commanded;
     send("pump", {spm: Math.max(0, Math.min(200, now + d)), pump: which});
   };
+  /* Move one set point and leave the other alone -- `set_alarm` takes each
+     independently, so sending only the one that changed cannot drag the
+     other back to whatever the page last drew. The low point is clamped at
+     or below the high one and vice versa: crossed set points give an alarm
+     that is always in one state or the other and tells a student nothing. */
+  const alarmBy = (name, which, d) => {
+    const a = (name === "pit_deviation" ? g.pits : g.return_flow).alarm;
+    if (which === "low") {
+      send("alarm", {name, low: Math.min(a.high, (a.low || 0) + d)});
+    } else {
+      send("alarm", {name, high: Math.max(a.low, (a.high || 0) + d)});
+    }
+  };
+  const armToggle = name => send("alarm", {
+    name,
+    armed: !(name === "pit_deviation" ? g.pits : g.return_flow).alarm.armed,
+  });
 
   switch (act) {
     case "open":    chokeBy(5); break;
@@ -1687,6 +1671,26 @@ function faceAction(act, g) {
     case "p2-":     pumpBy(2, -5); break;
     case "p2+":     pumpBy(2, 5); break;
     case "p2off":   send("pump", {spm: 0, pump: 2}); break;
+
+    // -- the DCU's two alarm blocks, and the gauges beside them ------------
+    // A bbl on the pit alarm and half a barrel a minute on the flow alarm:
+    // the steps a driller would actually nudge them by, not the smallest
+    // number the engine can hold.
+    case "zeropits":  send("zero", {instrument: "pits"}); break;
+    case "pitarm":    armToggle("pit_deviation"); break;
+    case "pitlow-":   alarmBy("pit_deviation", "low", -1); break;
+    case "pitlow+":   alarmBy("pit_deviation", "low", 1); break;
+    case "pithigh-":  alarmBy("pit_deviation", "high", -1); break;
+    case "pithigh+":  alarmBy("pit_deviation", "high", 1); break;
+    case "flowarm":   armToggle("return_flow"); break;
+    case "flowlow-":  alarmBy("return_flow", "low", -0.5); break;
+    case "flowlow+":  alarmBy("return_flow", "low", 0.5); break;
+    case "flowhigh-": alarmBy("return_flow", "high", -0.5); break;
+    case "flowhigh+": alarmBy("return_flow", "high", 0.5); break;
+    // Units are a way of reading the gauge, not a thing the well knows about,
+    // so this one never leaves the page.
+    case "flowunits": flowInPercent = !flowInPercent;
+                      if (lastGauges) drawDcuFace(lastGauges); break;
     case "rpm-":    send("rotary", {rpm: Math.max(0,
                       (g.drilling.rpm_commanded || 0) - 10)}); break;
     case "rpm+":    send("rotary", {rpm: Math.min(200,
@@ -1862,6 +1866,11 @@ function drawTripTankChart() {
 }
 
 /* ---------------------------------- DCU --------------------------------- */
+/* Which way the return flow dial is reading. A display choice, so it lives on
+   the page and never goes to the server -- the well does not have an opinion
+   about units. */
+let flowInPercent = false;
+
 /* The two gauges a driller watches for a kick, then the pressures and the
    pump rates. Pit deviation is bipolar because that is the question: has the
    needle left centre, not has it reached a number. */
@@ -1927,21 +1936,53 @@ function rigDial(o) {
 
 /* The alarm block beside each kick gauge: bell, ON/OFF, two lamps, a red
    alarm light between them, and the set points in their own windows. */
-function alarmBlock(x, y, alarm, lowLabel, highLabel, decimals) {
+/* A window with a button either side, sized to fit inside the alarm block.
+   `stepper` is too wide for it -- its buttons are 30 apiece against a 120-unit
+   row -- and a set point a student cannot reach is the same as no set point. */
+function miniStepper(x, y, w, value, downAct, upAct) {
+  return `
+    <g class="hit" data-face="${downAct}" style="cursor:pointer">
+      <rect x="${x}" y="${y}" width="24" height="26" rx="3" fill="#d8dce0" stroke="#6d777f"/>
+      <text x="${x + 12}" y="${y + 18}" text-anchor="middle" fill="var(--console-ink)"
+            font-size="14" font-weight="700" font-family="system-ui">&minus;</text></g>
+    <rect x="${x + 27}" y="${y}" width="${w - 54}" height="26" rx="2"
+          fill="#0a0d10" stroke="#8f99a2"/>
+    <text x="${x + w / 2}" y="${y + 18}" text-anchor="middle" fill="#ff2d2d"
+          font-size="13" font-weight="700"
+          font-family="Consolas, ui-monospace, monospace">${value}</text>
+    <g class="hit" data-face="${upAct}" style="cursor:pointer">
+      <rect x="${x + w - 24}" y="${y}" width="24" height="26" rx="3" fill="#d8dce0" stroke="#6d777f"/>
+      <text x="${x + w - 12}" y="${y + 18}" text-anchor="middle" fill="var(--console-ink)"
+            font-size="14" font-weight="700" font-family="system-ui">+</text></g>`;
+}
+
+/* The alarm beside a DCU gauge: arm switch, the two lamps and the horn, and
+   the low and high set points.
+
+   **Everything in here works.** The ON/OFF switch and the two set points used
+   to be a picture of an alarm block -- the numbers were live but nothing on it
+   could be touched, so a student could see that the pit alarm was going to
+   fire at 10 bbl and had no way to move it. `keys` names the four
+   `data-face` actions and the arm toggle, so the two blocks on the DCU
+   dispatch to different alarms through the same drawing. */
+function alarmBlock(x, y, alarm, lowLabel, highLabel, decimals, keys) {
   const b = [];
-  b.push(`<rect x="${x}" y="${y}" width="128" height="150" rx="4"
+  b.push(`<rect x="${x}" y="${y}" width="128" height="206" rx="4"
     fill="var(--console-panel)" stroke="var(--console-edge)"/>`);
   b.push(`<text x="${x + 64}" y="${y + 18}" text-anchor="middle" fill="var(--console-ink)"
     font-size="15" font-family="system-ui">&#128276;</text>`);
-  // ON/OFF toggle, its handle following the armed state.
-  b.push(`<rect x="${x + 48}" y="${y + 24}" width="32" height="46" rx="4"
-    fill="#e6e9ec" stroke="#6d777f"/>`);
-  b.push(`<text x="${x + 64}" y="${y + 34}" text-anchor="middle" fill="var(--console-ink)"
-    font-size="8" font-family="system-ui">ON</text>`);
-  b.push(`<text x="${x + 64}" y="${y + 67}" text-anchor="middle" fill="var(--console-ink)"
-    font-size="8" font-family="system-ui">OFF</text>`);
-  b.push(`<rect x="${x + 55}" y="${alarm.armed ? y + 36 : y + 50}" width="18"
-    height="14" rx="3" fill="#8b949c" stroke="#3b444c"/>`);
+  // ON/OFF toggle, its handle following the armed state. Disarming silences
+  // the horn and leaves the lamps, which is what the engine does too.
+  b.push(`<g class="hit" data-face="${keys.arm}" style="cursor:pointer">
+    <rect x="${x + 44}" y="${y + 20}" width="40" height="58" rx="4" fill="transparent"/>
+    <rect x="${x + 48}" y="${y + 22}" width="32" height="54" rx="4"
+      fill="#e6e9ec" stroke="#6d777f"/>
+    <text x="${x + 64}" y="${y + 33}" text-anchor="middle" fill="var(--console-ink)"
+      font-size="8" font-family="system-ui">ON</text>
+    <text x="${x + 64}" y="${y + 73}" text-anchor="middle" fill="var(--console-ink)"
+      font-size="8" font-family="system-ui">OFF</text>
+    <rect x="${x + 55}" y="${alarm.armed ? y + 38 : y + 56}" width="18"
+      height="14" rx="3" fill="#8b949c" stroke="#3b444c"/></g>`);
 
   b.push(`<circle cx="${x + 22}" cy="${y + 92}" r="14"
     fill="${alarm.low_active ? "#e0a020" : "#20262b"}" stroke="#12181d" stroke-width="2"/>`);
@@ -1958,8 +1999,63 @@ function alarmBlock(x, y, alarm, lowLabel, highLabel, decimals) {
 
   const fmt = v => v === null || v === undefined ? "--"
     : Number(v).toFixed(decimals);
-  b.push(segment(x + 4, y + 120, 56, 24, fmt(alarm.low), "", 13));
-  b.push(segment(x + 68, y + 120, 56, 24, fmt(alarm.high), "", 13));
+  b.push(miniStepper(x + 4, y + 122, 120, fmt(alarm.low),
+    keys.lowDown, keys.lowUp));
+  b.push(miniStepper(x + 4, y + 158, 120, fmt(alarm.high),
+    keys.highDown, keys.highUp));
+  return b.join("");
+}
+
+/* The mud pump cluster, the same instrument the choke panel carries: what the
+   pumps are doing, what they have done, and the controls for both.
+
+   **One function, two faces.** The DCU stacks it into a column because that is
+   the shape of the space the reference leaves on the right of that screen, and
+   the choke panel lays it out across the bottom; but the windows, the reset,
+   the steppers and the shutdowns are the same controls in the same order, so a
+   student who learns one has learned the other. Drawing them separately is how
+   two panels drift into disagreeing about what a pump control looks like. */
+function mudPumpBlock(x, y, g, column) {
+  const b = [], w = column ? 200 : 398;
+  b.push(`<rect x="${x}" y="${y}" width="${w}" height="${column ? 420 : 110}"
+    rx="6" fill="var(--console-panel)" stroke="var(--console-edge)"/>`);
+  b.push(`<text x="${x + w / 2}" y="${y + 14}" text-anchor="middle"
+    fill="var(--console-ink)" font-size="12" font-weight="700"
+    letter-spacing="0.07em" font-family="system-ui">MUD PUMPS</text>`);
+
+  const rate = pad(g.pumps[0].spm + g.pumps[1].spm, 5);
+  const reset = (cx, cy) => `<g class="hit" data-face="reset" style="cursor:pointer">
+      <circle cx="${cx}" cy="${cy}" r="24" fill="transparent"/>
+      <text x="${cx}" y="${cy - 14}" text-anchor="middle" fill="var(--console-ink)"
+            font-size="10" font-weight="700" font-family="system-ui">RESET</text>
+      <circle cx="${cx}" cy="${cy}" r="12" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
+      <circle cx="${cx - 4}" cy="${cy - 4}" r="4" fill="#3fd4bd" opacity="0.7"/></g>`;
+
+  if (column) {
+    b.push(segment(x + 10, y + 46, 180, 24, rate, "STROKE RATE", 16));
+    b.push(segment(x + 10, y + 106, 180, 24, pad(g.strokes, 5),
+      "STROKE COUNTER", 16));
+    b.push(reset(x + 100, y + 168));
+    [0, 1].forEach(i => {
+      const top = y + 216 + i * 120;
+      b.push(stepper(x + 10, top, 180, `Pump ${i + 1}`,
+        pad(g.pumps[i].spm, 3), `p${i + 1}-`, `p${i + 1}+`, ""));
+      b.push(faceButton(x + 10, top + 42, 180, 30, "SHUTDOWN",
+        `p${i + 1}off`, false, 11));
+    });
+  } else {
+    b.push(segment(x + 8, y + 35, 112, 20, rate, "STROKE RATE", 15));
+    b.push(segment(x + 210, y + 35, 112, 20, pad(g.strokes, 5),
+      "STROKE COUNTER", 15));
+    b.push(reset(x + 360, y + 45));
+    [0, 1].forEach(i => {
+      const left = x + 8 + i * 202;
+      b.push(stepper(left, y + 74, 112, `Pump ${i + 1}`,
+        pad(g.pumps[i].spm, 3), `p${i + 1}-`, `p${i + 1}+`, ""));
+      b.push(faceButton(left + 118, y + 74, 64, 34, "SHUTDOWN",
+        `p${i + 1}off`, false, 9));
+    });
+  }
   return b.join("");
 }
 
@@ -1967,22 +2063,70 @@ function drawDcuFace(g) {
   const host = $("dcuface");
   if (!host) return;
   const b = [], dr = g.drilling, pit = g.pits, flow = g.return_flow;
-  b.push(`<rect x="0" y="0" width="1080" height="560" fill="var(--console)"/>`);
+  b.push(`<rect x="0" y="0" width="1300" height="560" fill="var(--console)"/>`);
 
   // -- the two gauges a kick is noticed on, down the left ------------------
   b.push(rigDial({
-    cx: 128, cy: 150, r: 104, value: Math.max(-50, Math.min(50, pit.deviation_bbl)),
+    cx: 128, cy: 140, r: 92, value: Math.max(-50, Math.min(50, pit.deviation_bbl)),
     min: -50, max: 50, ticks: [-50, -25, 0, 25, 50], decimals: 1,
     label: "Pit Deviation", unit: "bbls", leftLabel: "LOSS", rightLabel: "GAIN",
   }));
-  b.push(alarmBlock(250, 76, pit.alarm, "Low", "High", 1));
+  b.push(alarmBlock(248, 44, pit.alarm, "Low", "High", 1, {
+    arm: "pitarm", lowDown: "pitlow-", lowUp: "pitlow+",
+    highDown: "pithigh-", highUp: "pithigh+",
+  }));
+  // Re-mark the gain against the level that is there now. The instrument a
+  // student needs after a reserve transfer, which raises the active level
+  // without the well having done anything -- and the reason a pit alarm gets
+  // ignored on a rig if there is no way to clear it.
+  b.push(faceButton(256, 258, 112, 28, "Reset Zero", "zeropits", false, 11));
 
-  b.push(rigDial({
-    cx: 128, cy: 448, r: 104, value: Math.max(0, Math.min(20, flow.flow_out_bpm)),
+  /* Return flow reads either the rate itself or that rate as a percentage of
+     what is going in. **The percentage is the better kick indicator and the
+     rate is the better instrument**, which is why the reference carries a
+     switch rather than picking one: 100% is balanced whatever the pump is
+     doing, so a student watching percent sees the well contributing without
+     having to hold the circulating rate in their head -- but percent says
+     nothing at all with the pump off, and that is exactly when flow out is
+     the loudest indicator there is. */
+  const asPercent = flowInPercent && flow.percent !== null;
+  b.push(rigDial(asPercent ? {
+    cx: 128, cy: 388, r: 92, value: Math.max(0, Math.min(200, flow.percent)),
+    max: 200, ticks: [0, 50, 100, 150, 200], decimals: 1,
+    label: "Return Flow", unit: "% of flow in",
+  } : {
+    cx: 128, cy: 388, r: 92, value: Math.max(0, Math.min(20, flow.flow_out_bpm)),
     max: 20, ticks: [0, 5, 10, 15, 20], decimals: 1,
     label: "Return Flow", unit: "bbls/min",
+    digits: flowInPercent ? "--" : undefined,
   }));
-  b.push(alarmBlock(250, 374, flow.alarm, "Low", "High", 1));
+  // Percent | Vol/Min, the way the reference switches it. The half that is
+  // live is lit; pressing either half throws the switch.
+  b.push(`<g class="hit" data-face="flowunits" style="cursor:pointer">
+    <rect x="52" y="506" width="152" height="30" rx="4" fill="var(--console-panel)"
+          stroke="var(--console-edge)"/>
+    <rect x="${flowInPercent ? 54 : 128}" y="508" width="74" height="26" rx="3"
+          fill="#12a08a"/>
+    <text x="91" y="526" text-anchor="middle" font-size="11" font-weight="600"
+          fill="${flowInPercent ? "#eafff8" : "#17120c"}"
+          font-family="system-ui">Percent</text>
+    <text x="165" y="526" text-anchor="middle" font-size="11" font-weight="600"
+          fill="${flowInPercent ? "#17120c" : "#eafff8"}"
+          font-family="system-ui">Vol/Min</text></g>`);
+  // The set points stay in bbl/min whichever way the dial is reading, because
+  // the alarm is on the *differential* rather than on the return rate -- see
+  // ReturnFlowMeter. Alarming on the rate would fire every time the driller
+  // changed pump speed, which is how a flow alarm gets switched off for good.
+  b.push(alarmBlock(248, 296, flow.alarm, "Low", "High", 1, {
+    arm: "flowarm", lowDown: "flowlow-", lowUp: "flowlow+",
+    highDown: "flowhigh-", highUp: "flowhigh+",
+  }));
+
+  // -- the mud pumps, the same cluster the choke panel carries -------------
+  // A kick is noticed here and the first thing done about it is usually to
+  // the pumps, so making the student change screens to touch them is making
+  // them look away from the gauge that just told them something.
+  b.push(mudPumpBlock(1086, 46, g, true));
 
   // -- drilling instruments across the top ---------------------------------
   b.push(rigDial({cx: 470, cy: 128, r: 84, value: dr.torque_kftlb, max: 200,
@@ -2049,7 +2193,7 @@ function drawDcuFace(g) {
   b.push(faceButton(956, 490, 104, 30,
     dr.auto_driller ? "Auto ON" : "Auto OFF", "auto", dr.auto_driller));
 
-  if (showGrid) b.push(gridOverlay(1080, 560, 40));
+  if (showGrid) b.push(gridOverlay(1300, 560, 40));
   host.innerHTML = b.join("");
   wireFace(host, g);
 }
