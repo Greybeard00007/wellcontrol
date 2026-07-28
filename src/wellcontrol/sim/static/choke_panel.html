@@ -328,7 +328,7 @@
      whole point is that the scan is spatial and everything is in view. */
   #chokeface {
     width: 100%; height: auto; display: block;
-    max-height: calc(100vh - 150px); margin: 0 auto;
+    max-height: calc(100vh - 132px); margin: 0 auto;
   }
   .dials { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .dials.small { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
@@ -524,7 +524,7 @@
        a layout engine: a driller's scan is spatial, and moving a gauge
        because a column reflowed would break the thing that makes it
        readable without being read. -->
-  <svg id="chokeface" viewBox="0 0 1200 620" role="img"
+  <svg id="chokeface" viewBox="0 0 1440 640" role="img"
        aria-label="Choke panel"></svg>
   <div class="lamps" id="lamps" style="margin:10px 0 14px"></div>
 
@@ -1212,11 +1212,15 @@ function dial(opts) {
    choke position gauge above it. Everything is placed against the
    centreline at x=600 -- symmetry is what makes a panel look built
    rather than assembled. */
+/* The two pressure gauges are the centrepiece and carry the most face.
+   Their labels and digital readouts sit *above* them, on one line with
+   the kill line window, so the whole top edge of the panel reads as a
+   single row of numbers and the gauges below are pure needle. */
 const FACE = {
-  dp:       {cx: 356, cy: 262, r: 140},
-  csg:      {cx: 844, cy: 262, r: 140},
-  chokePos: {cx: 600, cy: 194, r: 68},
-  stick:    {cx: 600, cy: 448},
+  dp:       {cx: 330, cy: 300, r: 172},
+  csg:      {cx: 1110, cy: 300, r: 172},
+  chokePos: {cx: 720, cy: 218, r: 76},
+  stick:    {cx: 720, cy: 452},
 };
 
 /* The reference instrument is a fixed 0-5000 psi / 0-350 bar gauge. Fixed
@@ -1311,8 +1315,10 @@ function pressureGauge(cx, cy, r, value, label) {
   b.push(`<circle cx="${cx}" cy="${cy}" r="11" fill="#2b333b"/>`);
   b.push(`<circle cx="${cx - 18}" cy="${cy + 18}" r="2.4" fill="#9aa4ac"/>`);
   b.push(`<circle cx="${cx + 18}" cy="${cy + 18}" r="2.4" fill="#9aa4ac"/>`);
-  b.push(`<text x="${cx}" y="${cy + r + 20}" text-anchor="middle" fill="var(--console-ink)"
-    font-size="13" font-weight="700" font-family="system-ui">${label}</text>`);
+  if (label) {
+    b.push(`<text x="${cx}" y="${cy + r + 20}" text-anchor="middle" fill="var(--console-ink)"
+      font-size="13" font-weight="700" font-family="system-ui">${label}</text>`);
+  }
   return b.join("");
 }
 
@@ -1430,29 +1436,22 @@ function drawChokeFace(g) {
   const host = $("chokeface");
   if (!host) return;
   const b = [];
-  b.push(`<rect x="0" y="0" width="1200" height="620" fill="var(--console)"/>`);
+  b.push(`<rect x="0" y="0" width="1440" height="640" fill="var(--console)"/>`);
 
   // Gauges, each with its window tucked against it -- the reference pairs
   // them so the eye reads needle and digits without travelling.
-  // The centrepiece: two gauges, each with its readout directly below it.
-  b.push(pressureGauge(FACE.dp.cx, FACE.dp.cy, FACE.dp.r,
-    g.drill_pipe_psi, "Drill Pipe Pressure"));
-  b.push(segment(FACE.dp.cx - 78, 430, 156, 48, pad(g.drill_pipe_psi, 4), "", 27));
+  // One row of numbers across the top: drill pipe, kill line, casing. The
+  // gauges below carry no lettering of their own, so the eye reads the row
+  // once and then works the needles.
+  b.push(segment(FACE.dp.cx - 88, 44, 176, 50,
+    pad(g.drill_pipe_psi, 4), "DRILL PIPE PRESSURE", 28));
+  b.push(segment(632, 44, 176, 50,
+    pad(g.kill_line_psi, 5), "KILL LINE PRESSURE", 28));
+  b.push(segment(FACE.csg.cx - 88, 44, 176, 50,
+    pad(g.casing_psi, 4), "CASING PRESSURE", 28));
 
-  b.push(pressureGauge(FACE.csg.cx, FACE.csg.cy, FACE.csg.r,
-    g.casing_psi, "Casing Pressure"));
-  b.push(segment(FACE.csg.cx - 78, 430, 156, 48, pad(g.casing_psi, 4), "", 27));
-
-  // Across the top, evenly spread on one baseline.
-  b.push(segment(84, 38, 156, 42,
-    pad(g.pumps[0].spm + g.pumps[1].spm, 5), "STROKE RATE"));
-  b.push(segment(522, 38, 156, 42, pad(g.kill_line_psi, 5), "KILL LINE PRESSURE"));
-  b.push(segment(960, 38, 156, 42, pad(g.strokes, 5), "STROKE COUNTER"));
-  b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
-    <circle cx="918" cy="59" r="16" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
-    <circle cx="913" cy="54" r="5" fill="#3fd4bd" opacity="0.7"/>
-    <text x="918" y="90" text-anchor="middle" fill="var(--console-ink)" font-size="10"
-          font-family="system-ui">Reset</text></g>`);
+  b.push(pressureGauge(FACE.dp.cx, FACE.dp.cy, FACE.dp.r, g.drill_pipe_psi, ""));
+  b.push(pressureGauge(FACE.csg.cx, FACE.csg.cy, FACE.csg.r, g.casing_psi, ""));
 
   b.push(joystick(FACE.stick.cx, FACE.stick.cy,
     Math.abs(g.choke_commanded - g.choke_percent) > 0.5));
@@ -1461,30 +1460,43 @@ function drawChokeFace(g) {
   // Choke position above the joystick, smaller, on the same centreline.
   b.push(chokePositionDial(FACE.chokePos.cx, FACE.chokePos.cy, FACE.chokePos.r,
     g.choke_percent));
-  b.push(segment(FACE.chokePos.cx - 56, 288, 112, 34,
+  b.push(segment(FACE.chokePos.cx - 58, 316, 116, 34,
     (g.choke_percent || 0).toFixed(1) + "%", "", 19));
 
   // Choke control, bottom left. The speed knob is gone -- the stepper did the
   // same job, and two controls for one setting is a panel needing explanation.
-  b.push(`<rect x="42" y="462" width="230" height="112" rx="6"
+  b.push(`<rect x="40" y="502" width="240" height="112" rx="6"
     fill="var(--console-panel)" stroke="var(--console-edge)"/>`);
-  b.push(`<text x="157" y="486" text-anchor="middle" fill="var(--console-ink)"
+  b.push(`<text x="160" y="526" text-anchor="middle" fill="var(--console-ink)"
     font-size="12" font-weight="700" letter-spacing="0.06em"
     font-family="system-ui">CHOKE CONTROL</text>`);
-  b.push(stepper(58, 514, 198, "Travel speed",
+  b.push(stepper(56, 554, 208, "Travel speed",
     (g.choke_travel_rate || 10).toFixed(0), "speed-", "speed+", "% per second"));
 
-  b.push(rotarySelector(600, 568, 28, g.choke_in_service !== "choke_2"));
+  b.push(rotarySelector(720, 580, 30, g.choke_in_service !== "choke_2"));
 
-  // Mud pumps, bottom right.
-  b.push(`<rect x="928" y="462" width="230" height="112" rx="6"
+  // Everything to do with the pumps in one block: what they are doing now
+  // (stroke rate), what they have done (the counter and its reset), and the
+  // two sets of controls. Spread across the panel these read as unrelated
+  // instruments; together they are one system with one story.
+  b.push(`<rect x="906" y="502" width="494" height="132" rx="6"
     fill="var(--console-panel)" stroke="var(--console-edge)"/>`);
-  b.push(`<text x="1043" y="486" text-anchor="middle" fill="var(--console-ink)"
-    font-size="12" font-weight="700" letter-spacing="0.06em"
+  b.push(`<text x="1153" y="524" text-anchor="middle" fill="var(--console-ink)"
+    font-size="13" font-weight="700" letter-spacing="0.07em"
     font-family="system-ui">MUD PUMPS</text>`);
-  b.push(stepper(940, 514, 104, "Pump 1",
+
+  b.push(segment(922, 546, 148, 34,
+    pad(g.pumps[0].spm + g.pumps[1].spm, 5), "STROKE RATE", 19));
+  b.push(segment(1086, 546, 148, 34, pad(g.strokes, 5), "STROKE COUNTER", 19));
+  b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
+    <circle cx="1332" cy="564" r="17" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
+    <circle cx="1327" cy="559" r="5" fill="#3fd4bd" opacity="0.7"/>
+    <text x="1332" y="538" text-anchor="middle" fill="var(--console-ink)" font-size="10"
+          font-weight="700" font-family="system-ui">RESET</text></g>`);
+
+  b.push(stepper(922, 594, 148, "Pump 1",
     pad(g.pumps[0].spm, 3), "p1-", "p1+", "spm"));
-  b.push(stepper(1052, 514, 104, "Pump 2",
+  b.push(stepper(1086, 594, 148, "Pump 2",
     pad(g.pumps[1].spm, 3), "p2-", "p2+", "spm"));
 
   host.innerHTML = b.join("");

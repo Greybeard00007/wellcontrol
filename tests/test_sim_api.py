@@ -555,7 +555,7 @@ class TestScreens:
     def test_the_choke_panel_carries_the_reference_readouts(self, client):
         text = client.get("/").text
         for label in (
-            "Drill Pipe Pressure", "Casing Pressure", "STROKE RATE",
+            "DRILL PIPE PRESSURE", "CASING PRESSURE", "STROKE RATE",
             "STROKE COUNTER", "KILL LINE PRESSURE", "Choke Position", "Hold",
         ):
             assert label in text, label

@@ -371,21 +371,69 @@ which is the entire argument for a needle over a number.
 steps; decoration would be worse than nothing, because a student learns the
 panel and then finds half of it inert.
 
+**The orange is the console, not the page.** Everything outside the instrument
+face is slate (`--bg`); the face and its raised areas use `--console*`. A whole
+page of console orange reads as a website with a colour scheme rather than a
+panel bolted into a room.
+
 Done so far:
 
-- **Choke Panel.** Two bolted gauges with dual psi/bar scales and their own
-  seven-segment windows, stroke rate and counter with the reset button, kill
-  line pressure, the joystick with its Hold arc and live Open/Close handles,
-  the Choke2/Choke1 rotary selector, the speed knob, and the choke position
-  dial scaled in eighths. `kill_line_psi` was added to the gauges for it — the
-  engine had no such reading.
+- **Choke Panel.** Two large bolted gauges with dual psi/bar scales as the
+  centrepiece; their labels and digital readouts sit **above** them on one line
+  with the kill line window, so the top edge reads as a row of numbers and the
+  gauges below are pure needle. The joystick is on the centreline between them
+  with the choke position dial (scaled in eighths) above it. Choke control
+  bottom left, and **everything pump-related in one block** bottom right —
+  stroke rate, stroke counter, its reset, and both pump controls. Spread across
+  the panel those read as unrelated instruments; together they are one system.
+  `kill_line_psi` was added to the gauges for it — the engine had no such
+  reading.
+- **DCU.** Pit deviation and return flow down the left with their alarm blocks,
+  torque/RPM/WOB across the top, the stroke, ROP and depth windows in the
+  middle, standpipe and both pump rates along the bottom, and on the right a
+  drawworks lever and a top drive cluster with the auto-driller.
 
-Still to do, in order: **DCU**, then the **instructor station** — which needs
-the most structural change of all. The reference is a fixed-height admin
-console with a fifteen-entry left navigation tree (Load Exercise/Recording,
-Fault Induction Panel, Kill Sheets, Drilling Plots Report, Operator Panels…)
-and an *Operator Panels* view that opens a student's real screens. Ours is a
-flat scrolling page of tiles with no navigation at all.
+### Controls, and the trap under them
+
+**Every control drawn on a face must work.** A student learns the panel and
+then finds half of it is a picture, which is worse than it not being there. A
+test scrapes every `data-face` value out of the page and asserts each appears
+in `faceAction`'s switch.
+
+**Handlers go on the SVG host, attached once — never on its children.** The
+face redraws four times a second and each redraw replaces the host's entire
+`innerHTML`, so anything bound to a child is gone by the next poll: a click
+lands on a node already thrown away, and a drag dies mid-gesture. That is
+exactly why the joystick and the choke selector did nothing for a while. The
+host survives because only its contents change, and the current gauges hang off
+it (`host._gauges`) rather than being captured in a closure that would go stale
+with them.
+
+### Open: a 422 on two of the controls
+
+The choke selector and the travel-speed steppers reach the server and come back
+**422 Unprocessable Content**. The same bodies posted directly return 200, and
+`Session.select_choke` / `set_choke_speed` behave correctly when called in
+Python — so the routes and the models are right and the fault is in what the
+page sends. Not yet found. Next step is to log the actual request body out of
+`send()`.
+
+**A related trap, already paid for once:** the dev server was started without
+`--reload`, so newly added routes 404'd while the source clearly had them. If a
+route looks missing, check the server was restarted before checking the code.
+
+Still to do: the **instructor station** — the biggest structural change of the
+three. The reference is a fixed-height admin console with a fifteen-entry left
+navigation tree (Load Exercise/Recording, Fault Induction Panel, Kill Sheets,
+Drilling Plots Report, Operator Panels…) and an *Operator Panels* view that
+opens a student's real screens. Ours is a flat scrolling page of tiles with no
+navigation at all.
+
+The groundwork for Operator Panels is in: **`/instructor/panel?classroom=&student=`
+serves the same page the student is looking at**, polling the instructor's
+drill-down endpoint instead of `/api/me`. It is read-only and the controls are
+visibly dimmed — an instructor nudging a choke while a student flies it would be
+indistinguishable to them from the well doing it.
 
 ### The lesson worth keeping
 
