@@ -444,7 +444,7 @@ class TestScreens:
         """The driller brings the pump to kill rate while watching these two
         gauges, so the reference keeps the pumps on this panel."""
         text = client.get("/").text
-        assert "Mud Pumps" in text
+        assert "MUD PUMPS" in text
         for act in ('"p1-"', '"p1+"', '"p2-"', '"p2+"'):
             assert act in text, act
 
@@ -555,8 +555,8 @@ class TestScreens:
     def test_the_choke_panel_carries_the_reference_readouts(self, client):
         text = client.get("/").text
         for label in (
-            "Drill Pipe Pressure", "Casing Pressure", "Stroke Rate",
-            "Stroke Counter", "Kill Line Pressure", "Choke Position", "Hold",
+            "Drill Pipe Pressure", "Casing Pressure", "STROKE RATE",
+            "STROKE COUNTER", "KILL LINE PRESSURE", "Choke Position", "Hold",
         ):
             assert label in text, label
 
@@ -578,7 +578,7 @@ class TestScreens:
         assert '[[-1, "Open", "open"], [1, "Close", "close"]]' in text
         assert 'data-face="${act}"' in text
         # The click handler has to reach the choke, not just exist.
-        assert 'querySelectorAll("[data-face]")' in text
+        assert 'e.target.closest("[data-face]")' in text
         assert 'send("choke", {percent: next})' in text
 
     def test_the_bop_stack_is_drawn_in_elevation(self, client):
