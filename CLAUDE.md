@@ -566,6 +566,25 @@ Layout notes worth keeping if either face is touched again:
   without reading the plate. They behave differently: an annular closes on
   anything, a pipe ram seals only on the size it was dressed for.
 
+**The subsea layout departs from its photograph, and this is the one place on
+these screens where that is true.** Built to `ss_bop.JPG` verbatim, the outlet
+fail-safe buttons landed on top of the gauge columns either side — the
+reference screen is a wider, shorter window than this face and its own controls
+sit closer together than ours can. What is kept is every idiom of it: the pod
+selector, the position windows between the buttons, the name plate *underneath*
+rather than on the element, the oxide-red piping, and the gauge columns down
+both sides. What changed is the spacing. **Surface is verbatim; subsea is
+re-spaced, and it is the one to check against the photo** if either face is
+revisited.
+
+Two things about the subsea face that look like spare room and are not. The
+band between the kill controls and the bore is empty except at the two outlet
+rows, because that is where the outlets actually tap the stack — filling it
+would say there are taps that do not exist. And **the name goes under the
+control block rather than on the element**, unlike the surface face: these
+labels run to "Upper variable bore rams" and would not fit between the buttons
+at any size worth reading.
+
 ### Controls, and the trap under them
 
 **Every control drawn on a face must work.** A student learns the panel and
