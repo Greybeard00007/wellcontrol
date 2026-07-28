@@ -547,16 +547,24 @@ class TestScreens:
             "function pressureGauge(",     # bolted bezel, psi and bar scales
             "function segment(",           # black window, red seven-segment
             "function chokePositionDial(",  # scaled in eighths
-            "function joystick(",          # with its Hold arc
+            "function joystick(",          # the handle and its travel arc
             "function rotarySelector(",    # Choke2 / Choke1
         ):
             assert part in text, part
 
     def test_the_choke_panel_carries_the_reference_readouts(self, client):
+        """Every lettered block on simulator_screens/choke_panel_exact.jpg.
+
+        "Hold" used to be pinned here and is deliberately gone: it labelled the
+        joystick's arc on a panel where the two buttons at the ends of that arc
+        step the choke by 5% per click rather than holding it, so it named
+        something the control does not do, and the approved layout omits it.
+        """
         text = client.get("/").text
         for label in (
             "DRILL PIPE PRESSURE", "CASING PRESSURE", "STROKE RATE",
-            "STROKE COUNTER", "KILL LINE PRESSURE", "Choke Position", "Hold",
+            "STROKE COUNTER", "KILL LINE PRESSURE", "Choke Position",
+            "CHOKE CONTROL", "Travel speed", "MUD PUMPS", "RESET",
         ):
             assert label in text, label
 
@@ -577,9 +585,33 @@ class TestScreens:
         text = client.get("/").text
         assert '[[-1, "Open", "open"], [1, "Close", "close"]]' in text
         assert 'data-face="${act}"' in text
-        # The click handler has to reach the choke, not just exist.
+        # The handler has to reach the choke, not just exist -- and it has to
+        # hang off pointerdown, because a `click` is only delivered on release
+        # and the face has redrawn out from under the pressed node by then.
+        assert 'host.addEventListener("pointerdown"' in text
+        assert 'host.addEventListener("click"' not in text
         assert 'e.target.closest("[data-face]")' in text
         assert 'send("choke", {percent: next})' in text
+
+    def test_the_casing_gauge_is_on_the_left(self, client):
+        """Transposed from the reference box, deliberately and confirmed.
+
+        It is the kind of thing a later reader "corrects" back, so it is
+        pinned: casing left, drill pipe right, each with its own digital
+        window directly above it.
+        """
+        text = client.get("/").text
+        face = text.split("const FACE = {")[1].split("};")[0]
+        csg = float(face.split("csg:")[1].split("cx:")[1].split(",")[0])
+        dp = float(face.split("dp:")[1].split("cx:")[1].split(",")[0])
+        assert csg < dp
+        body = text.split("function drawChokeFace(")[1]
+        assert body.index("CASING PRESSURE") < body.index("DRILL PIPE PRESSURE")
+
+    def test_the_reset_button_resets_the_stroke_counter(self, client):
+        """Every control on the face works; this one used to be a no-op."""
+        text = client.get("/").text
+        assert 'send("zero", {instrument: "strokes"})' in text
 
     def test_the_bop_stack_is_drawn_in_elevation(self, client):
         """Not a list of words: a student who shut the wrong element sees it.

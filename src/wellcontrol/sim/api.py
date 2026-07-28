@@ -215,7 +215,7 @@ class TransferPumpCommand(BaseModel):
 
 
 class ZeroCommand(BaseModel):
-    instrument: str = Field(description="pits or trip_tank")
+    instrument: str = Field(description="pits, trip_tank or strokes")
 
 
 class AlarmCommand(BaseModel):

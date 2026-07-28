@@ -378,16 +378,35 @@ panel bolted into a room.
 
 Done so far:
 
-- **Choke Panel.** Two large bolted gauges with dual psi/bar scales as the
-  centrepiece; their labels and digital readouts sit **above** them on one line
-  with the kill line window, so the top edge reads as a row of numbers and the
-  gauges below are pure needle. The joystick is on the centreline between them
-  with the choke position dial (scaled in eighths) above it. Choke control
-  bottom left, and **everything pump-related in one block** bottom right —
-  stroke rate, stroke counter, its reset, and both pump controls. Spread across
-  the panel those read as unrelated instruments; together they are one system.
-  `kill_line_psi` was added to the gauges for it — the engine had no such
-  reading.
+- **Choke Panel — built to `choke_panel_exact.jpg`, verbatim.** Every
+  coordinate in `FACE` and in `drawChokeFace` is a pixel measurement off that
+  image scaled by 1440/942 into the viewBox, because the mockup's panel
+  occupies 942x417 px of it. Casing gauge left at cx 320, drill pipe right at
+  cx 1119, both r 228 so they dominate the face; their labels and digital
+  windows sit **above** them on one line with the kill line window, so the top
+  edge reads as a row of numbers and the gauges below are pure needle. The
+  centre is a single vertical stack — choke position dial (eighths), its
+  window, the joystick, the Choke2/Choke1 selector, choke control — so
+  everything about the choke reads top to bottom in one line. **Everything
+  pump-related in one block** bottom left, with RESET on bare console above
+  the counter it clears. `kill_line_psi` was added to the gauges for it — the
+  engine had no such reading.
+
+  Three things that follow from the gauges growing by a third, and are worth
+  keeping if they grow again: **the bezel and every ring inside the gauge are
+  fractions of `r`, not fixed insets.** A number ring at `r - 35` drifts
+  outwards as the gauge grows, leaving a hole in the middle and lettering too
+  small to read across a cabin; the bezel at a fixed 11 units becomes a
+  hairline. Same for the small choke position dial, where fixed insets put the
+  eighths ring on top of the hub. And **the face is capped by width, not
+  height** — `max-width: min(100%, calc((100vh - 200px) * 2.25))`. A
+  `max-height` on an SVG with an explicit width makes the browser *clip*
+  rather than scale, which silently loses the pump block off the bottom.
+
+  Two labels are deliberately gone from the earlier version: **"Hold"** on the
+  joystick arc, which named something the control does not do — the buttons at
+  the ends of that arc step the choke 5% per click — and **"spm"** under the
+  pump steppers, which fell off the bottom edge of the face.
 - **DCU.** Pit deviation and return flow down the left with their alarm blocks,
   torque/RPM/WOB across the top, the stroke, ROP and depth windows in the
   middle, standpipe and both pump rates along the bottom, and on the right a
@@ -398,28 +417,60 @@ Done so far:
 **Every control drawn on a face must work.** A student learns the panel and
 then finds half of it is a picture, which is worse than it not being there. A
 test scrapes every `data-face` value out of the page and asserts each appears
-in `faceAction`'s switch.
+in `faceAction`'s switch. RESET was the last one that did not: it was a
+comment saying *stroke counter: display only*. It now calls
+`zero("strokes")`, which moves a **display offset** on the session and leaves
+the engine's stroke count running, because the faults and the kill sheet are
+hung off that count. The trace keeps the true figure too, so a strokes-axis
+trend is still a record while the window is an instrument.
 
 **Handlers go on the SVG host, attached once — never on its children.** The
 face redraws four times a second and each redraw replaces the host's entire
-`innerHTML`, so anything bound to a child is gone by the next poll: a click
-lands on a node already thrown away, and a drag dies mid-gesture. That is
-exactly why the joystick and the choke selector did nothing for a while. The
-host survives because only its contents change, and the current gauges hang off
-it (`host._gauges`) rather than being captured in a closure that would go stale
-with them.
+`innerHTML`, so anything bound to a child is gone by the next poll: a drag
+dies mid-gesture, and a listener is thrown away with the node it was on. That
+is exactly why the joystick and the choke selector did nothing for a while.
+The host survives because only its contents change, and the current gauges
+hang off it (`host._gauges`) rather than being captured in a closure that
+would go stale with them.
+
+**And they fire on `pointerdown`, not `click`.** Same redraw, subtler
+symptom: a `click` is only delivered when the button comes back *up*, so press
+a stepper, have a redraw land before you let go, and the node you pressed no
+longer exists. The browser resolves the click against the SVG itself, the
+handler finds no `data-face`, and the press is silently lost. It looks exactly
+like a mis-aimed click, which is why it survived so long. A pointerdown's
+target is read at the instant of the press, before any redraw can move it.
+
+**Small controls get a transparent hit disc larger than the thing drawn.**
+RESET is 26 css pixels across at the size the approved layout wants it, and a
+press landing two pixels off does nothing — which reads as a dead button
+rather than a missed one. Note `fill="transparent"`, not `fill="none"`: a fill
+of none is not hit-tested at all.
 
 ### The agreed choke panel, and who controls what
 
 `simulator_screens/choke_panel_exact.jpg` is the **approved layout** for the
-choke panel — build to it verbatim. Casing gauge **left**, drill pipe
-**right** (deliberate, and confirmed: transposed from the reference box, which
-does not matter for this audience). Both gauges dominate the face. The centre
-is a single vertical control stack — choke position, joystick, Choke2/Choke1
-selector, choke control — so everything about the choke reads top to bottom in
-one line. Mud pumps bottom left with RESET above the counter it resets. The
-lamp row stays below the panel: *Above MAASP* and *Well dead* are worth
-peripheral vision even though the mockup omits them.
+choke panel — build to it verbatim. **The face is now built to it**; see the
+Choke Panel entry under *Done so far* above for the geometry and what it cost.
+Casing gauge **left**, drill pipe **right** (deliberate, and confirmed:
+transposed from the reference box, which does not matter for this audience —
+a test pins it, because it is the kind of thing a later reader "corrects"
+back). Both gauges dominate the face. The centre is a single vertical control
+stack — choke position, joystick, Choke2/Choke1 selector, choke control — so
+everything about the choke reads top to bottom in one line. Mud pumps bottom
+left with RESET above the counter it resets. The lamp row stays below the
+panel: *Above MAASP* and *Well dead* are worth peripheral vision even though
+the mockup omits them.
+
+**Still to do on this screen: the header row.** The mockup carries a transport
+— play, pause, stop — and a Restart button, and carries *no* exercise or speed
+dropdown; ours still has both. Two things have to be decided before that can be
+built rather than guessed at. In class mode there is deliberately **no**
+`/api/me/speed` route at all, so a student transport needs new routes and a
+ruling on what a student pausing means while the instructor has the class
+running. And solo mode has no instructor to pick the exercise or the
+multiplier, so the table below cannot simply be applied to it — the solo
+student is their own instructor. The dropdowns stay until that is settled.
 
 `simulator_screens/current_screens/` holds screenshots of every screen as it
 stood on 27 July, for comparison.
@@ -447,18 +498,29 @@ needs its derivative term for the reason given there: proportional control
 alone limit-cycles at about 65 psi on a 25-second period, which is a mediocre
 driller rather than an automatic one.
 
-### Open: a 422 on two of the controls
+### The 422 was a stale server, and so is the next one
 
-The choke selector and the travel-speed steppers reach the server and come back
-**422 Unprocessable Content**. The same bodies posted directly return 200, and
-`Session.select_choke` / `set_choke_speed` behave correctly when called in
-Python — so the routes and the models are right and the fault is in what the
-page sends. Not yet found. Next step is to log the actual request body out of
-`send()`.
+The choke selector and the travel-speed steppers used to come back **422
+Unprocessable Content** while the same bodies posted directly returned 200.
+There was never anything wrong with the page: the dev server had been started
+without `--reload`, so it was serving routes and models older than the source.
+Restarted properly, both controls return 200 and both work from the face.
 
-**A related trap, already paid for once:** the dev server was started without
-`--reload`, so newly added routes 404'd while the source clearly had them. If a
-route looks missing, check the server was restarted before checking the code.
+**That trap has now been paid for three times, and the third time it wore a
+different hat.** `--reload` is necessary and not sufficient:
+
+- **No `--reload` at all**: newly added routes 404, and changed models 422,
+  while the source plainly has them.
+- **`--reload` on, but the reloader died and orphaned its worker.** The log
+  said `StatReload detected changes … Reloading...` and then never said
+  `Started server process` again — the parent was gone and the child kept the
+  socket and the old code. A `zero` call answered with an error message that
+  had been edited out of the source ten minutes earlier. If the server is
+  answering with words that are no longer in the file, check that the process
+  holding port 8020 has a live parent before doubting anything else.
+- **The browser caches the page.** `navigate` to the same URL re-serves from
+  cache; only a hard reload picks up an edited `choke_panel.html`. A hit target
+  measured at its old size is the giveaway.
 
 Still to do: the **instructor station** — the biggest structural change of the
 three. The reference is a fixed-height admin console with a fifteen-entry left

@@ -326,9 +326,14 @@
   /* The face fills the width and keeps its aspect; nothing reflows. */
   /* The face fits the viewport. A panel you scroll is not a panel: the
      whole point is that the scan is spatial and everything is in view. */
+  /* Width-driven, but capped by what the viewport has left after the header,
+     the tab strip and the lamp row -- 2.25 is the face's own aspect. A
+     `max-height` alone does not work here: with an explicit width the browser
+     clips the SVG rather than scaling it, which silently loses the pump block
+     off the bottom. Capping the width instead keeps the whole face on screen. */
   #chokeface {
-    width: 100%; height: auto; display: block;
-    max-height: calc(100vh - 132px); margin: 0 auto;
+    width: 100%; height: auto; display: block; margin: 0 auto;
+    max-width: min(100%, calc((100vh - 200px) * 2.25));
   }
   .dials { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .dials.small { grid-template-columns: repeat(3, 1fr); margin-top: 12px; }
@@ -1216,11 +1221,20 @@ function dial(opts) {
    Their labels and digital readouts sit *above* them, on one line with
    the kill line window, so the whole top edge of the panel reads as a
    single row of numbers and the gauges below are pure needle. */
+/* Measured off simulator_screens/choke_panel_exact.jpg, which is the approved
+   layout. Its panel occupies 942x417 px of that image, so every coordinate
+   below is the pixel measurement scaled by 1440/942 into this viewBox.
+
+   **Casing left, drill pipe right.** That is transposed from the reference
+   box and it is deliberate: confirmed for this audience, and the digital
+   window above each gauge says which is which. Do not "correct" it. */
 const FACE = {
-  dp:       {cx: 330, cy: 300, r: 172},
-  csg:      {cx: 1110, cy: 300, r: 172},
-  chokePos: {cx: 720, cy: 218, r: 76},
-  stick:    {cx: 720, cy: 452},
+  csg:      {cx: 320,  cy: 301, r: 228},
+  dp:       {cx: 1119, cy: 301, r: 228},
+  kill:     {cx: 720},
+  chokePos: {cx: 720, cy: 139, r: 52},
+  stick:    {cx: 720, cy: 334},
+  sel:      {cx: 720, cy: 430, r: 26},
 };
 
 /* The reference instrument is a fixed 0-5000 psi / 0-350 bar gauge. Fixed
@@ -1276,45 +1290,51 @@ function bolt(cx, cy) {
 function pressureGauge(cx, cy, r, value, label) {
   const b = [];
   const A = 135, SW = 270;
+  // Bezel thickness is a fraction of the radius, not a fixed inset: the
+  // approved layout runs these gauges half again as big as they were, and a
+  // fixed 11 units reads as a hairline at that size.
   b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#4a545e" stroke="#2b333b" stroke-width="3"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 11}" fill="#f5f7f8" stroke="#aab4bd" stroke-width="1.5"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.926}" fill="#f5f7f8" stroke="#aab4bd" stroke-width="1.5"/>`);
   [[-0.72, -0.72], [0.72, -0.72], [-0.72, 0.72], [0.72, 0.72]].forEach(
     ([dx, dy]) => b.push(bolt(cx + dx * r, cy + dy * r)));
 
+  // Everything inside scales with `r` for the same reason the bezel does: a
+  // number ring at a fixed inset drifts outwards as the gauge grows, leaving
+  // a hole in the middle and lettering too small to read across a cabin.
   // psi, outer, black -- 500 psi majors with four minors between.
   for (let i = 0; i <= 50; i++) {
     const f = i / 50, major = i % 5 === 0, deg = A + f * SW;
-    const [x1, y1] = polar(cx, cy, r - 14, deg);
-    const [x2, y2] = polar(cx, cy, r - (major ? 24 : 19), deg);
+    const [x1, y1] = polar(cx, cy, r * 0.94, deg);
+    const [x2, y2] = polar(cx, cy, r * (major ? 0.885 : 0.912), deg);
     b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="${major ? 2 : 0.8}"/>`);
   }
   PSI_TICKS.forEach((psi, i) => {
     const deg = A + (i / (PSI_TICKS.length - 1)) * SW;
-    const [tx, ty] = polar(cx, cy, r - 35, deg);
-    b.push(`<text x="${tx}" y="${ty + 3}" text-anchor="middle" fill="#1d252c"
-      font-size="10.5" font-family="system-ui">${psi}</text>`);
+    const [tx, ty] = polar(cx, cy, r * 0.845, deg);
+    b.push(`<text x="${tx}" y="${ty + r * 0.019}" text-anchor="middle" fill="#1d252c"
+      font-size="${(r * 0.062).toFixed(1)}" font-family="system-ui">${psi}</text>`);
   });
   // bar, inner, red -- its own fixed ladder, not derived from the psi one.
   BAR_TICKS.forEach((bar, i) => {
     const deg = A + (bar / BAR_FULL) * SW;
-    const [tx, ty] = polar(cx, cy, r - 55, deg);
-    b.push(`<text x="${tx}" y="${ty + 3}" text-anchor="middle" fill="#c0392b"
-      font-size="9.5" font-family="system-ui">${bar}</text>`);
+    const [tx, ty] = polar(cx, cy, r * 0.72, deg);
+    b.push(`<text x="${tx}" y="${ty + r * 0.017}" text-anchor="middle" fill="#c0392b"
+      font-size="${(r * 0.055).toFixed(1)}" font-family="system-ui">${bar}</text>`);
   });
-  b.push(`<text x="${cx}" y="${cy + 44}" text-anchor="middle" fill="#c0392b"
-    font-size="10" font-family="system-ui">bar</text>`);
-  b.push(`<text x="${cx}" y="${cy + 58}" text-anchor="middle" fill="#1d252c"
-    font-size="12" font-family="system-ui">psi</text>`);
+  b.push(`<text x="${cx}" y="${cy + r * 0.245}" text-anchor="middle" fill="#c0392b"
+    font-size="${(r * 0.048).toFixed(1)}" font-family="system-ui">bar</text>`);
+  b.push(`<text x="${cx}" y="${cy + r * 0.325}" text-anchor="middle" fill="#1d252c"
+    font-size="${(r * 0.058).toFixed(1)}" font-family="system-ui">psi</text>`);
 
   const frac = Math.max(0, Math.min(1, (value || 0) / GAUGE_PSI));
   const deg = A + frac * SW;
-  const [nx, ny] = polar(cx, cy, r - 20, deg);
-  const [t1x, t1y] = polar(cx, cy, 9, deg + 90);
-  const [t2x, t2y] = polar(cx, cy, 9, deg - 90);
+  const [nx, ny] = polar(cx, cy, r * 0.90, deg);
+  const [t1x, t1y] = polar(cx, cy, r * 0.041, deg + 90);
+  const [t2x, t2y] = polar(cx, cy, r * 0.041, deg - 90);
   b.push(`<polygon points="${nx},${ny} ${t1x},${t1y} ${t2x},${t2y}" fill="#12181d"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="11" fill="#2b333b"/>`);
-  b.push(`<circle cx="${cx - 18}" cy="${cy + 18}" r="2.4" fill="#9aa4ac"/>`);
-  b.push(`<circle cx="${cx + 18}" cy="${cy + 18}" r="2.4" fill="#9aa4ac"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.05}" fill="#2b333b"/>`);
+  b.push(`<circle cx="${cx - r * 0.079}" cy="${cy + r * 0.079}" r="${r * 0.011}" fill="#9aa4ac"/>`);
+  b.push(`<circle cx="${cx + r * 0.079}" cy="${cy + r * 0.079}" r="${r * 0.011}" fill="#9aa4ac"/>`);
   if (label) {
     b.push(`<text x="${cx}" y="${cy + r + 20}" text-anchor="middle" fill="var(--console-ink)"
       font-size="13" font-weight="700" font-family="system-ui">${label}</text>`);
@@ -1336,60 +1356,66 @@ function segment(x, y, w, h, text, label, size) {
           font-family="system-ui">${label}</text>` : ""}`;
 }
 
+/* The small dial above the joystick. Everything inside it is a fraction of
+   `r` rather than a fixed inset -- the approved layout shrank it by a third
+   against the big pressure gauges, and fixed insets put the eighths ring on
+   top of the hub at that size. */
 function chokePositionDial(cx, cy, r, percent) {
   const b = [];
   b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#4a545e" stroke="#2b333b" stroke-width="3"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r - 9}" fill="#f5f7f8" stroke="#aab4bd" stroke-width="1.5"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.87}" fill="#f5f7f8" stroke="#aab4bd" stroke-width="1.5"/>`);
   const A = 135, SW = 270;
   const marks = ["Open", "7/8", "3/4", "5/8", "1/2", "3/8", "1/4", "1/8", "Close"];
   marks.forEach((m, i) => {
     const f = i / (marks.length - 1), deg = A + f * SW;
-    const [x1, y1] = polar(cx, cy, r - 11, deg);
-    const [x2, y2] = polar(cx, cy, r - 18, deg);
+    const [x1, y1] = polar(cx, cy, r * 0.87, deg);
+    const [x2, y2] = polar(cx, cy, r * 0.79, deg);
     b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#1d252c" stroke-width="1.6"/>`);
-    const [tx, ty] = polar(cx, cy, r - 29, deg);
-    b.push(`<text x="${tx}" y="${ty + 3}" text-anchor="middle" fill="#1d252c"
-      font-size="9" font-family="system-ui">${m}</text>`);
+    const [tx, ty] = polar(cx, cy, r * 0.62, deg);
+    b.push(`<text x="${tx}" y="${ty + 2.5}" text-anchor="middle" fill="#1d252c"
+      font-size="${(r * 0.145).toFixed(1)}" font-family="system-ui">${m}</text>`);
   });
   const frac = Math.max(0, Math.min(1, 1 - (percent || 0) / 100));
-  const [nx, ny] = polar(cx, cy, r - 20, A + frac * SW);
+  const [nx, ny] = polar(cx, cy, r * 0.74, A + frac * SW);
   b.push(`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#c0392b" stroke-width="2.5"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="7" fill="#2b333b"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.13}" fill="#2b333b"/>`);
   b.push(`<text x="${cx}" y="${cy + r + 17}" text-anchor="middle" fill="var(--console-ink)"
     font-size="12" font-weight="700" font-family="system-ui">Choke Position</text>`);
   return b.join("");
 }
 
+/* The joystick, its travel arc and the two step buttons at the ends of it.
+   The arc is an ellipse rather than a semicircle: a semicircle of the width
+   the buttons need would apex straight through the choke position window
+   above, which is what the approved layout avoids by flattening it. */
 function joystick(cx, cy, moving) {
   const b = [];
-  const ax = cx, ay = cy - 34, ar = 104;
-  b.push(`<path d="M ${ax - ar} ${ay} A ${ar} ${ar} 0 0 1 ${ax + ar} ${ay}"
+  const ay = cy - 34, arx = 80, ary = 54;
+  b.push(`<path d="M ${cx - arx} ${ay} A ${arx} ${ary} 0 0 1 ${cx + arx} ${ay}"
     fill="none" stroke="#17120c" stroke-width="1.6"/>`);
-  b.push(`<text x="${ax}" y="${ay - ar + 32}" text-anchor="middle" fill="var(--console-ink)"
-    font-size="12" font-weight="700" font-family="system-ui">Hold</text>`);
 
   [[-1, "Open", "open"], [1, "Close", "close"]].forEach(([dir, text, act]) => {
-    const hx = ax + dir * (ar - 8), hy = ay - 14;
-    b.push(`<path d="M ${hx - dir * 20} ${hy - 20} l ${dir * 26} 23 l ${-dir * 7} 7
-      l ${-dir * 26} -23 z" fill="#7d8891"/>`);
+    const hx = cx + dir * 78;
+    b.push(`<path d="M ${hx - dir * 16} ${ay - 26} l ${dir * 21} 19 l ${-dir * 6} 6
+      l ${-dir * 21} -19 z" fill="#7d8891"/>`);
     b.push(`<g class="hit" data-face="${act}" style="cursor:pointer">
-      <rect x="${hx - 29}" y="${hy + 12}" width="58" height="22" rx="3"
+      <rect x="${hx - 26}" y="${ay - 2}" width="52" height="20" rx="3"
             fill="#e6e9ec" stroke="#6d777f"/>
-      <text x="${hx}" y="${hy + 27}" text-anchor="middle" fill="var(--console-ink)"
+      <text x="${hx}" y="${ay + 12}" text-anchor="middle" fill="var(--console-ink)"
             font-size="12" font-family="system-ui">${text}</text></g>`);
   });
 
-  b.push(`<path d="M ${cx - 52} ${cy + 72} L ${cx - 38} ${cy + 6}
-    L ${cx + 38} ${cy + 6} L ${cx + 52} ${cy + 72} z" fill="#3b444c"/>`);
-  b.push(`<rect x="${cx - 11}" y="${cy - 40}" width="22" height="50" rx="5"
+  b.push(`<path d="M ${cx - 46} ${cy + 48} L ${cx - 32} ${cy - 4}
+    L ${cx + 32} ${cy - 4} L ${cx + 46} ${cy + 48} z" fill="#3b444c"/>`);
+  b.push(`<rect x="${cx - 10}" y="${cy - 44}" width="20" height="44" rx="5"
     fill="#c3cad0" stroke="#8b949c"/>`);
-  // The ball itself works the choke: drag or hold left to open, right to
-  // close. The arrows do the same in fixed steps for anyone on a touchscreen.
+  // The ball itself works the choke: drag left to open, right to close. The
+  // buttons do the same in fixed steps for anyone on a touchscreen.
   b.push(`<g class="hit stickball" data-face="stick" style="cursor:ew-resize">
-    <circle cx="${cx}" cy="${cy - 48}" r="26" fill="#20262b"/>
-    <circle cx="${cx - 7}" cy="${cy - 56}" r="7" fill="#3d464e" opacity="0.8"/></g>`);
+    <circle cx="${cx}" cy="${cy - 48}" r="22" fill="#20262b"/>
+    <circle cx="${cx - 6}" cy="${cy - 55}" r="6" fill="#3d464e" opacity="0.8"/></g>`);
   if (moving) {
-    b.push(`<circle cx="${cx}" cy="${cy - 48}" r="29" fill="none"
+    b.push(`<circle cx="${cx}" cy="${cy - 48}" r="25" fill="none"
       stroke="#4bf07e" stroke-width="2" opacity="0.85"/>`);
   }
   return b.join("");
@@ -1471,66 +1497,77 @@ function drawChokeFace(g) {
   const b = [];
   b.push(`<rect x="0" y="0" width="1440" height="640" fill="var(--console)"/>`);
 
-  // Gauges, each with its window tucked against it -- the reference pairs
-  // them so the eye reads needle and digits without travelling.
-  // One row of numbers across the top: drill pipe, kill line, casing. The
-  // gauges below carry no lettering of their own, so the eye reads the row
-  // once and then works the needles.
-  b.push(segment(FACE.dp.cx - 88, 44, 176, 50,
-    pad(g.drill_pipe_psi, 4), "DRILL PIPE PRESSURE", 28));
-  b.push(segment(632, 44, 176, 50,
-    pad(g.kill_line_psi, 5), "KILL LINE PRESSURE", 28));
-  b.push(segment(FACE.csg.cx - 88, 44, 176, 50,
-    pad(g.casing_psi, 4), "CASING PRESSURE", 28));
+  // One row of numbers across the top -- casing, kill line, drill pipe --
+  // each sitting directly above the instrument it belongs to. The gauges
+  // below carry no lettering of their own, so the eye reads the row once and
+  // then works the needles.
+  b.push(segment(FACE.csg.cx - 72, 32, 144, 40,
+    pad(g.casing_psi, 4), "CASING PRESSURE", 26));
+  b.push(segment(FACE.kill.cx - 72, 32, 144, 40,
+    pad(g.kill_line_psi, 5), "KILL LINE PRESSURE", 26));
+  b.push(segment(FACE.dp.cx - 72, 32, 144, 40,
+    pad(g.drill_pipe_psi, 4), "DRILL PIPE PRESSURE", 26));
 
-  b.push(pressureGauge(FACE.dp.cx, FACE.dp.cy, FACE.dp.r, g.drill_pipe_psi, ""));
   b.push(pressureGauge(FACE.csg.cx, FACE.csg.cy, FACE.csg.r, g.casing_psi, ""));
+  b.push(pressureGauge(FACE.dp.cx, FACE.dp.cy, FACE.dp.r, g.drill_pipe_psi, ""));
+
+  // The centre is one vertical control stack, so everything about the choke
+  // reads top to bottom in a single line: what it is doing (the dial and its
+  // window), the handle that moves it, which choke that handle is wired to,
+  // and how fast it travels.
+  b.push(chokePositionDial(FACE.chokePos.cx, FACE.chokePos.cy, FACE.chokePos.r,
+    g.choke_percent));
+  b.push(segment(FACE.chokePos.cx - 50, 217, 100, 26,
+    (g.choke_percent || 0).toFixed(1) + "%", "", 19));
 
   b.push(joystick(FACE.stick.cx, FACE.stick.cy,
     Math.abs(g.choke_commanded - g.choke_percent) > 0.5));
 
-  // Choke travel rate -- the knob beside the joystick, now a real control.
-  // Choke position above the joystick, smaller, on the same centreline.
-  b.push(chokePositionDial(FACE.chokePos.cx, FACE.chokePos.cy, FACE.chokePos.r,
-    g.choke_percent));
-  b.push(segment(FACE.chokePos.cx - 58, 316, 116, 34,
-    (g.choke_percent || 0).toFixed(1) + "%", "", 19));
+  b.push(rotarySelector(FACE.sel.cx, FACE.sel.cy, FACE.sel.r,
+    g.choke_in_service !== "choke_2"));
 
-  // Choke control, bottom left. The speed knob is gone -- the stepper did the
-  // same job, and two controls for one setting is a panel needing explanation.
-  b.push(`<rect x="40" y="502" width="240" height="112" rx="6"
+  b.push(`<rect x="624" y="476" width="192" height="96" rx="6"
     fill="var(--console-panel)" stroke="var(--console-edge)"/>`);
-  b.push(`<text x="160" y="526" text-anchor="middle" fill="var(--console-ink)"
+  b.push(`<text x="720" y="494" text-anchor="middle" fill="var(--console-ink)"
     font-size="12" font-weight="700" letter-spacing="0.06em"
     font-family="system-ui">CHOKE CONTROL</text>`);
-  b.push(stepper(56, 554, 208, "Travel speed",
+  b.push(stepper(640, 518, 160, "Travel speed",
     (g.choke_travel_rate || 10).toFixed(0), "speed-", "speed+", "% per second"));
 
-  b.push(rotarySelector(720, 580, 30, g.choke_in_service !== "choke_2"));
+  // Everything to do with the pumps in one block, bottom left: what they are
+  // doing now (stroke rate), what they have done (the counter, with its reset
+  // on the console directly above it), and the two sets of controls. Spread
+  // across the panel these read as unrelated instruments; together they are
+  // one system with one story.
+  // RESET sits on bare console just above the counter it clears. It cannot
+  // go directly over the counter's centre: the casing gauge's lower-left arc
+  // comes through there, and the label ends up printed on the bezel.
+  // The transparent disc is the hit target, not the button. Drawn at the
+  // size the layout wants, this is the smallest control on the face -- about
+  // 24 css pixels across -- and a press that lands two pixels off does
+  // nothing, which reads as a dead button rather than a missed one.
+  // `transparent` rather than `none`: a fill of none is not hit-tested.
+  b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
+    <circle cx="140" cy="498" r="26" fill="transparent"/>
+    <text x="140" y="484" text-anchor="middle" fill="var(--console-ink)" font-size="10"
+          font-weight="700" font-family="system-ui">RESET</text>
+    <circle cx="140" cy="502" r="13" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
+    <circle cx="136" cy="498" r="4" fill="#3fd4bd" opacity="0.7"/></g>`);
 
-  // Everything to do with the pumps in one block: what they are doing now
-  // (stroke rate), what they have done (the counter and its reset), and the
-  // two sets of controls. Spread across the panel these read as unrelated
-  // instruments; together they are one system with one story.
-  b.push(`<rect x="906" y="502" width="494" height="132" rx="6"
+  b.push(`<rect x="6" y="520" width="262" height="116" rx="6"
     fill="var(--console-panel)" stroke="var(--console-edge)"/>`);
-  b.push(`<text x="1153" y="524" text-anchor="middle" fill="var(--console-ink)"
+  b.push(`<text x="137" y="538" text-anchor="middle" fill="var(--console-ink)"
     font-size="13" font-weight="700" letter-spacing="0.07em"
     font-family="system-ui">MUD PUMPS</text>`);
 
-  b.push(segment(922, 546, 148, 34,
-    pad(g.pumps[0].spm + g.pumps[1].spm, 5), "STROKE RATE", 19));
-  b.push(segment(1086, 546, 148, 34, pad(g.strokes, 5), "STROKE COUNTER", 19));
-  b.push(`<g class="hit" data-face="reset" style="cursor:pointer">
-    <circle cx="1332" cy="564" r="17" fill="#12a08a" stroke="#0c6b5c" stroke-width="2"/>
-    <circle cx="1327" cy="559" r="5" fill="#3fd4bd" opacity="0.7"/>
-    <text x="1332" y="538" text-anchor="middle" fill="var(--console-ink)" font-size="10"
-          font-weight="700" font-family="system-ui">RESET</text></g>`);
+  b.push(segment(14, 556, 112, 22,
+    pad(g.pumps[0].spm + g.pumps[1].spm, 5), "STROKE RATE", 16));
+  b.push(segment(148, 556, 112, 22, pad(g.strokes, 5), "STROKE COUNTER", 16));
 
-  b.push(stepper(922, 594, 148, "Pump 1",
-    pad(g.pumps[0].spm, 3), "p1-", "p1+", "spm"));
-  b.push(stepper(1086, 594, 148, "Pump 2",
-    pad(g.pumps[1].spm, 3), "p2-", "p2+", "spm"));
+  // No unit under these two: the block ends at the bottom of the face and a
+  // caption below the buttons falls off it, which is where "spm" was going.
+  b.push(stepper(14, 600, 112, "Pump 1", pad(g.pumps[0].spm, 3), "p1-", "p1+", ""));
+  b.push(stepper(148, 600, 112, "Pump 2", pad(g.pumps[1].spm, 3), "p2-", "p2+", ""));
 
   if (showGrid) b.push(gridOverlay(1440, 640, 40));
   host.innerHTML = b.join("");
@@ -1556,7 +1593,9 @@ function faceAction(act, g) {
   switch (act) {
     case "open":    chokeBy(5); break;
     case "close":   chokeBy(-5); break;
-    case "reset":   break;                       // stroke counter: display only
+    // The counter in the window goes back to zero; the engine's stroke count
+    // does not, because the faults and the kill sheet are hung off it.
+    case "reset":   send("zero", {instrument: "strokes"}); break;
     case "speed-":  send("chokespeed", {percent_per_second:
                       Math.max(1, (g.choke_travel_rate || 10) - 2)}); break;
     case "speed+":  send("chokespeed", {percent_per_second:
@@ -1597,28 +1636,40 @@ function wireFace(host, g) {
   if (host._wired) return;
   host._wired = true;
 
-  host.addEventListener("click", e => {
-    const hit = e.target.closest("[data-face]");
-    if (hit && hit.dataset.face !== "none") {
-      faceAction(hit.dataset.face, host._gauges);
-    }
-  });
-
-  // Drag the joystick sideways, or the block lever up and down. A rig
-  // joystick is proportional: how far you push it decides how far the handle
-  // goes, which is how a choke gets slammed by someone in a hurry.
+  /* Buttons fire on **press, not click**, and that is not a preference.
+     A `click` is only delivered once the button comes back up, and the face
+     redraws four times a second: press a stepper, have a redraw land before
+     you let go, and the node you pressed no longer exists, so the browser
+     resolves the click against the SVG itself and the handler finds no
+     `data-face` to dispatch. The press is silently lost. It looked exactly
+     like a mis-aimed click, and roughly one press in several went nowhere.
+     A pointerdown's target is read at the instant of the press, before any
+     redraw can move it. */
   let from = null, kind = null;
   host.addEventListener("pointerdown", e => {
+    // Drag the joystick sideways, or the block lever up and down. A rig
+    // joystick is proportional: how far you push it decides how far the
+    // handle goes, which is how a choke gets slammed by someone in a hurry.
     if (e.target.closest(".stickball")) { kind = "choke"; from = e.clientX; }
     else if (e.target.closest(".blocklever")) { kind = "block"; from = e.clientY; }
-    else return;
+    else {
+      const hit = e.target.closest("[data-face]");
+      if (hit && hit.dataset.face !== "none") {
+        faceAction(hit.dataset.face, host._gauges);
+      }
+      return;
+    }
     host.setPointerCapture(e.pointerId);
   });
   host.addEventListener("pointerup", e => {
     if (from === null) return;
     const now = host._gauges;
     if (kind === "choke") {
-      const dx = e.clientX - from;
+      // Left is open, right is close -- the same way round as the two
+      // buttons at the ends of the handle's own arc. It used to be inverted,
+      // so the ball and the buttons beside it disagreed about which way the
+      // choke went.
+      const dx = from - e.clientX;
       if (Math.abs(dx) >= 4) {
         const next = Math.max(0, Math.min(100,
           (now.choke_commanded || 0) + Math.round(dx / 5)));

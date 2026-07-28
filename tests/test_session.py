@@ -263,3 +263,46 @@ class TestTheWellStillResponds:
             session.advance()
         assert session.gauges()["casing_psi"] == 0
         assert "no pressure control" in session.gauges()["returns"]
+
+
+class TestTheStrokeCounterResets:
+    """RESET on the choke panel clears the window, not the engine's count.
+
+    The engine's stroke total drives fault triggers and the strokes-to-bit
+    figures on the kill sheet, so it has to keep running underneath. A driller
+    zeroing the counter before a circulation is re-marking a gauge, not undoing
+    the pumping that has already happened.
+    """
+
+    def _pump_some_strokes(self, session, clock):
+        session.set_speed(10.0)
+        session.set_pump(30.0)
+        for _ in range(6):
+            clock.tick(1.0)
+            session.advance()
+
+    def test_the_window_goes_back_to_zero(self, session, clock):
+        self._pump_some_strokes(session, clock)
+        assert session.gauges()["strokes"] > 0
+        session.zero("strokes")
+        assert session.gauges()["strokes"] == 0
+
+    def test_the_engine_keeps_its_own_count(self, session, clock):
+        self._pump_some_strokes(session, clock)
+        engine_strokes = session.simulator.state.strokes
+        assert engine_strokes > 0
+        session.zero("strokes")
+        assert session.simulator.state.strokes == pytest.approx(
+            engine_strokes, abs=1.0
+        )
+
+    def test_the_window_counts_up_again_from_the_reset(self, session, clock):
+        self._pump_some_strokes(session, clock)
+        session.zero("strokes")
+        self._pump_some_strokes(session, clock)
+        after = session.gauges()["strokes"]
+        assert 0 < after < round(session.simulator.state.strokes)
+
+    def test_an_unknown_instrument_still_names_what_there_is(self, session):
+        with pytest.raises(KeyError, match="strokes"):
+            session.zero("hookload")

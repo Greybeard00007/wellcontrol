@@ -91,6 +91,8 @@ class Session:
     #: Wall-clock reading at the last advance.
     _last_tick: float | None = field(default=None, repr=False)
     _auto_slowed: bool = field(default=False, repr=False)
+    #: Where the panel's stroke counter was last reset. See zero().
+    _strokes_offset: float = field(default=0.0, repr=False)
 
     # -- construction --------------------------------------------------------
 
@@ -390,10 +392,21 @@ class Session:
             self.simulator.pits.zero()
         elif instrument == "trip_tank":
             self.simulator.trip_tank.zero()
+        elif instrument == "strokes":
+            # The counter the driller resets is a *display*, not the pump's
+            # life total. The engine's stroke count drives fault triggers and
+            # the strokes-to-bit figures on the kill sheet, so it has to keep
+            # running; only the number in the window goes back to zero.
+            self._strokes_offset = self.simulator.state.strokes
         else:
             raise KeyError(
-                f"Cannot zero '{instrument}'. Available: pits, trip_tank"
+                "Cannot zero "
+                f"'{instrument}'. Available: pits, trip_tank, strokes"
             )
+
+    def displayed_strokes(self) -> int:
+        """The stroke counter as the panel shows it, since its last reset."""
+        return round(self.simulator.state.strokes - self._strokes_offset)
 
     def _alarm(self, name: str):
         sim = self.simulator
@@ -476,7 +489,7 @@ class Session:
             # ones a driller actually has.
             "drill_pipe_psi": round(state.standpipe_pressure_psi),
             "casing_psi": round(state.casing_pressure_psi),
-            "strokes": round(state.strokes),
+            "strokes": self.displayed_strokes(),
             # The choke actually lined up, not always choke 1 -- a student who
             # changed over after a plug should be watching the handle they are
             # working. Falls back to choke 1 when nothing is in service.
@@ -641,7 +654,7 @@ class Session:
             "drill_pipe_psi": round(state.standpipe_pressure_psi),
             "casing_psi": round(state.casing_pressure_psi),
             "pit_gain_bbl": round(sim.pits.gain_bbl, 1),
-            "strokes": round(state.strokes),
+            "strokes": self.displayed_strokes(),
             "choke_percent": round(sim.choke_in_service.position, 1),
             "pump_spm": round(sim.total_pump_spm, 1),
             # Whether they have the trip tank actually in service, which is
