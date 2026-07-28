@@ -1,25 +1,36 @@
 """A student's session: the engine, a clock, and the controls they can reach.
 
-Stage 3 of the simulator. The engine advances by simulated seconds and knows
-nothing about wall time; something has to decide *when* to step it. That is this
-module, and it is deliberately kept free of any web framework so the time model
+The engine advances by simulated seconds and knows nothing about wall time;
+something has to decide *when* to step it. That is this module, and it is
+deliberately kept free of any web framework so the time model
 can be tested without the HTTP stack.
 
-## Time advances on demand, not on a background thread
+## Who calls advance, and when
 
-Each call to :meth:`Session.advance` looks at how much wall time has passed
-since the last one, multiplies by the speed setting, and steps the engine that
-far. No threads, no timers, nothing running when nobody is watching.
+:meth:`Session.advance` looks at how much wall time has passed since the last
+call, multiplies by the speed setting, and steps the engine that far. **What
+changed with the classroom is who calls it.**
 
-Two consequences worth stating:
+* **Solo** -- each request calls it. Nothing runs when nobody is watching,
+  which is right for a self-study trainer: a student who walks away has not
+  lost the kick, and every test stays deterministic.
+* **In a class** -- :meth:`wellcontrol.sim.classroom.Classroom.tick` calls it
+  on a timer, whether or not anyone is looking. It has to: an instructor's
+  *pause all* must stop the wells rather than the browsers, and a student
+  reading their kill sheet must not be sitting on a frozen kick. See that
+  module for why the clock moved.
 
-* **The well only evolves while somebody is looking at it.** For a self-study
-  trainer that is right -- a student who walks away has not lost the kick -- and
-  it makes every test deterministic.
-* **Catch-up is clamped.** Without the clamp, a student who leaves the tab for
-  ten minutes at 60x comes back to ten hours of simulated well, all integrated
-  in one request. :attr:`MAX_CATCHUP_S` caps how much simulated time a single
-  advance can cover.
+**Catch-up is clamped** either way. Solo, without it, a student who leaves the
+tab for ten minutes at 60x comes back to ten hours of simulated well integrated
+in one request. Driven on a timer the clamp is a backstop against a stalled
+event loop instead. :attr:`MAX_CATCHUP_S` caps what a single advance can cover.
+
+**Mutating methods here are not thread-safe on their own.** With a class, the
+clock driver and a student's request genuinely run at the same time; the lock
+that makes that safe belongs to
+:class:`~wellcontrol.sim.classroom.ClassroomStore` and is applied at the API
+boundary, because direct library use is single-threaded and should not pay for
+a hazard only the web layer has.
 
 ## Why the clock is injected
 
@@ -250,16 +261,138 @@ class Session:
 
     # -- controls ------------------------------------------------------------
 
-    def set_choke(self, percent: float) -> None:
-        self.advance()
-        self.simulator.choke.command(float(percent))
+    def set_choke(self, percent: float, choke: str = "choke_1") -> None:
+        """Position one of the four chokes. Defaults to remote choke 1.
 
-    def set_pump(self, spm: float) -> None:
+        Raises:
+            KeyError: if there is no such choke.
+        """
         self.advance()
+        chokes = self.simulator.chokes
+        if choke not in chokes:
+            raise KeyError(
+                f"No choke '{choke}'. Available: {', '.join(sorted(chokes))}"
+            )
+        chokes[choke].command(float(percent))
+
+    def set_pump(self, spm: float, pump: int = 1) -> None:
+        """Set a rig pump's speed. ``pump`` is 1 or 2.
+
+        Raises:
+            ValueError: if there is no such pump.
+        """
+        self.advance()
+        if pump not in (1, 2):
+            raise ValueError(f"No pump {pump}. The rig has two: 1 and 2.")
+        unit = self.simulator.pump if pump == 1 else self.simulator.pump_2
         if spm <= 0:
-            self.simulator.pump.stop()
+            unit.stop()
         else:
-            self.simulator.pump.command(float(spm))
+            unit.command(float(spm))
+
+    #: The small pumps around the pit room, by the name the panel gives them.
+    TRANSFER_PUMPS = (
+        "trip_tank_fillup", "trip_tank_fill", "trip_tank_drain", "pit_transfer"
+    )
+
+    def _transfer_pump(self, name: str):
+        sim = self.simulator
+        pumps = {
+            "trip_tank_fillup": sim.trip_tank.fillup_pump,
+            "trip_tank_fill": sim.trip_tank.fill_pump,
+            "trip_tank_drain": sim.trip_tank.drain_pump,
+            "pit_transfer": sim.pits.transfer_pump,
+        }
+        if name not in pumps:
+            raise KeyError(
+                f"No transfer pump '{name}'. Available: "
+                f"{', '.join(sorted(pumps))}"
+            )
+        return pumps[name]
+
+    def set_rotary(self, rpm: float) -> None:
+        """Set the top drive speed. It ramps rather than jumping."""
+        self.advance()
+        self.simulator.drilling.rotary.command(float(rpm))
+
+    def set_weight_on_bit(self, klbf: float) -> None:
+        """Feed off weight onto the bit.
+
+        Ignored while the auto-driller has it -- which is the point of having
+        an auto-driller, and a thing a student should have to notice.
+        """
+        self.advance()
+        self.simulator.drilling.command_wob(float(klbf))
+
+    def set_auto_driller(
+        self, on: bool, setpoint_klbf: float | None = None
+    ) -> None:
+        self.advance()
+        self.simulator.drilling.set_auto(on, setpoint_klbf)
+
+    def set_transfer_pump(self, name: str, running: bool) -> None:
+        """Start or stop a transfer pump.
+
+        The fill-up pump is the one that matters: with the trip tank valve
+        open, running it is what puts the tank in service and makes a trip
+        measurable. See ``Simulator.trip_tank_in_service``.
+        """
+        self.advance()
+        self._transfer_pump(name).set(bool(running))
+
+    def zero(self, instrument: str) -> None:
+        """Re-mark a gauge against its present reading.
+
+        Wanted after a reserve transfer, which raises the pit level without the
+        well having done anything -- and after picking up off bottom, when the
+        trip tank should be marked before the trip rather than after it.
+
+        Raises:
+            KeyError: if there is no such instrument.
+        """
+        self.advance()
+        if instrument == "pits":
+            self.simulator.pits.zero()
+        elif instrument == "trip_tank":
+            self.simulator.trip_tank.zero()
+        else:
+            raise KeyError(
+                f"Cannot zero '{instrument}'. Available: pits, trip_tank"
+            )
+
+    def _alarm(self, name: str):
+        sim = self.simulator
+        alarms = {
+            "pit_deviation": sim.pits.deviation_alarm,
+            "trip_tank_level": sim.trip_tank.alarm,
+            "return_flow": sim.return_flow.alarm,
+        }
+        if name not in alarms:
+            raise KeyError(
+                f"No alarm '{name}'. Available: {', '.join(sorted(alarms))}"
+            )
+        return alarms[name]
+
+    def set_alarm(
+        self,
+        name: str,
+        low: float | None = None,
+        high: float | None = None,
+        armed: bool | None = None,
+    ) -> None:
+        """Move a set point, or arm and disarm the horn.
+
+        A disarmed alarm still tracks and still lights its lamp, so the
+        instructor can see what was silenced. Omitted arguments are left alone.
+        """
+        self.advance()
+        alarm = self._alarm(name)
+        if low is not None:
+            alarm.low = float(low)
+        if high is not None:
+            alarm.high = float(high)
+        if armed is not None:
+            alarm.armed = bool(armed)
 
     def set_valve(self, name: str, state: str) -> None:
         """Open or close a valve, or operate a BOP element.
@@ -309,11 +442,63 @@ class Session:
             "drill_pipe_psi": round(state.standpipe_pressure_psi),
             "casing_psi": round(state.casing_pressure_psi),
             "strokes": round(state.strokes),
-            "choke_percent": round(self.simulator.choke.position, 1),
-            "choke_commanded": round(self.simulator.choke.commanded_position, 1),
-            "pump_spm": round(self.simulator.pump.spm, 1),
-            "pump_commanded": round(self.simulator.pump.commanded_spm, 1),
+            # The choke actually lined up, not always choke 1 -- a student who
+            # changed over after a plug should be watching the handle they are
+            # working. Falls back to choke 1 when nothing is in service.
+            "choke_percent": round(
+                self.simulator.choke_in_service.position, 1
+            ),
+            "choke_commanded": round(
+                self.simulator.choke_in_service.commanded_position, 1
+            ),
+            "pump_spm": round(self.simulator.total_pump_spm, 1),
+            "pump_commanded": round(self.simulator.total_pump_commanded_spm, 1),
             "pit_gain_bbl": round(self.simulator.pits.gain_bbl, 1),
+
+            # The mud system. The trip tank is the instrument a trip turns on
+            # and the pit deviation is the one a drilling kick turns on, so
+            # both come through whole rather than as a single number.
+            # Making hole. Present whatever the well is doing, because a
+            # driller reads these continuously; they simply read zero when
+            # nothing is turning.
+            "drilling": self.simulator.drilling.summary(),
+            "drilling_ahead": self.simulator.drilling_ahead,
+            "hole_md_ft": round(self.simulator.hole_md),
+            "hole_drilled_ft": round(state.hole_drilled_ft, 1),
+            "trip_tank": self.simulator.trip_tank.summary(),
+            "trip_tank_in_service": self.simulator.trip_tank_in_service,
+            "pits": self.simulator.pits.summary(),
+            "return_flow": self.simulator.return_flow.summary(),
+
+            # Per-unit, because the panel has a dial for each and because
+            # changing over after a failure is the drill.
+            "pumps": [
+                {
+                    "spm": round(unit.spm, 1),
+                    "commanded": round(unit.commanded_spm, 1),
+                    "running": unit.running,
+                    "flow_bpm": round(unit.flow_bbl_per_min, 2),
+                }
+                for unit in self.simulator.pumps
+            ],
+            # Both numbers per choke: a real choke takes seconds to travel, so
+            # where the handle is and where it is going are different things,
+            # and a student who cannot see the difference over-corrects.
+            "chokes": {
+                name: {
+                    "position": round(choke.position, 1),
+                    "commanded": round(choke.commanded_position, 1),
+                }
+                for name, choke in self.simulator.chokes.items()
+            },
+            "choke_in_service": next(
+                (
+                    valve.name
+                    for valve in self.simulator.flow_path.active_chokes()
+                    if valve.name in self.simulator.chokes
+                ),
+                None,
+            ),
             # The instrument the Volumetric method is worked to.
             "bled_bbl": round(state.bled_bbl, 2),
             "flow_in_bpm": round(state.flow_in_bpm, 2),
@@ -365,6 +550,90 @@ class Session:
             "influx_bbl": downhole(round(state.influx_volume_bbl, 1)),
             "influx_top_md": downhole(round(state.influx_top_md)),
             "gas_at_surface": downhole(state.gas_at_surface),
+        }
+
+    def instructor_view(self) -> dict:
+        """One tile of the instructor's monitor grid.
+
+        **This is the one place ``downhole_visible`` is deliberately bypassed.**
+        The mask exists so a student detecting a kick cannot read the answer off
+        a gauge; an instructor watching fifteen wells has the opposite problem
+        and needs to see which of them is in trouble before the student does.
+
+        Compact on purpose. Fifteen of these are fetched together and the point
+        of a grid is that trouble is visible without reading it -- so the flags
+        are booleans a tile can colour on, not numbers to compare.
+        """
+        sim = self.simulator
+        state = sim.state
+        shoe = state.shoe_pressure_psi
+        frac = sim.frac_pressure_psi
+        maasp = sim.maasp_psi
+
+        shoe_broken = frac is not None and shoe > frac
+        over_maasp = maasp is not None and state.casing_pressure_psi > maasp
+
+        if state.well_is_dead:
+            status = "dead"
+        elif shoe_broken:
+            status = "shoe broken down"
+        elif over_maasp:
+            status = "over maasp"
+        elif sim.pump.spm > 0:
+            status = "circulating"
+        elif sim.flow_path.bop_is_closed:
+            status = "shut in"
+        else:
+            status = "open"
+
+        return {
+            "status": status,
+            "paused": self.paused,
+            "speed": self.speed,
+            "time_s": round(state.time_s, 1),
+            # The gauges the student is looking at, so the instructor can see
+            # what they see.
+            "drill_pipe_psi": round(state.standpipe_pressure_psi),
+            "casing_psi": round(state.casing_pressure_psi),
+            "pit_gain_bbl": round(sim.pits.gain_bbl, 1),
+            "strokes": round(state.strokes),
+            "choke_percent": round(sim.choke_in_service.position, 1),
+            "pump_spm": round(sim.total_pump_spm, 1),
+            # Whether they have the trip tank actually in service, which is
+            # the difference between a measured trip and an unmeasured one.
+            "trip_tank_change_bbl": round(sim.trip_tank.change_bbl, 2),
+            "trip_tank_in_service": sim.trip_tank_in_service,
+            "flow_differential_bpm": round(sim.return_flow.differential_bpm, 2),
+            "alarms_sounding": [
+                name for name, alarm in (
+                    ("pit deviation", sim.pits.deviation_alarm),
+                    ("trip tank level", sim.trip_tank.alarm),
+                    ("return flow", sim.return_flow.alarm),
+                ) if alarm.sounding
+            ],
+            # The truth, whatever the student can see.
+            "bottomhole_psi": round(state.bottomhole_pressure_psi),
+            "formation_psi": round(sim.formation_pressure_psi),
+            "overbalance_psi": round(
+                state.bottomhole_pressure_psi - sim.formation_pressure_psi
+            ),
+            "shoe_psi": round(shoe),
+            "frac_psi": None if frac is None else round(frac),
+            "maasp_psi": None if maasp is None else round(maasp),
+            "influx_bbl": round(state.influx_volume_bbl, 1),
+            "gas_at_surface": state.gas_at_surface,
+            # Running totals the debrief will be built from, so a tile can show
+            # a run going wrong rather than only a well that already has.
+            "additional_influx_bbl": round(state.influx_taken_bbl, 1),
+            "seconds_outside_band": round(state.seconds_outside_band),
+            "peak_shoe_psi": round(state.peak_shoe_pressure_psi),
+            "shoe_broken": shoe_broken,
+            "over_maasp": over_maasp,
+            "well_is_dead": state.well_is_dead,
+            "bop_closed": sim.flow_path.bop_is_closed,
+            # What the student is allowed to see, so the instructor knows
+            # whether they are still meant to be detecting.
+            "downhole_visible": self.downhole_visible,
         }
 
     def lineup(self) -> list[dict]:
@@ -546,6 +815,10 @@ class Session:
         for sample in samples:
             row = {
                 "time_s": round(sample.time_s, 1),
+                # The trends screen can plot against strokes as well as time,
+                # which is how a kill sheet is actually worked.
+                "strokes": round(sample.strokes),
+                "trip_tank_bbl": round(sample.trip_tank_bbl, 2),
                 "casing_psi": round(sample.casing_psi),
                 "drill_pipe_psi": round(sample.standpipe_psi),
                 "pit_gain_bbl": round(sample.pit_gain_bbl, 1),

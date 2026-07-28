@@ -139,9 +139,19 @@ def default_valves() -> list[Valve]:
         Valve("kill_line_to_manifold", "Kill line to manifold",
               Node.KILL_LINE, Node.CHOKE_MANIFOLD),
 
-        Valve("choke_1", "Adjustable choke 1", Node.CHOKE_MANIFOLD,
+        # Four throttling routes across the manifold, as a real one has: two
+        # remote chokes worked from the panel and two handwheels on the
+        # manifold itself. The pair is not decoration -- a choke that plugs
+        # mid-kill is a fault this simulator can throw, and changing over to
+        # the other one is the answer. Each has its own opening; see
+        # Simulator.chokes.
+        Valve("choke_1", "Remote choke 1", Node.CHOKE_MANIFOLD,
               Node.SEPARATOR, throttling=True),
-        Valve("choke_2", "Adjustable choke 2", Node.CHOKE_MANIFOLD,
+        Valve("choke_2", "Remote choke 2", Node.CHOKE_MANIFOLD,
+              Node.SEPARATOR, throttling=True),
+        Valve("manual_choke_1", "Manual choke 1", Node.CHOKE_MANIFOLD,
+              Node.SEPARATOR, throttling=True),
+        Valve("manual_choke_2", "Manual choke 2", Node.CHOKE_MANIFOLD,
               Node.SEPARATOR, throttling=True),
         Valve("choke_bypass", "Choke manifold bypass", Node.CHOKE_MANIFOLD,
               Node.SEPARATOR),
@@ -352,8 +362,9 @@ class FlowPath:
     def active_chokes(self) -> list[Valve]:
         """Throttling valves on a live return route.
 
-        More than one open choke is a lineup error rather than twice the
-        capacity, and the engine treats the total area accordingly.
+        More than one open at a time is a lineup error rather than a plan, and
+        the engine bills it as one: each passes its own flow, so two half-shut
+        chokes let past far more than the driller working one of them expects.
         """
         route = self.return_route()
         if not route.through_choke:
@@ -373,6 +384,17 @@ class FlowPath:
             return False
         edges = self._edges()
         return self._reachable(edges, valve.to, Node.PITS) is not None
+
+    @property
+    def trip_tank_is_lined_up(self) -> bool:
+        """Whether the hole is being kept full from the trip tank.
+
+        The valve joins the tank straight to the annulus below the stack, so
+        there is nothing to search for -- it is open or it is not. What it
+        decides is which vessel the well's volume comes out of, and therefore
+        which gauge is measuring the trip.
+        """
+        return self.valve("trip_tank_valve").is_open
 
     # -- reporting -----------------------------------------------------------
 

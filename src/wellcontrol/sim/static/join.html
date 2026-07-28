@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join a class — Well Control Simulator</title>
+<style>
+/* Self-contained: no external resource, like every other page here. */
+:root {
+  --bg: #e8760f;          /* the console orange the student is about to see */
+  --sunk: #0b0f13;
+  --ink: #17120c;
+  --readout: #4bf07e;
+  --line: #a8540a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.card {
+  background: #ef8320; border: 1px solid var(--line); border-radius: 12px;
+  padding: 26px; width: 100%; max-width: 420px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.25);
+}
+h1 { margin: 0 0 4px; font-size: 20px; }
+p.sub { margin: 0 0 20px; color: #4a3311; font-size: 13px; }
+label { display: block; font-size: 12px; text-transform: uppercase;
+        letter-spacing: .07em; margin: 14px 0 5px; color: #4a3311; }
+input {
+  width: 100%; font: 20px/1 ui-monospace, Consolas, monospace;
+  letter-spacing: .14em; text-align: center; padding: 13px;
+  background: var(--sunk); color: var(--readout);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+input#name { font-size: 16px; letter-spacing: normal; text-align: left; }
+button {
+  width: 100%; margin-top: 20px; padding: 13px; font: 600 15px system-ui;
+  background: var(--sunk); color: var(--readout);
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+}
+button:hover { border-color: var(--ink); }
+button:disabled { opacity: .6; cursor: default; }
+.error { color: #6b1a12; min-height: 20px; margin-top: 12px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Well Control Simulator</h1>
+  <p class="sub">Enter the code your instructor read out.</p>
+
+  <label for="code">Class code</label>
+  <input id="code" placeholder="XXXX-XXXX" autocomplete="off"
+         autocapitalize="characters" spellcheck="false" maxlength="12">
+
+  <label for="name">Your name</label>
+  <input id="name" placeholder="Name" autocomplete="name" maxlength="60">
+
+  <button id="go">Join</button>
+  <div class="error" id="err"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+$("go").onclick = async () => {
+  $("err").textContent = "";
+  const code = $("code").value.trim(), name = $("name").value.trim();
+  if (!code || !name) {
+    $("err").textContent = "Both the code and a name are needed.";
+    return;
+  }
+  $("go").disabled = true;
+  try {
+    const r = await fetch("/api/join", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({code, name}),
+    });
+    if (!r.ok) {
+      let message = "Could not join.";
+      try { message = (await r.json()).detail || message; } catch (_) {}
+      throw new Error(message);
+    }
+    // The token is also set as an httpOnly cookie, which is what the panel
+    // actually uses -- so there is nothing to carry across, just go.
+    location.href = "/";
+  } catch (e) {
+    $("err").textContent = e.message;
+    $("go").disabled = false;
+  }
+};
+
+document.querySelectorAll("input").forEach(i =>
+  i.addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); }));
+$("code").focus();
+</script>
+</body>
+</html>

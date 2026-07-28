@@ -14,7 +14,7 @@ relationship between opening, pressure drop and flow.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..geometry import Pump
 
@@ -140,19 +140,249 @@ class AdjustableChoke:
 
 
 @dataclass
-class TripTank:
-    """A calibrated tank for measuring what the well takes or gives back."""
+class Alarm:
+    """A set point, a lamp, and a deadband so the lamp does not chatter.
 
-    volume_bbl: float = 50.0
-    baseline_bbl: float = 50.0
+    A value sitting *on* its set point crosses it repeatedly, and a lamp that
+    flickers is a lamp a student learns to ignore. The deadband means the alarm
+    latches on at the set point and only clears once the value has come back
+    past it by a margin -- the same reasoning as ``EventLog.set_level``, which
+    is what stopped a well-flown kill logging the same condition a hundred
+    times.
+
+    Attributes:
+        low: Set point below which the low lamp lights. None disables it.
+        high: Set point above which the high lamp lights. None disables it.
+        armed: The panel switch. A disarmed alarm still tracks, so the
+            instructor can see what the student silenced.
+        deadband: How far back past the set point the value must come before
+            the lamp clears.
+    """
+
+    low: float | None = None
+    high: float | None = None
+    armed: bool = True
+    deadband: float = 0.0
+    low_active: bool = False
+    high_active: bool = False
+
+    def update(self, value: float) -> None:
+        """Take a reading and settle the lamps."""
+        if self.low is None:
+            self.low_active = False
+        elif self.low_active:
+            self.low_active = value <= self.low + self.deadband
+        else:
+            self.low_active = value < self.low
+
+        if self.high is None:
+            self.high_active = False
+        elif self.high_active:
+            self.high_active = value >= self.high - self.deadband
+        else:
+            self.high_active = value > self.high
+
+    @property
+    def sounding(self) -> bool:
+        """Whether the horn is actually going -- lamps lit *and* armed."""
+        return self.armed and (self.low_active or self.high_active)
+
+    @property
+    def active(self) -> bool:
+        """Whether either lamp is lit, armed or not."""
+        return self.low_active or self.high_active
+
+    def summary(self) -> dict:
+        return {
+            "low": self.low,
+            "high": self.high,
+            "armed": self.armed,
+            "low_active": self.low_active,
+            "high_active": self.high_active,
+            "sounding": self.sounding,
+        }
+
+
+@dataclass
+class TransferPump:
+    """A pump that moves mud from one vessel to another.
+
+    Not the rig pump -- these are the small fixed-rate pumps around the pit
+    room and the trip tank. They either run or they do not, and how much they
+    actually move is limited by what is in the vessel they draw from and how
+    much room is in the one they fill. That limiting is done by whoever owns
+    both vessels; this only says how much it *wants* to move.
+    """
+
+    rate_bbl_per_min: float = 5.0
+    running: bool = False
+
+    def start(self) -> None:
+        self.running = True
+
+    def stop(self) -> None:
+        self.running = False
+
+    def set(self, running: bool) -> None:
+        self.running = bool(running)
+
+    def demand_bbl(self, dt: float) -> float:
+        """Volume it would move in ``dt`` seconds if nothing limited it."""
+        return self.rate_bbl_per_min * dt / 60.0 if self.running else 0.0
+
+
+def _transfer(
+    source: float, sink: float, sink_capacity: float, wanted: float
+) -> float:
+    """How much can actually move: limited by supply and by room.
+
+    A pump cannot draw a tank below empty or push one past its top, and both
+    limits matter -- a trip tank overflowing while the fill pump runs is a
+    thing that happens, and the level then stops telling you anything.
+    """
+    return max(0.0, min(wanted, source, sink_capacity - sink))
+
+
+@dataclass
+class TripTank:
+    """The tank the hole is filled from, and the instrument a trip turns on.
+
+    **This is how a kick is caught while tripping**, which is when a large
+    share of them arrive. Pulling steel out of the hole leaves a void that has
+    to be filled; the tank level falls by the volume of steel removed. If it
+    falls by *less* than that, something down the hole is giving fluid back.
+    Nothing about that is scripted -- it falls out of the same volume balance
+    as everything else, once the tank is actually in it.
+
+    Defaults follow the reference panel: a 35 bbl tank sitting at 21 bbl, with
+    the low alarm at 10 and the high at 30.
+
+    Attributes:
+        fillup_pump: Tank to the well. Keeps the hole full while pulling out.
+        fill_pump: Active pits to the tank. Tops the tank back up.
+        drain_pump: Tank to the active pits. Empties it after a trip.
+    """
+
+    volume_bbl: float = 21.0
+    capacity_bbl: float = 35.0
+    baseline_bbl: float = 21.0
+    alarm: Alarm = field(
+        default_factory=lambda: Alarm(low=10.0, high=30.0, deadband=0.5)
+    )
+    fillup_pump: TransferPump = field(
+        default_factory=lambda: TransferPump(rate_bbl_per_min=4.0)
+    )
+    fill_pump: TransferPump = field(
+        default_factory=lambda: TransferPump(rate_bbl_per_min=6.0)
+    )
+    drain_pump: TransferPump = field(
+        default_factory=lambda: TransferPump(rate_bbl_per_min=6.0)
+    )
 
     @property
     def change_bbl(self) -> float:
         """Positive when the tank has gained -- the well gave fluid back."""
         return self.volume_bbl - self.baseline_bbl
 
+    @property
+    def level_fraction(self) -> float:
+        if self.capacity_bbl <= 0:
+            return 0.0
+        return max(0.0, min(1.0, self.volume_bbl / self.capacity_bbl))
+
     def zero(self) -> None:
         self.baseline_bbl = self.volume_bbl
+
+    def add(self, bbl: float) -> float:
+        """Put volume in (or take it out, negative). Returns what actually moved.
+
+        Clamped at empty and at the top. The difference between what was asked
+        for and what moved is a tank that has run dry or overflowed, and either
+        one means the level has stopped measuring the well.
+        """
+        target = self.volume_bbl + bbl
+        clamped = max(0.0, min(self.capacity_bbl, target))
+        moved = clamped - self.volume_bbl
+        self.volume_bbl = clamped
+        return moved
+
+    def update_alarms(self) -> None:
+        self.alarm.update(self.volume_bbl)
+
+    def summary(self) -> dict:
+        return {
+            "volume_bbl": round(self.volume_bbl, 1),
+            "capacity_bbl": self.capacity_bbl,
+            "change_bbl": round(self.change_bbl, 2),
+            "level_fraction": round(self.level_fraction, 3),
+            "alarm": self.alarm.summary(),
+            "fillup_pump": self.fillup_pump.running,
+            "fill_pump": self.fill_pump.running,
+            "drain_pump": self.drain_pump.running,
+        }
+
+
+@dataclass
+class ReturnFlowMeter:
+    """The flow paddle in the flowline, and the alarm on it.
+
+    **The differential is the kick indicator, not the flow.** More coming back
+    than is going in means the well is contributing, and that shows up sooner
+    than a pit gain because it is a rate rather than an accumulated volume.
+    Flow continuing with the pump off says the same thing louder.
+
+    So the alarm sits on ``differential_bpm`` rather than on the return rate.
+    Alarming on the rate itself would fire every time the driller changed pump
+    speed, which is how a real flow alarm gets switched off and left off.
+
+    The reference DCU shows this either as a rate or as a percentage of what is
+    being pumped, hence both. Percentage is None with the pump off, because
+    dividing by nothing is not 100% -- it is a different question, and the
+    honest answer is the rate.
+    """
+
+    flow_in_bpm: float = 0.0
+    flow_out_bpm: float = 0.0
+    alarm: Alarm = field(
+        default_factory=lambda: Alarm(low=-0.5, high=0.5, deadband=0.15)
+    )
+
+    def update(self, flow_in_bpm: float, flow_out_bpm: float) -> None:
+        self.flow_in_bpm = flow_in_bpm
+        self.flow_out_bpm = flow_out_bpm
+        self.alarm.update(self.differential_bpm)
+
+    @property
+    def differential_bpm(self) -> float:
+        """Positive when more is coming back than is going in."""
+        return self.flow_out_bpm - self.flow_in_bpm
+
+    @property
+    def percent_of_flow_in(self) -> float | None:
+        """Returns as a percentage of what is pumped. None with the pump off."""
+        if self.flow_in_bpm <= 1e-6:
+            return None
+        return 100.0 * self.flow_out_bpm / self.flow_in_bpm
+
+    @property
+    def flowing_with_the_pump_off(self) -> bool:
+        """The one that is never anything else.
+
+        With nothing going in, anything coming back is the well. No pump rate
+        change, no surface explanation, no ambiguity.
+        """
+        return self.flow_in_bpm <= 1e-6 and self.flow_out_bpm > 0.05
+
+    def summary(self) -> dict:
+        percent = self.percent_of_flow_in
+        return {
+            "flow_in_bpm": round(self.flow_in_bpm, 2),
+            "flow_out_bpm": round(self.flow_out_bpm, 2),
+            "differential_bpm": round(self.differential_bpm, 2),
+            "percent": None if percent is None else round(percent, 1),
+            "flowing_with_the_pump_off": self.flowing_with_the_pump_off,
+            "alarm": self.alarm.summary(),
+        }
 
 
 @dataclass
@@ -207,14 +437,84 @@ class Accumulator:
 
 @dataclass
 class PitSystem:
-    """The active system, and the gain that tells you a well is flowing."""
+    """The active system, and the gain that tells you a well is flowing.
+
+    Two vessels, because the reference panel has two and because the
+    distinction matters: the **active** pit is in the circulating loop and its
+    level is the kick indicator, while the **reserve** holds mud that is not
+    being circulated. Transferring reserve into active raises the level without
+    the well having done anything -- which is exactly the false gain a student
+    has to learn to discount, and a real reason pit-gain alarms get ignored.
+
+    ``gain_bbl`` stays what it always was: active level against the mark, which
+    is what the driller reads.
+
+    Attributes:
+        deviation_alarm: Set points on the *gain*, not the level. The dial on
+            the reference DCU reads LOSS/GAIN either side of zero.
+    """
 
     active_bbl: float = 800.0
+    active_capacity_bbl: float = 1000.0
     baseline_bbl: float = 800.0
+    reserve_bbl: float = 400.0
+    reserve_capacity_bbl: float = 700.0
+    deviation_alarm: Alarm = field(
+        default_factory=lambda: Alarm(low=-10.0, high=10.0, deadband=1.0)
+    )
+    transfer_pump: TransferPump = field(
+        default_factory=lambda: TransferPump(rate_bbl_per_min=10.0)
+    )
 
     @property
     def gain_bbl(self) -> float:
         return self.active_bbl - self.baseline_bbl
 
+    @property
+    def deviation_bbl(self) -> float:
+        """What the LOSS/GAIN dial reads. Same number, named as the dial is."""
+        return self.gain_bbl
+
+    @property
+    def total_bbl(self) -> float:
+        return self.active_bbl + self.reserve_bbl
+
     def zero(self) -> None:
         self.baseline_bbl = self.active_bbl
+
+    def add(self, bbl: float) -> float:
+        """Change the active level, clamped. Returns what actually moved."""
+        target = self.active_bbl + bbl
+        clamped = max(0.0, min(self.active_capacity_bbl, target))
+        moved = clamped - self.active_bbl
+        self.active_bbl = clamped
+        return moved
+
+    def transfer_reserve_to_active(self, bbl: float) -> float:
+        """Move mud from reserve into the active system. Returns what moved.
+
+        **This does not touch the baseline**, so it shows up as a gain. That is
+        deliberate and it is what happens on a rig: the level went up and the
+        gauge cannot tell why. Re-zeroing after a transfer is the driller's job.
+        """
+        moved = _transfer(
+            self.reserve_bbl, self.active_bbl, self.active_capacity_bbl, bbl
+        )
+        self.reserve_bbl -= moved
+        self.active_bbl += moved
+        return moved
+
+    def update_alarms(self) -> None:
+        self.deviation_alarm.update(self.gain_bbl)
+
+    def summary(self) -> dict:
+        return {
+            "active_bbl": round(self.active_bbl, 1),
+            "active_capacity_bbl": self.active_capacity_bbl,
+            "reserve_bbl": round(self.reserve_bbl, 1),
+            "reserve_capacity_bbl": self.reserve_capacity_bbl,
+            "gain_bbl": round(self.gain_bbl, 1),
+            "deviation_bbl": round(self.deviation_bbl, 1),
+            "alarm": self.deviation_alarm.summary(),
+            "transfer_pump": self.transfer_pump.running,
+        }

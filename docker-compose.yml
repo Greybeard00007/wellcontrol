@@ -1,0 +1,46 @@
+# Classroom server for the Ubuntu box, behind Nginx Proxy Manager.
+#
+#   cp .env.example .env      # then fill it in -- see below
+#   docker compose up -d --build
+#
+# Then in Nginx Proxy Manager add a proxy host pointing at
+# wellcontrol-sim:8000 (or the host's IP on 8000 if you are not putting them
+# on a shared docker network), and let it issue the Let's Encrypt certificate.
+#
+# The port is published on 127.0.0.1 only, so nothing reaches the app except
+# through the proxy. Drop the 127.0.0.1 prefix if you want it on the LAN
+# directly -- and if you do, leave WELLCONTROL_TRUST_PROXY unset, because the
+# forwarded-for header is only trustworthy when a proxy you own is setting it.
+
+services:
+  simulator:
+    build: .
+    image: wellcontrol-sim:latest
+    container_name: wellcontrol-sim
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # The one durable credential. Generate the hash with:
+      #   docker compose run --rm simulator python -m wellcontrol.sim.auth
+      # Leaving it unset is allowed: a password is generated at boot and
+      # printed to `docker logs wellcontrol-sim`, and changes on every restart.
+      WELLCONTROL_INSTRUCTOR_PASSWORD_HASH: ${WELLCONTROL_INSTRUCTOR_PASSWORD_HASH:-}
+      # Signs tokens. Set it, or restarting signs the whole class out mid-kill.
+      #   openssl rand -base64 48
+      WELLCONTROL_SECRET_KEY: ${WELLCONTROL_SECRET_KEY:-}
+      # True here because NPM is in front. See the note above before changing.
+      WELLCONTROL_TRUST_PROXY: "1"
+    volumes:
+      - simulator-data:/data
+    # 15 wells at classroom speed is well under one core; the cap is a guard
+    # against a runaway loop taking the media server down with it, not a
+    # measured requirement.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1g
+
+volumes:
+  simulator-data:

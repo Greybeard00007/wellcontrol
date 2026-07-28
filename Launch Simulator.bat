@@ -58,6 +58,14 @@ if errorlevel 1 (
 )
 
 echo   Starting at http://localhost:8020
+echo.
+echo     /             the rig screens - practise on your own, no login
+echo     /instructor   instructor station - run a class
+echo     /join         where a student enters a class code
+echo.
+echo   To run a class for other people, deploy with Docker instead:
+echo   this launcher is bound to localhost and nobody else can reach it.
+echo.
 echo   Close this window to stop the simulator.
 echo.
 
