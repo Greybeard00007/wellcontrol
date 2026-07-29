@@ -455,12 +455,13 @@ class Session:
             alarm.armed = bool(armed)
 
     def set_valve(self, name: str, state: str) -> None:
-        """Open or close a valve, or operate a BOP element.
+        """Open or close a valve, or work something on the BOP panel.
 
-        BOP elements cost accumulator pressure to shift, and below the minimum
-        there is not enough to shift one at all. The element simply does not
-        move -- consistent with the rest of the lineup model, where a thing that
-        cannot work does not work rather than raising an error at the student.
+        Stack elements **and the outlet HCRs** cost accumulator pressure to
+        shift, need the panel armed, and below the minimum there is not enough
+        to shift one at all. It simply does not move -- consistent with the
+        rest of the lineup model, where a thing that cannot work does not work
+        rather than raising an error at the student.
 
         Raises:
             KeyError: if there is no such valve.
@@ -469,11 +470,11 @@ class Session:
         path = self.simulator.flow_path
         valve = path.valve(name)
         target = ValveState(state)
-        if valve.is_bop:
+        if valve.on_the_closing_unit:
             # Everything about working the stack is well control, so it is the
-            # engine's: what the element costs, whether there is enough behind
+            # engine's: what the function costs, whether there is enough behind
             # it to shift, and what a shear ram does to the string.
-            self.simulator.operate_bop_element(name, target)
+            self.simulator.operate_stack_valve(name, target)
             return
         path.set_valve(name, target)
 
@@ -484,8 +485,9 @@ class Session:
         bypass_open: bool | None = None,
         master_open: bool | None = None,
         pod: str | None = None,
+        arm: bool | None = None,
     ) -> None:
-        """Work the BOP closing unit: regulators, bypass, master, pod.
+        """Work the BOP closing unit: regulators, bypass, master, pod, arm.
 
         **Every setting moves on its own.** Sending only what changed is what
         stops a panel that redraws four times a second from dragging one
@@ -493,21 +495,42 @@ class Session:
         another -- the same reason the DCU's two alarm set points are
         independent.
 
+        **The regulators and the bypass need the panel armed**, like every
+        other control on it: they decide what pressure every function gets, so
+        reaching for them is reaching into the closing unit. They do not
+        *spend* the arm -- see ``Accumulator.adjust`` for why a setting and a
+        function are charged differently. Un-armed they do nothing at all, in
+        keeping with the rest of this panel.
+
+        ``pod`` and ``master_open`` are outside the interlock: the pod selector
+        chooses which control system answers rather than doing anything with
+        pressure, and ``master_open`` *is* the interlock, so gating it on
+        itself would leave a shut master with no way back.
+
         Raises:
             KeyError: for a pod on a well that has no pods, or a pod that is
                 not one of the two.
         """
         self.advance()
         unit = self.simulator.accumulator
-        if manifold_regulator_psi is not None:
+        # Arm first, so one command carrying `arm` and a setting works. The
+        # face sends them separately, but a command that quietly ignored half
+        # of itself depending on field order would be a trap for anything else
+        # driving this.
+        if arm is not None:
+            # Two-handed operation: this is the master valve handle on a
+            # surface unit and the Push to Operate button on a subsea one, and
+            # it buys exactly one function. Accumulator.arm has the argument.
+            unit.arm() if arm else unit.disarm()
+        if manifold_regulator_psi is not None and unit.adjust():
             unit.manifold_regulator_psi = max(
                 0.0, min(unit.capacity_psi, float(manifold_regulator_psi))
             )
-        if annular_regulator_psi is not None:
+        if annular_regulator_psi is not None and unit.adjust():
             unit.annular_regulator_psi = max(
                 0.0, min(unit.capacity_psi, float(annular_regulator_psi))
             )
-        if bypass_open is not None:
+        if bypass_open is not None and unit.adjust():
             unit.bypass_open = bool(bypass_open)
         if master_open is not None:
             unit.master_open = bool(master_open)
@@ -644,6 +667,10 @@ class Session:
                 "annular_psi": round(self.simulator.accumulator.annular_psi),
                 "bypass_open": self.simulator.accumulator.bypass_open,
                 "master_open": self.simulator.accumulator.master_open,
+                # Two-handed operation. Armed, the panel will pass exactly one
+                # function; the face lights up to say so, because a student
+                # holding a handle can see it is over.
+                "armed": self.simulator.accumulator.armed,
                 "air_psi": round(self.simulator.accumulator.air_psi),
                 "capacity_psi": round(self.simulator.accumulator.capacity_psi),
                 "flow_gal": round(self.simulator.accumulator.flow_gal, 1),

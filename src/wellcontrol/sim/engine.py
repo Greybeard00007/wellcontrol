@@ -690,29 +690,36 @@ class Simulator:
 
     # -- the stack ------------------------------------------------------------
 
-    def operate_bop_element(self, name: str, target: ValveState) -> bool:
-        """Shift one stack element, and pay for it.
+    def operate_stack_valve(self, name: str, target: ValveState) -> bool:
+        """Shift one thing on the closing unit, and pay for it.
+
+        The stack elements **and the outlet HCRs**: both are worked from the
+        BOP panel, through the same master valve and off the same bottles, so
+        both come through here. Lining the choke side up is a closing unit
+        function and not a walk to the manifold, which matters the moment the
+        unit is in trouble -- a student who cannot shut an annular cannot open
+        a choke line either, and finding that out is the point.
 
         Everything about working the stack that is not simply setting a valve
         lives here rather than in the session, because all of it is well
-        control: what an element costs the closing unit, whether there is
+        control: what a function costs the closing unit, whether there is
         enough regulated pressure behind it to move at all, and what closing a
         shear ram does to the string.
 
-        **A thing that cannot work does not work.** With the bottles down, a
-        regulator wound off or a dead pod selected, the element simply does not
-        move -- no error, no message. That is what the rig gives you, and
-        working out why is the exercise.
+        **A thing that cannot work does not work.** Un-armed, with the bottles
+        down, a regulator wound off or a dead pod selected, the valve simply
+        does not move -- no error, no message. That is what the rig gives you,
+        and working out why is the exercise.
 
         Returns:
-            True if the element moved.
+            True if it moved.
         """
         valve = self.flow_path.valve(name)
-        if not valve.is_bop:
-            raise ValueError(f"{name} is not a BOP element")
+        if not valve.on_the_closing_unit:
+            raise ValueError(f"{name} is not worked from the BOP panel")
         if valve.state is target:
             return True
-        if not self.accumulator.operate(is_annular=valve.bop_kind == "annular"):
+        if not self.accumulator.operate(valve.bop_kind or "hcr"):
             return False
 
         closing = target is ValveState.CLOSED

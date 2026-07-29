@@ -1668,7 +1668,10 @@ function faceAction(act, g) {
     case "annreg+":   regBy("annular_regulator_psi", 100); break;
     case "bypass-on":  send("closingunit", {bypass_open: true}); break;
     case "bypass-off": send("closingunit", {bypass_open: false}); break;
-    case "master":    send("closingunit", {master_open: !unit.master_open}); break;
+    // Two-handed operation: the master valve handle on the surface panel and
+    // Push to Operate on the subsea one are the same interlock, and buy
+    // exactly one function each. Arming twice is not two functions.
+    case "arm":       send("closingunit", {arm: true}); break;
     case "pod-blue":   send("closingunit", {pod: "blue"}); break;
     case "pod-yellow": send("closingunit", {pod: "yellow"}); break;
     case "flowreset": send("zero", {instrument: "flow_counter"}); break;
@@ -2922,13 +2925,19 @@ function drawBopPanel(g) {
   if (!host || !lineupCache.length) return;
   const gauges = g || lastGauges;
   if (!gauges) return;
-  $("bop-note").textContent = isSubsea
-    ? "Every element's position, on the pod that is answering. The stack is "
-      + "on the seabed; everything here is read at a distance, and a function "
-      + "that does not move is the only report you get."
-    : "Press to operate. Each function costs the closing unit pressure and "
-      + "gallons, and below the minimum — or with a regulator wound off, or "
-      + "the master shut — nothing moves at all.";
+  // Everything on this panel is two-handed, and the note says so rather than
+  // leaving a student to work out that half the face is inert. What it does
+  // *not* say is why a function that was armed did nothing — that is the
+  // exercise, and the panel never gives it away.
+  $("bop-note").textContent = (isSubsea
+    ? "Two hands: hold Push to Operate, then one function. The stack is on "
+      + "the seabed; everything here is read at a distance, and a function "
+      + "that does not move is the only report you get. "
+    : "Two hands: function the master valve, then one function. Each one "
+      + "costs the closing unit pressure and gallons, and below the minimum "
+      + "— or with a regulator wound off — nothing moves at all. ")
+    + "The elements, the outlet valves and the regulators are all on this "
+    + "unit, so every one of them needs it.";
   (isSubsea ? drawSubseaBopFace : drawSurfaceBopFace)(gauges, host);
 }
 
@@ -2938,15 +2947,41 @@ function drawBopPanel(g) {
    one that lights, so the panel reads at a glance without anybody comparing
    two labels. Grey is "this is the other way you could go", never "unknown". */
 function bopButton(x, y, w, h, text, act, lit, tone) {
-  const fill = lit ? (tone === "shut" ? "#c4302a" : "#2f9e4f") : "#cfd4d8";
-  const ink = lit ? "#ffffff" : "#17120c";
+  /* A real pushbutton is a metal bezel with a lens recessed into it, and it
+     is that recess that stops a control looking like a coloured rectangle
+     drawn on a page. Six layers, cheapest first: a shadow under the bezel, the
+     bezel, a highlight across its top where the light falls, the lens dropped
+     into it, a gloss across the top of the lens, and the lettering.
+
+     No `<defs>` and no gradients: the face redraws four times a second and its
+     innerHTML is replaced whole, so gradient definitions would be re-parsed
+     every frame for every button. Flat fills at low opacity give the same
+     rounded look for a fraction of the work.
+
+     **Unlit is dark, not pale.** That is what the reference panel shows and it
+     is most of what stops these reading as cartoon buttons: on a rig the lamp
+     behind a pushbutton is off, and an off lamp is black. The pale grey that
+     was here made every button look permanently illuminated. */
+  const face = lit ? (tone === "shut" ? "#b52d26" : "#2c8c47") : "#23282d";
+  const ink = lit ? "#ffffff" : "#98a2ab";
+  const inset = Math.max(3, Math.min(4.5, h * 0.1));
+  const size = Math.max(9.5, Math.min(13, (w - inset * 2 - 6) / (text.length * 0.58 || 1)));
   return `<g class="hit" data-face="${act}" style="cursor:pointer">
-    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${fill}"
-          stroke="#20262b" stroke-width="1.5"/>
-    <rect x="${x + 2}" y="${y + 2}" width="${w - 4}" height="${h * 0.32}" rx="3"
-          fill="#ffffff" opacity="0.16"/>
-    <text x="${x + w / 2}" y="${y + h / 2 + 4.5}" text-anchor="middle" fill="${ink}"
-          font-size="13" font-weight="700" font-family="system-ui">${text}</text></g>`;
+    <rect x="${x + 1}" y="${y + 2}" width="${w}" height="${h}" rx="3.5"
+          fill="#000000" opacity="0.3"/>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3.5"
+          fill="#aeb6bd" stroke="#39424a" stroke-width="1.2"/>
+    <rect x="${x + 1.4}" y="${y + 1.4}" width="${w - 2.8}" height="${(h - 2.8) * 0.42}"
+          rx="2.5" fill="#ffffff" opacity="0.42"/>
+    <rect x="${x + inset}" y="${y + inset}" width="${w - inset * 2}"
+          height="${h - inset * 2}" rx="2" fill="${face}"
+          stroke="#161b20" stroke-width="1"/>
+    <rect x="${x + inset + 1}" y="${y + inset + 1}" width="${w - inset * 2 - 2}"
+          height="${(h - inset * 2 - 2) * 0.4}" rx="1.5"
+          fill="#ffffff" opacity="0.15"/>
+    <text x="${x + w / 2}" y="${y + h / 2 + size * 0.36}" text-anchor="middle"
+          fill="${ink}" font-size="${size.toFixed(1)}" font-weight="700"
+          letter-spacing="0.02em" font-family="system-ui">${text}</text></g>`;
 }
 
 /* The engraved name plate, which sits *on* the element it names, as the
@@ -2958,24 +2993,39 @@ function bopButton(x, y, w, h, text, act, lit, tone) {
    because these labels come from the engine and "Upper variable bore rams" is
    three times the length of "Annular". A fixed size ran the long ones off both
    ends of the plate and into the buttons. */
-function bopPlate(x, y, w, h, text, ink) {
+function bopPlate(x, y, w, h, text, ink, riveted) {
   const size = Math.max(8.5, Math.min(13, (w - 10) / (text.length * 0.56)));
+  // Riveted, on the elevation. A nameplate is a piece of steel screwed to the
+  // body, and four corner rivets and a bevel are the difference between that
+  // and a white label pasted over the drawing.
+  const studs = riveted
+    ? [[x + 4.5, y + 4.5], [x + w - 4.5, y + 4.5],
+       [x + 4.5, y + h - 4.5], [x + w - 4.5, y + h - 4.5]]
+      .map(([sx, sy]) => `<circle cx="${sx}" cy="${sy}" r="1.6" fill="#8b939b"
+        stroke="#41484f" stroke-width="0.6"/>`).join("")
+    : "";
   return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2"
       fill="${BOPF.plate}" stroke="#20262b" stroke-width="1.5"/>
+    ${riveted ? `<rect x="${x + 1}" y="${y + 1}" width="${w - 2}"
+      height="${(h - 2) * 0.45}" rx="1.5" fill="#ffffff" opacity="0.55"/>
+      <rect x="${x + 1}" y="${y + h * 0.62}" width="${w - 2}" height="${h * 0.36}"
+      fill="#000000" opacity="0.07"/>` : ""}
     <text x="${x + w / 2}" y="${y + h / 2 + size * 0.35}" text-anchor="middle"
           fill="${ink || BOPF.red}" font-size="${size.toFixed(1)}" font-weight="700"
-          letter-spacing="0.03em" font-family="system-ui">${text}</text>`;
+          letter-spacing="0.03em" font-family="system-ui">${text}</text>
+    ${studs}`;
 }
 
 /* An Inc./Dec. pair over a caption, which is how the reference works a
    regulator: no number on the buttons, the number is on the gauge beside them.
    Wound below what an element takes to shift, that element stops moving --
    see Accumulator.supply_psi. */
-function regulatorBlock(x, y, caption, downAct, upAct, ink) {
+function regulatorBlock(x, y, caption, downAct, upAct, ink, w) {
+  const bw = w || 74;
   return `
-    ${bopButton(x, y, 74, 44, "Inc.", upAct, false)}
-    ${bopButton(x + 82, y, 74, 44, "Dec.", downAct, false)}
-    <text x="${x + 78}" y="${y + 62}" text-anchor="middle" fill="${ink}"
+    ${bopButton(x, y, bw, 44, "Inc.", upAct, false)}
+    ${bopButton(x + bw + 8, y, bw, 44, "Dec.", downAct, false)}
+    <text x="${x + bw + 4}" y="${y + 62}" text-anchor="middle" fill="${ink}"
           font-size="11.5" font-weight="700" font-family="system-ui">${caption}</text>`;
 }
 
@@ -2999,152 +3049,538 @@ function flowCounter(x, y, gal, ink) {
           font-size="10.5" font-weight="700" font-family="system-ui">Flow Counter</text>`;
 }
 
+/* -- two-handed operation ------------------------------------------------ */
+/* **Nothing on a BOP panel is a single press**, and both faces carry the
+   second hand: the master valve handle on the surface remote panel, the
+   *Push to Operate* button on the subsea screen. One arm buys exactly one
+   function, spent whether or not the element moved -- see Accumulator.arm.
+
+   The arm state is drawn loudly, because a student holding a handle can see
+   it is over and a student clicking a picture of one cannot. */
+
+/* The master valve, drawn as the reference cabinet has it: a chrome body with
+   a ball handle, low on the left of the panel between the two gauges. Pulled,
+   it charges the manifold for one function and the handle lies over. */
+function masterValveLever(x, y, armed, masterOpen) {
+  //: Over when armed, upright at rest. The handle is the report -- a lamp
+  //: would say a switch was thrown, a handle says which way it is lying.
+  const lean = armed ? -52 : 0;
+  //: `transparent`, not `none` -- a fill of none is not hit-tested at all, and
+  //: the handle is a thin shape to land a press on.
+  return `<g class="hit" data-face="arm" style="cursor:pointer">
+    <rect x="${x - 60}" y="${y - 68}" width="120" height="128" fill="transparent"/>
+    <rect x="${x - 46}" y="${y - 2}" width="92" height="34" rx="17"
+      fill="#b9c1c8" stroke="#5c646c" stroke-width="2"/>
+    <rect x="${x - 46}" y="${y + 2}" width="92" height="11" rx="5"
+      fill="#ffffff" opacity="0.45"/>
+    ${[-26, -14, 22, 34].map(d =>
+      `<line x1="${x + d}" y1="${y}" x2="${x + d}" y2="${y + 32}"
+        stroke="#7b848c" stroke-width="2"/>`).join("")}
+    <g transform="rotate(${lean} ${x} ${y + 15})">
+      <line x1="${x}" y1="${y + 15}" x2="${x}" y2="${y - 40}"
+        stroke="#3c4650" stroke-width="7" stroke-linecap="round"/>
+      <circle cx="${x}" cy="${y - 44}" r="15" fill="#1b2026" stroke="#000" stroke-width="1.5"/>
+      <circle cx="${x - 4}" cy="${y - 49}" r="4.5" fill="#ffffff" opacity="0.35"/>
+    </g>
+    <circle cx="${x}" cy="${y + 15}" r="6" fill="#3c4650" stroke="#20262b"/>
+    <text x="${x}" y="${y + 52}" text-anchor="middle" fill="${BOPF.ink}"
+      font-size="11.5" font-weight="700" font-family="system-ui">Master Valve</text>
+    ${masterOpen ? "" : `<text x="${x}" y="${y + 66}" text-anchor="middle"
+      fill="#2a0a09" font-size="10" font-weight="700"
+      font-family="system-ui">MASTER SHUT</text>`}</g>`;
+}
+
+/* The subsea equivalent: one button, and the position window beside it says
+   how long the arm has left, which is to say "one function". */
+function pushToOperate(x, y, w, h, armed, ink) {
+  return `<g class="hit" data-face="arm" style="cursor:pointer">
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="5"
+      fill="${armed ? "#2f9e4f" : "#2b3138"}" stroke="#12181d" stroke-width="2"/>
+    <rect x="${x + 4}" y="${y + 4}" width="${w - 8}" height="${h * 0.3}" rx="4"
+      fill="#ffffff" opacity="${armed ? 0.22 : 0.08}"/>
+    <text x="${x + w / 2}" y="${y + h / 2 + 5}" text-anchor="middle"
+      fill="${armed ? "#ffffff" : "#7d868f"}" font-size="14" font-weight="700"
+      font-family="system-ui">${armed ? "ARMED" : "PUSH"}</text>
+    <text x="${x + w / 2}" y="${y + h + 18}" text-anchor="middle" fill="${ink}"
+      font-size="11.5" font-weight="700"
+      font-family="system-ui">Push to Operate</text></g>`;
+}
+
+/* The lamp both faces carry: a legend that stays put and a light behind it,
+   which is how every other indicator on a rig works. It never says *why* a
+   function did nothing -- that is the exercise -- only whether the panel will
+   pass one. */
+function armLamp(x, y, armed) {
+  return `<rect x="${x}" y="${y}" width="118" height="38" rx="4"
+      fill="#0a0d10" stroke="#4a545e" stroke-width="1.5"/>
+    ${armed ? `<circle cx="${x + 24}" cy="${y + 19}" r="14" fill="#39d16a"
+      opacity="0.22"/>` : ""}
+    <circle cx="${x + 24}" cy="${y + 19}" r="9"
+      fill="${armed ? "#39d16a" : "#232b31"}" stroke="#05080a" stroke-width="1.5"/>
+    <circle cx="${x + 21}" cy="${y + 15.5}" r="3" fill="#ffffff"
+      opacity="${armed ? 0.5 : 0.12}"/>
+    <text x="${x + 76}" y="${y + 24}" text-anchor="middle"
+      fill="${armed ? "#8ff0ae" : "#5f6a74"}" font-size="13" font-weight="700"
+      letter-spacing="0.1em" font-family="system-ui">ARMED</text>`;
+}
+
+/* -- what order the stack is in ------------------------------------------ */
+/* **The engine's list order is the drawing.** `surface_stack()` and
+   `subsea_stack()` list their valves top to bottom, elements and flow crosses
+   interleaved, so walking that list is what puts the upper cross between the
+   upper and lower pipe rams on one and the upper outlets between the annulars
+   and the rams on the other. Both faces use this, which is why re-ordering a
+   stack is an edit to `flowpath.py` and nothing else.
+
+   Each row is either `{element}` or `{outlets, outlet}`; how *tall* a row is
+   is the face's business, because the two faces answer it differently. The
+   surface elevation gives an outlet twice an element's height; the subsea
+   schematic gives every row the same, because fifteen rows leave it no
+   choice. */
+function stackRows(lineup) {
+  const rows = [];
+  let cross = null;
+  lineup.forEach(v => {
+    if (v.is_bop) { cross = null; rows.push({element: v}); return; }
+    if (!v.side) return;
+    if (!cross || cross.outlet !== v.outlet) {
+      cross = {outlets: [], outlet: v.outlet};
+      rows.push(cross);
+    }
+    cross.outlets.push(v);
+  });
+  return rows;
+}
+
 /* -- the stack, in elevation --------------------------------------------- */
 /* Element bodies on a common bore, each showing its own position: a closed
    element's rams meet in the middle, an open one's are drawn back into the
    body. An annular is a bulge rather than a box, because that is what it looks
    like and because a student should be able to tell the two apart on the
    drawing without reading the plate. */
-function stackElement(cx, y, w, h, shut, kind, colours) {
+function stackElement(cx, y, w, h, shut, kind, colours, flanged) {
   const b = [];
-  // An annular is a rounded body and a ram is a square one, so the two are
-  // told apart on the drawing without reading the plate -- which matters,
-  // because they behave differently: an annular will close on anything and a
-  // pipe ram only seals on the size it was dressed for.
-  b.push(`<rect x="${cx - w / 2}" y="${y}" width="${w}" height="${h}"
-    rx="${kind === "annular" ? h * 0.42 : 4}"
-    fill="${colours.body}" stroke="${colours.line}" stroke-width="2"/>`);
-  if (kind === "annular") {
-    // The packing element, tapering to the bore.
-    b.push(`<path d="M ${cx - w * 0.30} ${y + h - 3} L ${cx - w * 0.13} ${y + 3}
-      L ${cx + w * 0.13} ${y + 3} L ${cx + w * 0.30} ${y + h - 3}"
-      fill="none" stroke="${colours.line}" stroke-width="1.6" opacity="0.8"/>`);
+  //: A ram body is **narrow** and its operators are long, which is the whole
+  //: silhouette. Drawn at 0.58 of the width the bonnets were stubs you had to
+  //: be told were there; at 0.46 they are half the equipment, which is what
+  //: they are.
+  const body = kind === "annular" ? w * 0.60 : w * 0.46;
+  const half = body / 2;
+  const boreW = Math.max(5, w * 0.13);
+  const line = colours.line, fill = colours.body;
+  const dark = colours.bore || "#0d1216";
+  const fh = Math.max(6, h * 0.15);
+
+  /* Studded flange pairs, centred on the joint. A stack is a column of bodies
+     **bolted together** and the flanges are what say so; without them a
+     preventer is a rectangle on a pipe. Adjacent bodies land their flanges
+     within a pixel or two of each other, which is what a bolted joint looks
+     like and is why they are drawn straddling the body edge rather than
+     inside it. */
+  const flange = (fy, fw) => {
+    const out = [`<rect x="${cx - fw / 2}" y="${fy}" width="${fw}" height="${fh}"
+      rx="1.5" fill="${fill}" stroke="${line}" stroke-width="1.6"/>`];
+    for (let i = 1; i < 7; i++) {
+      const sx = cx - fw / 2 + (fw * i) / 7;
+      out.push(`<line x1="${sx}" y1="${fy + 1.6}" x2="${sx}" y2="${fy + fh - 1.6}"
+        stroke="${line}" stroke-width="1.1" opacity="0.55"/>`);
+    }
+    return out.join("");
+  };
+  if (flanged) {
+    b.push(flange(y - fh / 2, body * 1.18));
+    b.push(flange(y + h - fh / 2, body * 1.18));
   }
-  // The rams themselves. Shut, they close on the bore.
-  const reach = shut ? w / 2 - 5 : w * 0.16;
-  const ry = y + h * 0.3, rh = h * 0.4;
-  b.push(`<rect x="${cx - w / 2 + 4}" y="${ry}" width="${reach}" height="${rh}"
-    fill="${shut ? colours.shut : colours.open}" stroke="${colours.line}"/>`);
-  b.push(`<rect x="${cx + w / 2 - 4 - reach}" y="${ry}" width="${reach}" height="${rh}"
-    fill="${shut ? colours.shut : colours.open}" stroke="${colours.line}"/>`);
+
+  /* A ram preventer carries its operators on the outside -- a bonnet each
+     side with the closing cylinder bolted to it -- and that silhouette is how
+     one is recognised across a rig floor. An annular has none: it is a single
+     domed body, because the packing element is squeezed from underneath
+     rather than driven in from the sides. Drawing the two as a square box and
+     a round box got the distinction across; drawing what they actually look
+     like gets it across without anybody having to have been told. */
+  if (kind !== "annular") {
+    const by = y + h * 0.22, bh = h * 0.40;
+    const capW = Math.max(6, w * 0.05), boltW = Math.max(5, w * 0.028);
+    [-1, 1].forEach(s => {
+      const root = cx + s * (half - 2);               // inside the body edge
+      const tip = cx + s * (w / 2 - capW);            // where the cylinder ends
+      const at = (a, bx) => Math.min(a, bx);          // left edge of a span
+      const len = Math.abs(tip - root);
+      /* Cylinder **first**, then the bolting flange over its inner end, then
+         the end cap. Order matters: a fully rounded bar drawn outboard of the
+         flange curves away from the body and reads as a blob floating beside
+         it, which is exactly how the first attempt looked. Tucked under the
+         flange, the same shape reads as a cylinder bolted on. */
+      b.push(`<rect x="${at(root, tip)}" y="${by}" width="${len}"
+        height="${bh}" rx="${bh / 2}" fill="${fill}" stroke="${line}"
+        stroke-width="1.6"/>`);
+      b.push(`<rect x="${at(root, tip) + 3}" y="${by + 2.5}"
+        width="${Math.max(0, len - 6)}" height="${bh * 0.28}"
+        rx="${bh * 0.14}" fill="#ffffff" opacity="0.16"/>`);
+      b.push(`<rect x="${at(root, root + s * boltW)}" y="${by - h * 0.10}"
+        width="${boltW}" height="${bh + h * 0.20}" rx="1.5"
+        fill="${fill}" stroke="${line}" stroke-width="1.5"/>`);
+      b.push(`<rect x="${at(tip, tip + s * capW)}" y="${by - h * 0.07}"
+        width="${capW}" height="${bh + h * 0.14}" rx="2"
+        fill="${fill}" stroke="${line}" stroke-width="1.5"/>`);
+    });
+  }
+
+  if (kind === "annular") {
+    // Wide at the flange and drawn in at the top: the shape a packing unit
+    // and its head make.
+    b.push(`<path d="M ${cx - half} ${y + h} L ${cx - half} ${y + h * 0.54}
+      C ${cx - half} ${y + h * 0.13} ${cx - half * 0.60} ${y} ${cx - half * 0.44} ${y}
+      L ${cx + half * 0.44} ${y}
+      C ${cx + half * 0.60} ${y} ${cx + half} ${y + h * 0.13} ${cx + half} ${y + h * 0.54}
+      L ${cx + half} ${y + h} Z"
+      fill="${fill}" stroke="${line}" stroke-width="2"/>`);
+  } else {
+    b.push(`<rect x="${cx - half}" y="${y}" width="${body}" height="${h}" rx="3"
+      fill="${fill}" stroke="${line}" stroke-width="2"/>`);
+  }
+
+  // Shading, so the body reads as a round forging rather than a flat panel.
+  // Two flat fills at low opacity rather than a gradient: the face redraws
+  // four times a second and its innerHTML is replaced whole, so a <defs> would
+  // be re-parsed every frame.
+  b.push(`<rect x="${cx - half + 1.5}" y="${y + 1.5}" width="${half * 0.5}"
+    height="${h - 3}" fill="#ffffff" opacity="0.07"/>`);
+  b.push(`<rect x="${cx + half * 0.28}" y="${y + 1.5}" width="${half * 0.7}"
+    height="${h - 3}" fill="#000000" opacity="0.2"/>`);
+
+  // The through bore, so every element on the column reads as being on one.
+  b.push(`<rect x="${cx - boreW / 2}" y="${y}" width="${boreW}" height="${h}"
+    fill="${dark}" opacity="0.85"/>`);
+
+  /* What the element is *doing*, in the bore where a student is already
+     looking. Shut, the two halves meet across it; open, they are drawn back
+     into the body and the bore is clear. A ram is a square block and an
+     annular's packer is a wedge, because that is the shape each one closes
+     with. This sits above the name plate rather than behind it -- a plate
+     across the middle of the body would hide the one thing on the drawing
+     that says which way the element is. */
+  // An annular's packer sits **lower** than a ram, because the body above it
+  // is drawing in towards the head and a wedge across that taper reads as
+  // damage rather than as a seal.
+  const ry = y + h * (kind === "annular" ? 0.30 : 0.18), rh = h * 0.24;
+  const reach = shut ? half - 3 : half * 0.34;
+  [-1, 1].forEach(s => {
+    const root = cx + s * (half - 3);
+    const tip = root - s * reach;
+    const face = shut ? colours.shut : colours.open;
+    if (kind === "annular") {
+      b.push(`<path d="M ${root} ${ry} L ${tip} ${ry + rh * 0.24}
+        L ${tip} ${ry + rh * 0.76} L ${root} ${ry + rh} Z"
+        fill="${face}" stroke="${line}" stroke-width="1.2"/>`);
+    } else {
+      b.push(`<rect x="${Math.min(root, tip)}" y="${ry}" width="${reach}"
+        height="${rh}" rx="1" fill="${face}" stroke="${line}" stroke-width="1.2"/>`);
+    }
+  });
   return b.join("");
 }
 
+/* A drilling spool: one outlet each side, flanged at both ends and at the end
+   of each stub, where the first valve bolts on.
+
+   `body` and `reach` are separate because they are separate on a rig: how fat
+   the spool is has nothing to do with how far its lines run before the first
+   valve, and coupling the two made the stubs run out under the buttons the
+   moment the spool was drawn a realistic width. */
+function flowCrossBody(cx, top, height, body, reach, outletY, colours) {
+  const b = [];
+  const half = body / 2;
+  const fh = Math.max(6, body * 0.13);
+  const stub = Math.max(10, body * 0.17);
+  const line = colours.line, fill = colours.body;
+
+  // The stub first, so the spool covers where it meets it.
+  b.push(`<rect x="${cx - reach}" y="${outletY - stub / 2}" width="${reach * 2}"
+    height="${stub}" fill="${fill}" stroke="${line}" stroke-width="1.6"/>`);
+  b.push(`<rect x="${cx - reach}" y="${outletY - stub / 2 + 1.5}"
+    width="${reach * 2}" height="${stub * 0.3}" fill="#ffffff" opacity="0.1"/>`);
+  [cx - reach, cx + reach].forEach(fx =>
+    b.push(`<rect x="${fx - stub * 0.28}" y="${outletY - stub * 0.95}"
+      width="${stub * 0.56}" height="${stub * 1.9}" rx="1.5" fill="${fill}"
+      stroke="${line}" stroke-width="1.4"/>`));
+  b.push(`<rect x="${cx - half}" y="${top}" width="${body}" height="${height}"
+    rx="3" fill="${fill}" stroke="${line}" stroke-width="2"/>`);
+  b.push(`<rect x="${cx - half + 1.5}" y="${top + 1.5}" width="${half * 0.5}"
+    height="${height - 3}" fill="#ffffff" opacity="0.07"/>`);
+  b.push(`<rect x="${cx + half * 0.28}" y="${top + 1.5}" width="${half * 0.7}"
+    height="${height - 3}" fill="#000000" opacity="0.2"/>`);
+  b.push(`<rect x="${cx - body * 0.11}" y="${top}" width="${body * 0.22}"
+    height="${height}" fill="${colours.bore || "#0d1216"}" opacity="0.85"/>`);
+  [top - fh / 2, top + height - fh / 2].forEach(fy => {
+    b.push(`<rect x="${cx - body * 0.59}" y="${fy}" width="${body * 1.18}"
+      height="${fh}" rx="1.5" fill="${fill}" stroke="${line}" stroke-width="1.6"/>`);
+    for (let i = 1; i < 7; i++) {
+      const sx = cx - body * 0.59 + (body * 1.18 * i) / 7;
+      b.push(`<line x1="${sx}" y1="${fy + 1.6}" x2="${sx}" y2="${fy + fh - 1.6}"
+        stroke="${line}" stroke-width="1.1" opacity="0.55"/>`);
+    }
+  });
+  return b.join("");
+}
+
+/* A gate valve on the line, with its hydraulic operator on top -- which is
+   what the H in HCR is. **Two of these on one line is the double barrier**,
+   and drawing them that way is the point: stacked in two rows the pair read
+   as two separate lines, which is the one thing a double barrier is not.
+
+   Green passing, red shut, on the body itself rather than only on the buttons
+   -- a student should be able to trace a route across the face without
+   reading a single label. */
+function lineValve(vx, vy, open, colours) {
+  const w = 19, hh = 15, face = open ? "#2c8c47" : "#b52d26";
+  return `
+    <rect x="${vx - 3}" y="${vy - hh - 15}" width="6" height="16"
+      fill="${colours.body}" stroke="${colours.line}" stroke-width="1.2"/>
+    <rect x="${vx - 13}" y="${vy - hh - 30}" width="26" height="17" rx="3"
+      fill="${colours.body}" stroke="${colours.line}" stroke-width="1.5"/>
+    <rect x="${vx - 11}" y="${vy - hh - 28}" width="22" height="6" rx="2"
+      fill="#ffffff" opacity="0.14"/>
+    <path d="M ${vx - w} ${vy - hh} L ${vx - w} ${vy + hh} L ${vx} ${vy} Z"
+      fill="${face}" stroke="${colours.line}" stroke-width="1.5"/>
+    <path d="M ${vx + w} ${vy - hh} L ${vx + w} ${vy + hh} L ${vx} ${vy} Z"
+      fill="${face}" stroke="${colours.line}" stroke-width="1.5"/>
+    <circle cx="${vx}" cy="${vy}" r="2.4" fill="${colours.line}"/>`;
+}
+
 /* -- the surface remote panel -------------------------------------------- */
+/* Laid out to `surface_bop.JPG`. Every coordinate below is a pixel
+   measurement off that photograph's panel -- which occupies 1152x647 px of
+   it -- scaled by 1600/1152 across and 680/647 down into the viewBox. The
+   scales differ because the reference window is a different shape from this
+   face, and positions can take that where radii cannot; gauge radii are set
+   by the *height*, which is the tighter of the two.
+                                                            reference x, y
+   master valve lever      65, 349      accumulator gauge     274, 202
+   air gauge              260, 486      stack centre          853
+   Open column            701           Close column          930
+   kill line block        548           choke line block     1000
+   regulator column      1195           readback gauges      1443
+
+   Two departures from it, both because this stack is a fuller one than the
+   photograph's. It carries **two HCRs a side** where the reference carries
+   one, so each outlet takes two rows rather than one -- drawing them as a
+   single valve would be a picture of a barrier this rig does not have. And it
+   carries **two flow crosses**, an upper between the pipe rams and a lower
+   below them, which is what makes the stack six rows deep instead of five. */
 function drawSurfaceBopFace(g, host) {
   const b = [];
   const unit = g.closing_unit || {};
-  const cap = unit.capacity_psi || 3000;
-  const elements = lineupCache.filter(v => v.is_bop);
-  const outlets = side => lineupCache.filter(v => v.side === side);
+  //: The gauges are 0-5,000 psi faces whatever the bottles hold, as the
+  //: reference has them: a full accumulator sits at three fifths of the sweep
+  //: and there is somewhere for the needle to *go*. A dial that reads full
+  //: scale when everything is normal cannot show anything but bad news.
+  const FULL = 5000, PSI = [0, 1000, 2000, 3000, 4000, 5000];
 
   b.push(`<rect x="0" y="0" width="${BOPF.W}" height="${BOPF.H}" fill="${BOPF.red}"/>`);
   b.push(`<rect x="10" y="10" width="${BOPF.W - 20}" height="${BOPF.H - 20}" rx="6"
     fill="none" stroke="${BOPF.edge}" stroke-width="4"/>`);
 
   // -- closing unit gauges, left ------------------------------------------
-  // Accumulator over air, with the master valve in the gap between them, as
-  // the reference cabinet has it.
+  // Accumulator over air, with the master valve on the panel edge beside
+  // them, as the reference cabinet has it.
   b.push(rigDial({
-    cx: 170, cy: 170, r: 120, value: g.accumulator_psi, max: cap,
-    ticks: [0, cap / 4, cap / 2, cap * 0.75, cap], label: "Accumulator Pressure",
+    cx: 274, cy: 202, r: 118, value: g.accumulator_psi, max: FULL,
+    ticks: PSI, label: "Accumulator Pressure",
     unit: "psi", digits: pad(g.accumulator_psi, 4), labelFill: BOPF.ink,
   }));
   b.push(rigDial({
-    cx: 170, cy: 480, r: 120, value: unit.air_psi, max: 300,
-    ticks: [0, 75, 150, 225, 300], label: "Air Pressure", unit: "psi",
+    cx: 260, cy: 486, r: 118, value: unit.air_psi, max: 300,
+    ticks: [0, 50, 100, 150, 200, 250, 300], label: "Air Pressure", unit: "psi",
     digits: pad(unit.air_psi, 3), labelFill: BOPF.ink,
   }));
-  // The master valve. Shut, the whole stack is dead however healthy every
-  // other gauge looks, which is exactly why it is a control and not a note.
-  b.push(bopButton(96, 318, 148, 34,
-    unit.master_open ? "MASTER OPEN" : "MASTER SHUT", "master",
-    true, unit.master_open ? "" : "shut"));
+  // The second hand, and its lamp directly under it: the handle is what you
+  // work and the lamp is what says the panel took it, so they belong on the
+  // same part of the console.
+  b.push(masterValveLever(80, 336, unit.armed, unit.master_open));
+  b.push(armLamp(21, 406, unit.armed));
 
   // -- the stack, centre ---------------------------------------------------
-  const cx = 780, colW = 200;
-  const rows = [58, 166, 274, 556];          // three above the cross, one below
-  b.push(`<rect x="${cx - 22}" y="30" width="44" height="${610 - 30}"
-    fill="#5c646c" stroke="#2b333b" stroke-width="2"/>`);
-  const metal = {body: "#2b3138", line: "#12181d", shut: "#c4302a", open: "#7d868f"};
+  // Row order comes from the engine's list, so re-ordering the stack is an
+  // edit to `surface_stack()` and nothing here.
+  /* The stack is drawn **wide**, because a preventer is mostly its side
+     operators and squeezing them out is what made an earlier version a column
+     of boxes.
 
-  elements.forEach((v, i) => {
-    const y = rows[Math.min(i, rows.length - 1)];
-    const shut = v.state !== "open";
-    b.push(stackElement(cx, y - 9, colW, 64, shut, v.bop_kind, metal));
-    b.push(bopButton(592, y, 84, 46, "Open", `bop-open:${v.name}`, !shut));
-    // The plate is well inside the element body, so the rams stay visible
-    // either side of it: the drawing has to say what position the element is
-    // in, or the two buttons are the only report and the stack is scenery.
-    b.push(bopPlate(cx - 66, y + 8, 132, 30, v.label));
-    b.push(bopButton(884, y, 84, 46, "Close", `bop-close:${v.name}`, shut, "shut"));
-    // Casing shear rams cut and do *not* seal, so the panel says so rather
-    // than letting a lit Close button be read as a barrier.
-    if (!v.seals) {
-      b.push(`<text x="${cx}" y="${y + 70}" text-anchor="middle" fill="${BOPF.ink}"
-        font-size="10.5" font-family="system-ui">shears — does not seal</text>`);
-    }
-  });
+     Everything sits in columns measured from the stack centre, and the
+     element buttons share the inner valves' columns so the face reads as
+     columns rather than as scattered pairs:
 
-  // The flow cross, between the blind shear rams and the lower rams, with its
-  // two outlets. Kill to the left, choke to the right, as the stack is piped.
-  b.push(`<rect x="${cx - 100}" y="404" width="200" height="100" rx="4"
-    fill="#2b3138" stroke="#12181d" stroke-width="2"/>`);
-  b.push(`<line x1="${cx - 100}" y1="452" x2="576" y2="452"
-    stroke="#5c646c" stroke-width="14"/>`);
-  b.push(`<line x1="${cx + 100}" y1="452" x2="984" y2="452"
-    stroke="#5c646c" stroke-width="14"/>`);
-  b.push(`<text x="${cx}" y="${524}" text-anchor="middle" fill="${BOPF.ink}"
-    font-size="11.5" font-weight="700" font-family="system-ui">FLOW CROSS</text>`);
+       OUTER   the outer HCR of each outlet line
+       INNER   the inner HCR, and the elements' Open / Close
+       cx      the stack
 
-  [["kill", 380, "Kill Line"], ["choke", 1000, "Choke Line"]]
-    .forEach(([side, x, title]) => {
-      b.push(`<text x="${x + 100}" y="${372}" text-anchor="middle" fill="${BOPF.ink}"
-        font-size="12.5" font-weight="700" letter-spacing="0.05em"
-        font-family="system-ui">${title.toUpperCase()}</text>`);
-      outlets(side).forEach((v, i) => {
-        const y = 382 + i * 62;
-        const shut = v.state !== "open";
-        b.push(bopButton(x, y, 88, 40, "Open", `bop-open:${v.name}`, !shut));
-        b.push(bopButton(x + 96, y, 88, 40, "Close", `bop-close:${v.name}`,
-          shut, "shut"));
-        b.push(`<text x="${x + 92}" y="${y + 54}" text-anchor="middle"
+     **Each outlet is one line carrying two valves**, not two rows of buttons.
+     Stacked in two rows the pair read as two separate lines, which is the one
+     thing a double barrier is not. Open goes above its valve and Close below
+     it, so which button works which valve needs no label at all. */
+  const cx = 853, colW = 250;
+  //: REACH stops short of the regulator column: an outlet line that runs on
+  //: under the By Pass buttons says the line goes somewhere it does not.
+  const INNER = 190, OUTER = 320, REACH = 356;   // from the stack centre
+  const BW = 62, BH = 50;                        // element buttons
+  const VBW = 62, VBH = 40;                      // valve buttons
+  const rows = stackRows(lineupCache);
+  const EROW = 74, CROW = 148;                   // row pitches
+  const stackH = rows.reduce((n, r) => n + (r.element ? EROW : CROW), 0);
+  const top = 14;
+  const metal = {body: "#2b3238", line: "#080b0e", shut: "#c4302a",
+                 open: "#9aa3ab", bore: "#0d1216"};
+
+  // One continuous column behind everything, so the stack reads as bolted
+  // together rather than as bodies floating at intervals.
+  b.push(`<rect x="${cx - 22}" y="0" width="44" height="${top + stackH + 12}"
+    fill="${metal.body}" stroke="${metal.line}" stroke-width="2"/>`);
+  b.push(`<rect x="${cx - 20}" y="0" width="14" height="${top + stackH + 12}"
+    fill="#ffffff" opacity="0.07"/>`);
+
+  let y = top;
+  rows.forEach(row => {
+    if (row.element) {
+      const v = row.element, shut = v.state !== "open";
+      b.push(stackElement(cx, y - 10, colW, 72, shut, v.bop_kind, metal, true));
+      b.push(bopButton(cx - INNER - BW / 2, y, BW, BH, "Open",
+        `bop-open:${v.name}`, !shut));
+      // The plate sits on the **lower half** of the body and inside its
+      // width. The rams are drawn in the bore above it: a plate across the
+      // middle would cover the one thing on the drawing that says which way
+      // the element is, and one wider than the body hides the operators.
+      b.push(bopPlate(cx - 52, y + 22, 104, 25, v.label, "#17120c", true));
+      b.push(bopButton(cx + INNER - BW / 2, y, BW, BH, "Close",
+        `bop-close:${v.name}`, shut, "shut"));
+      // Casing shear rams cut and do *not* seal, so the panel says so rather
+      // than letting a lit Close button be read as a barrier.
+      if (!v.seals) {
+        b.push(`<text x="${cx}" y="${y + 70}" text-anchor="middle"
           fill="${BOPF.ink}" font-size="10.5"
-          font-family="system-ui">${v.label}</text>`);
-      });
+          font-family="system-ui">shears — does not seal</text>`);
+      }
+      y += EROW;
+      return;
+    }
+    // A flow cross: one line out to the left for the kill side and one to the
+    // right for the choke, each carrying its inner and outer HCR. The upper
+    // cross is under both pipe rams and the lower one under the blind shears
+    // as well, which is the reason there are two -- though on a rig, not in
+    // this model: see `surface_stack`, where the annulus is one node and the
+    // heights are a drawing.
+    const lineY = y + 66;
+    b.push(flowCrossBody(cx, y + 22, CROW - 58, 120, REACH, lineY, metal));
+    b.push(`<text x="${cx}" y="${lineY - 22}" text-anchor="middle"
+      fill="#aeb6bd" font-size="9" font-weight="700" letter-spacing="0.06em"
+      font-family="system-ui">${row.outlet.toUpperCase()}</text>`);
+    b.push(`<text x="${cx}" y="${lineY + 30}" text-anchor="middle"
+      fill="#aeb6bd" font-size="9" font-weight="700" letter-spacing="0.06em"
+      font-family="system-ui">CROSS</text>`);
+
+    row.outlets.forEach(v => {
+      const s = v.side === "kill" ? -1 : 1;
+      const vx = cx + s * (v.name.indexOf("inner") >= 0 ? INNER : OUTER);
+      const open = v.state === "open";
+      b.push(lineValve(vx, lineY, open, metal));
+      b.push(bopButton(vx - VBW / 2, y, VBW, VBH, "Open",
+        `bop-open:${v.name}`, open));
+      b.push(bopButton(vx - VBW / 2, lineY + 24, VBW, VBH, "Close",
+        `bop-close:${v.name}`, !open, "shut"));
+      b.push(`<text x="${vx}" y="${lineY + 80}" text-anchor="middle"
+        fill="${BOPF.ink}" font-size="9"
+        font-family="system-ui">${v.label}</text>`);
     });
+    y += CROW;
+  });
+  // The casing head the whole column lands on: a spool over a wider housing.
+  const foot = top + stackH - 2;
+  b.push(`<rect x="${cx - 26}" y="${foot}" width="52" height="14"
+    fill="${metal.body}" stroke="${metal.line}" stroke-width="2"/>`);
+  b.push(`<rect x="${cx - 54}" y="${foot + 12}" width="108" height="20" rx="2"
+    fill="${metal.body}" stroke="${metal.line}" stroke-width="2"/>`);
 
   // -- regulators and the bypass, right of the stack -----------------------
-  b.push(regulatorBlock(1010, 70, "Manifold Regulator Pressure",
-    "manreg-", "manreg+", BOPF.ink));
-  b.push(bopButton(1010, 176, 74, 44, "On", "bypass-on",
-    unit.bypass_open));
-  b.push(bopButton(1092, 176, 74, 44, "Off", "bypass-off",
+  b.push(regulatorBlock(1222, 150, "Manifold Regulator", "manreg-", "manreg+",
+    BOPF.ink, 58));
+  b.push(bopButton(1222, 290, 58, 48, "On", "bypass-on", unit.bypass_open));
+  b.push(bopButton(1288, 290, 58, 48, "Off", "bypass-off",
     !unit.bypass_open, "shut"));
-  b.push(`<text x="1088" y="238" text-anchor="middle" fill="${BOPF.ink}"
+  b.push(`<text x="1284" y="356" text-anchor="middle" fill="${BOPF.ink}"
     font-size="11.5" font-weight="700" font-family="system-ui">By Pass Valve</text>`);
-  b.push(regulatorBlock(1010, 552, "Annular Regulator Pressure",
-    "annreg-", "annreg+", BOPF.ink));
+  b.push(regulatorBlock(1222, 430, "Annular Regulator", "annreg-", "annreg+",
+    BOPF.ink, 58));
 
   // -- the two readback gauges, right --------------------------------------
   // Set point and readback are not the same number: the readback is capped by
   // what is in the bottles, which is how a student watches the unit lose the
   // stack while the accumulator gauge still looks respectable.
   b.push(rigDial({
-    cx: 1420, cy: 170, r: 120, value: unit.manifold_psi, max: cap,
-    ticks: [0, cap / 4, cap / 2, cap * 0.75, cap], label: "Manifold Pressure",
+    cx: 1470, cy: 176, r: 106, value: unit.manifold_psi, max: FULL,
+    ticks: PSI, label: "Manifold Pressure",
     unit: "psi", digits: pad(unit.manifold_psi, 4), labelFill: BOPF.ink,
   }));
   b.push(rigDial({
-    cx: 1420, cy: 480, r: 120, value: unit.annular_psi, max: cap,
-    ticks: [0, cap / 4, cap / 2, cap * 0.75, cap], label: "Annular Pressure",
+    cx: 1470, cy: 456, r: 106, value: unit.annular_psi, max: FULL,
+    ticks: PSI, label: "Annular Pressure",
     unit: "psi", digits: pad(unit.annular_psi, 4), labelFill: BOPF.ink,
   }));
-  b.push(flowCounter(1288, 314, unit.flow_gal || 0, BOPF.ink));
+  // Along the bottom, as the reference has them -- and the arm lamp beside
+  // them, because the handle lying over is the honest report but a student
+  // clicking a picture of a handle deserves the word as well.
+  // Bottom left of the console, clear of the lower cross's own labels — put
+  // under the annular regulator as the reference has it, it sat on top of
+  // the lower choke outer HCR's name.
+  b.push(flowCounter(392, 620, unit.flow_gal || 0, BOPF.ink));
 
   if (showGrid) b.push(gridOverlay(BOPF.W, BOPF.H, 40));
   host.innerHTML = b.join("");
   wireFace(host, g);
+}
+
+/* -- pipework ------------------------------------------------------------ */
+/* **Pipe is not a line.** A run of pipe is a cylinder, so it is drawn in three
+   passes over the same path -- a dark casing, the body, and a highlight
+   shifted up by a quarter of the bore -- with round joins and caps so elbows
+   turn instead of mitring to a point. That, plus a flange at every joint and a
+   collar at every tee, is the whole difference between a schematic that looks
+   like plant and one that looks like it was drawn with a ruler.
+
+   Three passes rather than a gradient for the usual reason: this face redraws
+   four times a second and replaces its innerHTML whole, so a <defs> would be
+   re-parsed every frame. */
+const PIPE = {casing: "#6e2b25", body: "#b04a44", gloss: "#dd8a83"};
+
+function pipeRun(points, w) {
+  const d = points.map(([x, y], i) => `${i ? "L" : "M"} ${x} ${y}`).join(" ");
+  const common = 'fill="none" stroke-linejoin="round" stroke-linecap="round"';
+  return `<path d="${d}" ${common} stroke="${PIPE.casing}" stroke-width="${w + 4}"/>
+    <path d="${d}" ${common} stroke="${PIPE.body}" stroke-width="${w}"/>
+    <g transform="translate(0 ${-w * 0.24})"><path d="${d}" ${common}
+      stroke="${PIPE.gloss}" stroke-width="${w * 0.28}" opacity="0.5"/></g>`;
+}
+
+/* A raised face flange: two collars either side of a gap, which is what a
+   bolted joint looks like end-on and what says "something comes apart here".
+   `vertical` swings it for a riser. */
+function pipeFlange(x, y, w, vertical) {
+  const l = w * 1.55, t = w * 0.22;
+  const bar = (off) => vertical
+    ? `<rect x="${x - l / 2}" y="${y + off - t / 2}" width="${l}" height="${t}"
+        rx="${t * 0.4}" fill="${PIPE.casing}"/>`
+    : `<rect x="${x + off - t / 2}" y="${y - l / 2}" width="${t}" height="${l}"
+        rx="${t * 0.4}" fill="${PIPE.casing}"/>`;
+  return bar(-w * 0.30) + bar(w * 0.30);
+}
+
+/* The collar where a branch leaves a header. Without it a tee is two lines
+   crossing, which is a drawing of nothing. */
+function pipeTee(x, y, w) {
+  return `<circle cx="${x}" cy="${y}" r="${w * 0.78}" fill="${PIPE.casing}"/>
+    <circle cx="${x}" cy="${y}" r="${w * 0.58}" fill="${PIPE.body}"/>
+    <circle cx="${x - w * 0.18}" cy="${y - w * 0.22}" r="${w * 0.16}"
+      fill="${PIPE.gloss}" opacity="0.5"/>`;
 }
 
 /* -- the subsea monitoring screen ---------------------------------------- */
@@ -3152,85 +3588,109 @@ function drawSurfaceBopFace(g, host) {
    position and pod, and the piping matters because the two outlets are at
    different heights on it -- which outlet is usable depends on what is closed
    above it, and that is only obvious from a drawing. */
+/* Laid out to `ss_bop.JPG`, in the same columns it uses and in the same
+   order: readback gauges, pod and regulators, **kill side, bore, choke
+   side**, then the closing unit's own gauges. The reference's spacing cannot
+   be taken verbatim -- its window is shorter and wider than this face, and
+   its own controls sit closer together than ours can -- so what is kept is
+   every idiom of it and what changed is the pitch. See CLAUDE.md.
+
+   Two departures worth knowing. Each outlet takes a **double-height row**
+   with its outer fail-safe over its inner one, because that is how the
+   reference stacks them and because two on one line would read as one
+   barrier. And a small element icon sits on the bore beside each control
+   block: an annular round, a ram square, so the two are told apart without
+   reading the plate. The reference has no such icon and gets away with it
+   because its labels are a stack a trainee already knows. */
 function drawSubseaBopFace(g, host) {
   const b = [];
   const unit = g.closing_unit || {};
-  const cap = unit.capacity_psi || 3000;
   const ink = BOPF.seaInk;
-  const elements = lineupCache.filter(v => v.is_bop);
 
   b.push(`<rect x="0" y="0" width="${BOPF.W}" height="${BOPF.H}" fill="${BOPF.sea}"/>`);
 
   // -- set points and readbacks, left --------------------------------------
-  // Both, and side by side, because they are not the same number: the
+  // Both, and one under the other, because they are not the same number: the
   // readback is what the pod actually has, and watching it fall away from the
   // set point is how a student sees the unit losing the stack.
+  //: Every gauge on the reference screen is the same 0-5,000 psi face, and it
+  //: is right to keep them that way: a driller reading four dials in a column
+  //: is comparing needle angles, and one of them on a different scale turns
+  //: that into four separate readings.
   const smallDial = (cy, value, label) => rigDial({
-    cx: 92, cy, r: 62, value, max: cap, ticks: [0, cap / 2, cap],
+    cx: 88, cy, r: 52, value, max: 5000, ticks: [0, 2500, 5000],
     label, unit: "psi", digits: pad(value, 4), labelFill: ink,
   });
-  b.push(smallDial(78, unit.annular_regulator_psi, "Annular Reg. Pressure"));
-  b.push(smallDial(232, unit.annular_psi, "Annular Readback"));
-  b.push(smallDial(386, unit.manifold_regulator_psi, "Man. Reg. Pressure"));
-  b.push(smallDial(540, unit.manifold_psi, "Manifold Readback"));
+  b.push(smallDial(62, unit.annular_regulator_psi, "Annular Reg."));
+  b.push(smallDial(176, unit.annular_psi, "Annular Readback"));
+  b.push(smallDial(290, unit.manifold_regulator_psi, "Manifold Reg."));
+  b.push(smallDial(404, unit.manifold_psi, "Manifold Readback"));
 
-  // -- pod, regulators, bypass, master -------------------------------------
+  // -- pod, regulators, bypass, the counter --------------------------------
   // The pod is a real selector, not a legend. One of the two can stop
   // answering and then nothing on the stack moves until the student changes
   // over -- the same shape as the pump and choke faults, and the reason this
   // is on the panel at all.
   const pod = unit.pod || "blue";
-  b.push(`<text x="270" y="34" text-anchor="middle" fill="${ink}" font-size="12.5"
+  b.push(`<text x="242" y="20" text-anchor="middle" fill="${ink}" font-size="12"
     font-weight="700" font-family="system-ui">Pod Selector</text>`);
-  [["blue", "B", 180, "#2f7fd0", "#ffffff"],
-   ["yellow", "Y", 274, "#d8b02a", "#17120c"]].forEach(
+  [["blue", "B", 156, "#2f7fd0", "#ffffff"],
+   ["yellow", "Y", 244, "#d8b02a", "#17120c"]].forEach(
     ([name, letter, x, on, letterInk]) => {
       const live = pod === name;
       b.push(`<g class="hit" data-face="pod-${name}" style="cursor:pointer">
-        <rect x="${x}" y="${44}" width="86" height="46" rx="4"
+        <rect x="${x}" y="${28}" width="80" height="40" rx="4"
           fill="${live ? on : "#b8c0c8"}" stroke="#3c4650"
           stroke-width="${live ? 3 : 1.5}"/>
-        <text x="${x + 43}" y="${74}" text-anchor="middle"
+        <text x="${x + 40}" y="${54}" text-anchor="middle"
           fill="${live ? letterInk : "#5b6672"}" font-size="16" font-weight="700"
           font-family="system-ui">${letter}</text></g>`);
     });
   if (!unit.pod_ok) {
-    b.push(`<text x="270" y="106" text-anchor="middle" fill="#a8231f"
-      font-size="12" font-weight="700" font-family="system-ui">pod not answering</text>`);
+    b.push(`<text x="242" y="82" text-anchor="middle" fill="#a8231f"
+      font-size="11.5" font-weight="700" font-family="system-ui">pod not answering</text>`);
   }
-  b.push(regulatorBlock(186, 132, "Annular Regulator Pressure",
-    "annreg-", "annreg+", ink));
-  b.push(regulatorBlock(186, 236, "Manifold Regulator Pressure",
-    "manreg-", "manreg+", ink));
-  b.push(bopButton(186, 340, 74, 44, "On", "bypass-on", unit.bypass_open));
-  b.push(bopButton(268, 340, 74, 44, "Off", "bypass-off",
+  b.push(regulatorBlock(156, 92, "Annular Regulator Pressure",
+    "annreg-", "annreg+", ink, 80));
+  b.push(regulatorBlock(156, 168, "Manifold Regulator Pressure",
+    "manreg-", "manreg+", ink, 80));
+  b.push(bopButton(156, 244, 80, 44, "On", "bypass-on", unit.bypass_open));
+  b.push(bopButton(244, 244, 80, 44, "Off", "bypass-off",
     !unit.bypass_open, "shut"));
-  b.push(`<text x="264" y="402" text-anchor="middle" fill="${ink}" font-size="11.5"
+  b.push(`<text x="240" y="306" text-anchor="middle" fill="${ink}" font-size="11.5"
     font-weight="700" font-family="system-ui">By Pass Valve</text>`);
-  b.push(bopButton(186, 432, 156, 42,
-    unit.master_open ? "MASTER OPEN" : "MASTER SHUT", "master",
-    true, unit.master_open ? "" : "shut"));
-  b.push(flowCounter(186, 512, unit.flow_gal || 0, ink));
+  // The second hand, its lamp and the counter go down the left column: a
+  // fifteen-row stack leaves this face no bottom band to put them in.
+  b.push(pushToOperate(156, 330, 116, 52, unit.armed, ink));
+  b.push(armLamp(156, 414, unit.armed));
+  b.push(flowCounter(28, 480, unit.flow_gal || 0, ink));
 
-  // -- the stack ------------------------------------------------------------
-  // A schematic rather than an elevation, which is what the reference screen
-  // is: the bore runs down the middle, each element is a control block beside
-  // it, and the two outlets tap the bore at the heights they actually tap it.
-  // Which outlet is usable depends on what is closed above it, and that is
-  // only obvious from a drawing.
-  const bore = 800;
-  const upper = lineupCache.filter(v => v.outlet === "upper");
-  const lower = lineupCache.filter(v => v.outlet === "lower");
-  const annulars = elements.filter(v => v.bop_kind === "annular");
-  const rams = elements.filter(v => v.bop_kind !== "annular");
-  const ordered = annulars.map(v => ({element: v}))
-    .concat(upper.length ? [{outlets: upper}] : [])
-    .concat(rams.map(v => ({element: v})))
-    .concat(lower.length ? [{outlets: lower}] : []);
+  /* -- the stack ---------------------------------------------------------
+     Fifteen rows: eight elements and **seven outlet lines**, four of them to
+     the choke side (the gas relief line is piped into it) and three to the
+     kill. Row order comes from `subsea_stack()` and nothing here knows the
+     shape -- the outlets interleave between the rams because that is how the
+     engine lists them.
 
-  const top = 26, rowH = Math.floor((BOPF.H - top - 34) / ordered.length);
-  b.push(`<line x1="${bore}" y1="${top - 10}" x2="${bore}"
-    y2="${top + ordered.length * rowH}" stroke="#8d959d" stroke-width="26"/>`);
+     Fifteen rows in 680 units is what sets everything else. The control
+     blocks are compact, the labels are small, and **both fail-safes on a line
+     sit side by side on it** rather than in two rows: stacked, seven lines
+     would need twenty-two rows and there is no version of that which fits. */
+  const bore = 830, CW = 156, PW = 11;      // control width, pipe bore
+  const KILL_IN = 630, KILL_OUT = 430;      // left edges, kill side
+  const CHOKE_IN = 874, CHOKE_OUT = 1074;
+  const KILL_HEADER = 370, CHOKE_HEADER = 1274;
+  const ordered = stackRows(lineupCache);
+  const top = 8, ROW = Math.floor((BOPF.H - top - 12) / ordered.length);
+  //: Where each side's lines tie in, collected as the rows are drawn and the
+  //: headers run afterwards. **This is the thing that makes the drawing say
+  //: what the stack is**: three lines to the kill header and four to the
+  //: choke, the gas relief among them because it is piped into the choke line
+  //: rather than run to surface on its own.
+  const tieIns = {kill: [], choke: []};
+
+  // The stack bore, drawn as the pipe it is.
+  b.push(pipeRun([[bore, top - 6], [bore, top + ordered.length * ROW]], 20));
 
   /* A control block: press to operate, with the position between the two
      buttons. The window is the reference's own idiom and it earns its place --
@@ -3238,77 +3698,112 @@ function drawSubseaBopFace(g, host) {
      is, and on a stack 7,000 ft under the boat those are different claims. */
   const block = (x, y, v, wide) => {
     const shut = v.state !== "open";
-    const bw = wide ? 76 : 52, ww = wide ? 148 : 92, h = wide ? 34 : 30;
-    const out = [
-      bopButton(x, y, bw, h, wide ? "Open" : "O", `bop-open:${v.name}`, !shut),
-      `<rect x="${x + bw + 6}" y="${y}" width="${ww}" height="${h}" rx="3"
+    const w = wide ? 280 : CW;
+    const bw = wide ? 74 : 42, h = 28;
+    const ww = w - bw * 2 - 8;
+    return [
+      bopButton(x, y, bw, h, "Open", `bop-open:${v.name}`, !shut),
+      `<rect x="${x + bw + 4}" y="${y}" width="${ww}" height="${h}" rx="3"
         fill="${shut ? "#4a4437" : "#cbbb92"}" stroke="#6d6250" stroke-width="1.5"/>
-       <text x="${x + bw + 6 + ww / 2}" y="${y + h / 2 + 4.5}" text-anchor="middle"
-        fill="${shut ? "#e8e2d4" : "#231f18"}" font-size="12" font-weight="700"
+       <text x="${x + bw + 4 + ww / 2}" y="${y + h / 2 + 4}" text-anchor="middle"
+        fill="${shut ? "#e8e2d4" : "#231f18"}" font-size="${wide ? 11.5 : 10}"
+        font-weight="700"
         font-family="system-ui">${shut ? "CLOSED" : "OPEN"}</text>`,
-      bopButton(x + bw + ww + 12, y, bw, h, wide ? "Close" : "C",
-        `bop-close:${v.name}`, shut, "shut"),
-    ];
-    const w = bw * 2 + ww + 12;
-    // The name goes underneath, as the reference screen has it. These labels
-    // run to "Upper variable bore rams" and would not fit between the buttons.
-    out.push(bopPlate(x, y + h + 4, w, 20, v.label,
-      v.seals ? BOPF.seaInk : "#a8231f"));
-    return out.join("");
+      bopButton(x + w - bw, y, bw, h, "Close", `bop-close:${v.name}`,
+        shut, "shut"),
+    ].join("");
   };
 
-  const yellow = {body: "#e8d24a", line: "#7a6a12", shut: "#2b2b2b", open: "#c4b23c"};
-
-  ordered.forEach((row, i) => {
-    const y = top + i * rowH;
+  let y = top;
+  ordered.forEach(row => {
     if (row.element) {
-      // The element on the bore, tied across to the block that works it. The
-      // bore is not decoration: which outlet is still usable depends on what
-      // is closed above it, and that only reads off a drawing.
-      b.push(`<line x1="838" y1="${y + 17}" x2="886" y2="${y + 17}"
-        stroke="#8d959d" stroke-width="3"/>`);
-      b.push(stackElement(bore, y - 4, 86, 44,
-        row.element.state !== "open", row.element.bop_kind, yellow));
-      b.push(block(886, y, row.element, true));
-      // Casing shear rams cut and leave the bore open. Saying so on the face
-      // is the difference between a student who reaches for them knowing what
-      // they get and one who thinks they have shut the well in.
-      if (!row.element.seals) {
-        b.push(`<text x="1050" y="${y + 72}" text-anchor="middle" fill="#a8231f"
-          font-size="10.5" font-family="system-ui">shears — does not seal</text>`);
-      }
+      const v = row.element;
+      b.push(block(bore - 140, y + 2, v, true));
+      // The name goes underneath, as the reference screen has it. Casing
+      // shear rams cut and leave the bore open, and the plate says so rather
+      // than a note beside it: on a schematic this tight there is no free
+      // line under a row, and a warning drawn into the next row's controls is
+      // a warning nobody reads.
+      // Only a *shear ram* gets the warning. The riser connector is
+      // `seals=False` as well and for a quite different reason -- unlatching
+      // it walks away from the hole rather than failing to shut it in -- so
+      // giving them the same caption would say the same thing about two
+      // controls that do nothing alike.
+      const warn = v.shears && !v.seals;
+      b.push(bopPlate(bore - 140, y + 32, 280, 12,
+        warn ? `${v.label} — does not seal` : v.label,
+        v.seals ? BOPF.seaInk : "#a8231f"));
+      y += ROW;
       return;
     }
-    // An outlet: kill to the left of the bore, choke to the right, each with
-    // its inner and outer fail-safe. Both have to be open to pass anything,
-    // which is the whole point of a double barrier and is why they are two
-    // controls rather than one.
-    const my = y + 15;
-    b.push(`<line x1="${bore}" y1="${my}" x2="368" y2="${my}"
-      stroke="${BOPF.seaLine}" stroke-width="10"/>`);
-    b.push(`<line x1="${bore}" y1="${my}" x2="1240" y2="${my}"
-      stroke="${BOPF.seaLine}" stroke-width="10"/>`);
-    row.outlets.forEach(v => {
-      const inner = v.name.indexOf("inner") >= 0;
-      const kill = v.side === "kill";
-      const x = kill ? (inner ? 592 : 380) : (inner ? 886 : 1098);
-      b.push(block(x, y, v, false));
+    /* An outlet line: kill to the left of the bore and choke to the right,
+       with the **inner** fail-safe nearest the stack and the outer one
+       outboard of it, both on the one run. Drawn as one line through two
+       valves they are visibly in series, which is what a double barrier is;
+       in two rows they read as two separate lines, which is what it is not.
+
+       The gas relief line comes out on the choke side because that is where
+       it is piped -- into the choke line, not to surface on its own. */
+    const kill = row.outlets.some(v => v.side === "kill");
+    const ly = y + 16;
+    const inX = kill ? KILL_IN : CHOKE_IN;
+    const outX = kill ? KILL_OUT : CHOKE_OUT;
+    const away = kill ? KILL_HEADER : CHOKE_HEADER;
+    tieIns[kill ? "kill" : "choke"].push(ly);
+    b.push(pipeRun([[bore, ly], [away, ly]], PW));
+    b.push(pipeTee(bore, ly, PW));
+    // A flange where the run meets each valve, both sides of it.
+    [inX, outX].forEach(x => {
+      b.push(pipeFlange(x - 5, ly, PW));
+      b.push(pipeFlange(x + CW + 5, ly, PW));
     });
+    row.outlets.forEach(v => {
+      const x = v.name.indexOf("inner") >= 0 ? inX : outX;
+      b.push(block(x, ly - 14, v, false));
+      b.push(`<text x="${x + CW / 2}" y="${ly + 26}" text-anchor="middle"
+        fill="${ink}" font-size="8.5"
+        font-family="system-ui">${v.label}</text>`);
+    });
+    y += ROW;
+  });
+
+  /* The two headers every line ties into, and the whole reason the outlets
+     are worth drawing at these heights: **four lines to the choke side** --
+     the gas relief among them, because it is piped into the choke line rather
+     than run to surface on its own -- and **three to the kill**. Drawn last
+     so they run over the branch ends, with a tee at every junction. */
+  [["kill", KILL_HEADER, "KILL LINE"],
+   ["choke", CHOKE_HEADER, "CHOKE LINE"]].forEach(([side, hx, title]) => {
+    const ys = tieIns[side];
+    if (!ys.length) return;
+    const a = Math.min(...ys) - 28, z = Math.max(...ys) + 28;
+    b.push(pipeRun([[hx, a], [hx, z]], 14));
+    b.push(pipeFlange(hx, a + 12, 14, true));
+    b.push(pipeFlange(hx, z - 12, 14, true));
+    ys.forEach(ly => b.push(pipeTee(hx, ly, 14)));
+    // Named at the **top**, not the bottom: the choke header's lowest tie-in
+    // is the last row on the face and a caption under it falls off the edge.
+    b.push(`<text x="${hx}" y="${a - 24}" text-anchor="middle" fill="${ink}"
+      font-size="11" font-weight="700" letter-spacing="0.08em"
+      font-family="system-ui">${title}</text>`);
+    b.push(`<text x="${hx}" y="${a - 10}" text-anchor="middle" fill="${ink}"
+      font-size="10" opacity="0.7"
+      font-family="system-ui">${ys.length} lines</text>`);
   });
 
   // -- the closing unit's own gauges, right --------------------------------
   b.push(rigDial({
-    cx: 1440, cy: 78, r: 62, value: g.accumulator_psi, max: cap,
-    ticks: [0, cap / 2, cap], label: "Accumulator Pressure", unit: "psi",
+    cx: 1444, cy: 96, r: 56, value: g.accumulator_psi, max: 5000,
+    ticks: [0, 2500, 5000], label: "Accumulator Pressure", unit: "psi",
     digits: pad(g.accumulator_psi, 4), labelFill: ink,
   }));
   b.push(rigDial({
-    cx: 1440, cy: 232, r: 62, value: unit.air_psi, max: 300,
+    cx: 1444, cy: 320, r: 56, value: unit.air_psi, max: 300,
     ticks: [0, 150, 300], label: "Air Pressure", unit: "psi",
     digits: pad(unit.air_psi, 3), labelFill: ink,
   }));
   b.push(rigDial({
-    cx: 1440, cy: 386, r: 62, value: g.casing_psi, max: 5000,
+    cx: 1444, cy: 544, r: 56, value: g.casing_psi, max: 5000,
     ticks: [0, 2500, 5000], label: "Stack Pressure", unit: "psi",
     digits: pad(g.casing_psi, 4), labelFill: ink,
   }));

@@ -474,7 +474,12 @@ Done so far:
   `deviation_bbl` and `gain_bbl` are the same number, and the reference panel
   labels that single dial "Pit Deviation" with LOSS/GAIN across its face.
 - **BOP — both of them**, and this one needed the engine before it needed a
-  pixel. See *The stack* below.
+  pixel, three times over: a real stack, then **two-handed operation** across
+  everything on the closing unit, then both stacks reconfigured to what the
+  rigs actually carry. Surface is an elevation with the preventers drawn as
+  preventers; subsea is a fifteen-row P&ID with seven outlet lines running to
+  a kill and a choke header. See *The stack* below — it is the longest section
+  here and it earns it.
 
 ### The stack (`sim/flowpath.py`, `Accumulator`, the BOP face)
 
@@ -487,7 +492,92 @@ reference photo should do, the answer was to configure the stack properly:
 needs to have 2 annulars, 2 VBRs, 2 shear rams and upper and lower choke and
 kill lines with double fail-safe valves on each."* So `default_valves` became
 `surface_stack()` and `subsea_stack()`, and `Simulator` builds whichever the
-well has.
+well has. **Both have since been configured again and that quote is history**
+— read the two tables below for what is actually built.
+
+**The surface stack was later configured again, and it now runs, top to
+bottom:**
+
+| | |
+| --- | --- |
+| annular | |
+| upper pipe rams | |
+| lower pipe rams | |
+| **upper flow cross** | kill and choke outlets, two HCRs each |
+| blind shear rams | |
+| **lower flow cross** | kill and choke outlets, two HCRs each |
+
+**Two flow crosses, because one outlet is one point of failure.** The upper
+cross is below both pipe rams, so it is the one to take returns from with
+either of them shut; the lower is below the blind shears as well. That is why
+`_group` resolves "the choke line" to the **lower** outlet on both stacks now
+rather than only subsea.
+
+**But the heights are a drawing, not a model, and this was claimed the other
+way round once already.** Every element joins `ANNULUS` to `BOP` and every
+outlet taps `ANNULUS` directly, so the graph has **one annulus**: closing a ram
+does not isolate the outlets above it, and every outlet stays reachable
+whatever is shut. On a rig it would not. Representing it needs the annulus
+split into segments between elements — a change to the fluid column as much as
+to this graph, since `FluidColumn` also assumes one continuous annulus — so it
+is not a small edit and it has not been made. Do not write documentation or
+tests that imply otherwise.
+
+**The two stacks are not the same shape and are not meant to converge.** This
+has had to be said more than once: they are different equipment, they are
+drawn differently, and a change to one is not a change to the other. The
+subsea stack runs, top to bottom:
+
+| | |
+| --- | --- |
+| upper annular | |
+| **riser connector** | `seals=False` |
+| **gas relief line** | piped into the *choke* line |
+| lower annular | |
+| upper kill | |
+| blind shear rams | |
+| upper choke | |
+| upper pipe rams | |
+| middle kill | |
+| middle pipe rams | |
+| middle choke | |
+| lower pipe rams | |
+| lower kill | |
+| casing shear rams | `seals=False` |
+| lower choke | |
+
+**Seven outlet lines: four to the choke side and three to the kill**, each
+with two fail-safes, so fourteen outlet valves. `_failsafes()` builds a line,
+because a stack with fourteen valves hand-listed is a stack with a transposed
+node in it somewhere. **The gas relief line is the fourth choke-side line** —
+it taps above the lower annular and is piped into the choke line rather than
+run to surface on its own, so its valves carry `side="choke"` and the group
+that opens "the choke line" finds them.
+
+Interleaving the outlets between the rams is the whole point of a stack this
+size: whichever ram is closed, there is a line below it. (Below it *on the
+drawing* — see the one-annulus limitation above.)
+
+Two elements carry `seals=False` for quite different reasons, and the face
+must not caption them alike. **Casing shear rams** cut and do not seal, and
+that warning belongs on the plate. The **riser connector** does not seal
+either, but unlatching it walks away from the hole rather than failing to shut
+it in; captioning it "does not seal" says the same thing about two controls
+that do nothing alike, so only `shears && !seals` gets the warning.
+
+What the two stacks share is the *outlet naming* (`upper_kill_inner` and
+friends), because an outlet is the same idea on both and nothing driving them
+should have to care which rig it is. What differs is the **label**: a surface
+outlet valve is an **HCR**, a subsea one is a **fail-safe**, and that is a real
+distinction — a fail-safe shuts on loss of control pressure and an HCR stays
+where it was.
+
+**`surface_stack()` and `subsea_stack()` list their valves top to bottom, and
+both faces draw the stack by walking that list** (`stackRows` in
+`choke_panel.html`). Elements and outlet groups interleave in list order, so
+re-ordering a stack is an edit to `flowpath.py` and nothing else. An outlet
+group takes **two rows** — inner valves on the spool's own line, outer below —
+because two on one line would read as one barrier.
 
 Four things in that are load-bearing rather than cosmetic:
 
@@ -530,9 +620,10 @@ being a way for the stack not to move while the accumulator gauge still reads
   student sees the unit losing the stack before the accumulator gauge looks
   alarming. Drawing one gauge for both would delete the lesson.
 - **A regulator wound below `minimum_operating_psi` stops its own elements**
-  and leaves the others alone — the rams are on the manifold regulator and the
-  annular on its own. **The master valve deadens everything.** **Air below the
-  minimum stops the charging pumps**, so the bottles never come back.
+  and leaves the others alone — the rams *and the HCRs* are on the manifold
+  regulator and the annular on its own. **The master valve deadens
+  everything.** **Air below the minimum stops the charging pumps**, so the
+  bottles never come back.
 - **The flow counter is the only instrument on the panel that says an element
   moved.** A lamp says a switch was thrown. Zero it, operate, and the gallons
   are what that function took.
@@ -546,18 +637,234 @@ optional and moving on its own. Same reason the DCU's alarm set points are
 independent: a face that redraws four times a second must not drag one setting
 back while the student is working another.
 
+#### Two-handed operation
+
+**Nothing on a BOP panel is a single press**, and the engine enforces it:
+`Accumulator.arm()` buys **one** function, and `operate()` returns False
+without it. Both stacks are the same interlock wearing two hats — the master
+valve handle on the surface remote panel, *Push to Operate* on the subsea
+screen — because underneath they are the same closing unit. `arm` is a field on
+`/closingunit`, so it moves on its own like every other setting there.
+
+**It covers the whole unit, not just the rams.** `Valve.on_the_closing_unit`
+is `is_bop or side`, which is the stack elements **and the outlet HCRs** —
+*hydraulically controlled remote* is the whole of that name, and an HCR is
+shifted by the same bottles through the same master valve as a preventer. So
+lining the choke side up is a closing unit function and not a walk to the
+manifold, and `Simulator.operate_stack_valve` (was `operate_bop_element`)
+handles both. The consequence is the point: **a student who cannot shut an
+annular cannot open a choke line either.** The gate valve on the choke manifold
+is untouched — somebody walks over and turns it.
+
+An HCR is a gate valve with an actuator on it rather than a preventer, so it
+costs `hcr_cost_psi` / `hcr_gal` — a fraction of a ram, but not nothing, and a
+student who lines a side up twice has spent it. It runs off the **manifold**
+regulator with the rams, which is why winding that off takes the choke line
+away as well as the pipe rams while the annular, on its own regulator, still
+works.
+
+**The regulators and the bypass need the arm too, and do not spend it**
+(`Accumulator.adjust`). They decide what pressure every function gets, so
+reaching for them is reaching into the closing unit — but a setting is not a
+function. Winding a regulator from 1,500 psi to 500 is ten presses of Dec.;
+charged an arm apiece it would be twenty, and a control nobody uses teaches
+nothing. The master is held over while the adjustment is made and is still over
+for the function afterwards.
+
+Four more things that are load-bearing:
+
+- **The interlock is in the engine, not the page.** A face that merely refused
+  to send the second press would be defeated by a POST, invisible to the
+  instructor's drill-down and untestable. `Session.set_valve` reaches
+  `Accumulator.operate` for every route there is.
+- **The arm is spent by the *attempt*, not by the success.** One arm is one
+  press, not one result. A lamp left lit after a function that did nothing
+  would announce that something is wrong with the unit — and a dead pod, empty
+  bottles or a regulator wound off are all supposed to read as the element
+  simply not shifting, which is the whole shape of the rest of this model.
+- **Pressing the button for the position an element is already in costs
+  nothing**, because `operate_stack_valve` returns early before it reaches the
+  accumulator. Arming and then pressing Open on something already open is not
+  a spent arm.
+- **`pod` and `master_open` are outside the interlock.** The pod selector
+  chooses which control system answers rather than doing anything with
+  pressure, and gating it would mean a student on a dead pod has to arm
+  *through the pod that is not answering* to change to the one that is.
+  `master_open` **is** the interlock, so gating it on itself would leave a shut
+  master with no way back.
+
+The arm indicator is a **lamp with a fixed legend** (`armLamp`), directly under
+the master valve on the surface face and beside Push to Operate subsea: the
+word `ARMED` stays put and the light behind it comes on, which is how every
+other indicator on a rig works. It replaced a banner whose *text* changed
+between "ARMED — ONE FUNCTION" and "NOT ARMED" — a legend that rewrites itself
+has to be read, and the handle is what you work so the lamp belongs beside it.
+
+`set_closing_unit` processes `arm` **first**, so one command carrying `arm` and
+a setting works. The face sends them separately, but a command that quietly
+ignored half of itself depending on field order is a trap for anything else
+driving this.
+
+Every test that functions the stack now arms first — `shift()` in
+`tests/test_bop_stack.py` — and the tests that call `operate_stack_valve`
+*without* arming are the ones about the interlock itself. Watch for tests that
+pass **vacuously** after a change like this: `test_circulating_with_the_bop_
+open_does_nothing` lined up the choke side and then asserted something that was
+true anyway, so it went on passing with both HCRs shut. It now asserts each one
+opened.
+
+The master valve is no longer a toggle on the surface face; the handle is the
+arm. `master_open` survives as a state a fault or the instructor can shut, and
+the lever says `MASTER SHUT` when it is, so the student can see why a well-
+armed function did nothing. Nothing currently shuts it.
+
 **The two faces share almost nothing, so both are driven in the harness.**
 `tests/test_panel_render.py` runs each with a real lineup for its own stack —
 a surface payload would never reach the subsea face, and "it did not throw" on
 one proves nothing about the other.
 
+**Both faces were then rebuilt against their photographs**, because the first
+pass had the right pieces in roughly the wrong places. Every coordinate on the
+surface face is now a pixel measurement off `surface_bop.JPG` — whose panel
+occupies 1152x647 px of it — scaled by 1600/1152 across and 680/647 down. The
+two scales differ because the reference window is a different shape from this
+face; **positions can take a non-uniform scale and radii cannot**, so gauge
+radii are set by the height, which is the tighter of the two. What that moved:
+
+- **Master valve to the panel edge**, low and left, between the two gauges,
+  drawn as the chrome body and ball handle the photograph shows rather than as
+  a labelled button. It leans over when armed — the handle is the report.
+- **Gauges are 0–5,000 psi faces**, as the reference has them, not 0 to
+  whatever the bottles hold. A full accumulator then sits at three fifths of
+  the sweep instead of pegged at full scale, and there is somewhere for the
+  needle to *go*. A dial that reads full when everything is normal cannot show
+  anything but bad news.
+- **The stack got flanges.** Studded bands top and bottom of every body, stubs
+  and flanges on the outlets, a wellhead under the lowest rams. Four
+  rectangles on a pipe read as a diagram of a stack; the flanges are what make
+  it a picture of one, which is the whole difference the photograph makes.
+- **Flow Reset and the counter to the bottom**, under the controls they report
+  on, where the reference puts them.
+- **The side names moved over their pairs.** The reference sets "Kill Line"
+  *beside* its buttons because it has one valve a side; this stack has two, and
+  a name level with one of two rows reads as belonging to that row.
+
+The subsea face was re-laid to the same photograph's **columns** — readback
+gauges, pod and regulators, kill side, bore, choke side, closing-unit gauges —
+with each outlet on a **double-height row**, outer fail-safe over inner, as
+`ss_bop.JPG` stacks them. Two on one line would read as one barrier. The bore
+trunk is drawn in oxide red because the piping on that screen is, which is also
+why the element icons on it are **steel and not the tan of the position
+windows**: anything warm-coloured sitting on the trunk reads as part of the
+piping.
+
+A hundred units of that face are held back at the bottom for *Push to Operate*
+and the arm lamp. The reference has a bottom band carrying it; this face is
+taller in proportion and had to find one, and the alternative — tucking the
+one control without which nothing works into a corner beside the gauges — put
+it where nobody would look.
+
+### Drawing the stack, and the controls on it
+
+Both were rebuilt again after *"the buttons all long oblong and very
+cartoonish"* and *"make the shapes of the actual bop look more realistic
+instead of just blocks and text"*. What that came down to:
+
+**A pushbutton is a bezel with a lens recessed into it.** `bopButton` is six
+flat layers — shadow, bezel, bezel highlight, lens, lens gloss, lettering —
+and no `<defs>`: the face redraws four times a second and replaces its
+innerHTML whole, so gradient definitions would be re-parsed every frame for
+every button. Flat fills at low opacity give the same rounded look for a
+fraction of the work. Buttons are also **squarer**; the old 78x46 oblongs were
+half the problem.
+
+**Unlit is dark, not pale**, and that is most of the rest of it. The reference
+panel's off buttons are black — a lamp behind a pushbutton is off, and an off
+lamp is black. The pale grey that was there made every button on the face look
+permanently illuminated, which is exactly what reads as a cartoon.
+
+**A preventer is mostly its side operators.** A ram preventer carries a bonnet
+each side with the closing cylinder bolted to it, and that silhouette is how
+one is recognised across a rig floor; an annular has none, because its packer
+is squeezed from underneath rather than driven in from the sides. Drawing them
+as a square box and a round box got the distinction across. Drawing what they
+look like gets it across without anybody having been told. The stack is
+therefore drawn **wide** (colW 250), the ram body only 0.46 of that, and the
+buttons moved outboard to make room — squeezing the operators out is what made
+the earlier version a column of boxes.
+
+**Draw the bonnet cylinder first, then the bolting flange over its inner
+end.** A fully rounded bar drawn outboard of the flange curves *away* from the
+body and reads as a blob floating beside it; tucked under the flange the same
+shape reads as a cylinder bolted on. This was the difference between "you
+can't hardly even see the bonnets" and a stack you can recognise.
+
+**Each outlet is one line carrying two valves** (`lineValve`), not two rows of
+buttons. Stacked in two rows the inner and outer pair read as two separate
+lines, which is the one thing a double barrier is not — so the surface face
+draws four lines with eight valves on them, gate-valve bowties with their
+hydraulic operators on top, green passing and red shut. **Open goes above its
+valve and Close below it**, which is what makes it obvious which button works
+which valve without a single label. A student can trace a route across the
+face without reading anything.
+
+`REACH` stops short of the regulator column: an outlet line that runs on under
+the By Pass buttons says the line goes somewhere it does not.
+
+**Pipe is not a line** (`pipeRun`, `pipeFlange`, `pipeTee` — subsea face). A
+run of pipe is a cylinder, so it is drawn in three passes over one path: a
+dark casing, the body, and a highlight shifted up by a quarter of the bore,
+with round joins and caps so elbows turn instead of mitring to a point. A
+flange at every joint and a collar at every tee does the rest. Three passes
+rather than a gradient for the usual reason — this face redraws four times a
+second and replaces its innerHTML whole, so a `<defs>` would be re-parsed
+every frame.
+
+**The two headers are what make the subsea drawing say what the stack is.**
+Every branch runs out to a vertical kill or choke header with a tee at each
+junction, so "four lines to the choke side and three to the kill" is visible
+rather than something you count. They are named at the **top**: the choke
+header's lowest tie-in is the last row on the face and a caption under it
+falls off the edge.
+
+Fifteen rows in 680 units is what sets everything else on that face — compact
+control blocks, small labels, and **both fail-safes on a line side by side on
+it**. Stacked in two rows as the surface face does it, seven lines would need
+twenty-two rows and there is no version of that which fits.
+
+Also in `stackElement` and `flowCrossBody`: studded flange pairs **straddling
+the body edge**, so adjacent bodies land their flanges within a pixel or two
+of each other and read as bolted together; a through bore dark strip, so
+everything reads as being on one bore; two flat overlays for cylindrical
+shading; a riser above the stack and a casing head under it.
+
+- **`flowCrossBody` takes body width and stub reach separately**, because they
+  are separate on a rig: how fat the spool is has nothing to do with how far
+  its lines run before the first valve. Coupled, the choke stub ran on past
+  its own buttons — the spool sits at the centre of the face and the two
+  button columns did not. `REACH` is now the source of truth and both blocks
+  are placed *from* it.
+- **The ram position is drawn in the bore, above the name plate.** Shut, the
+  two halves meet across it; open, they are drawn back into the body. A plate
+  across the middle of the body would cover the one thing on the drawing that
+  says which way the element is.
+- **An annular's packer sits lower than a ram's**, because the body above it
+  is drawing in towards the head and a wedge across that taper reads as damage
+  rather than as a seal.
+
 Layout notes worth keeping if either face is touched again:
 
 - **The name plate sits on the element and must be narrower than it**, or the
-  rams are invisible and the two buttons are the only report. Plate lettering
-  is sized to the plate rather than the other way about, because the labels
-  come from the engine and "Upper variable bore rams" is three times the
-  length of "Annular".
+  rams are invisible and the two buttons are the only report. It is riveted —
+  a bevel and four corner studs — because a nameplate is a piece of steel
+  screwed to the body, and without them it is a white label pasted over the
+  drawing. Plate lettering is sized to the plate rather than the other way
+  about, because the labels come from the engine and "Casing shear rams — does
+  not seal" is four times the length of "Annular".
+- **On the subsea face the "does not seal" warning is *in* the plate**, not
+  beside it. There is no free line under a row on a schematic that tight, and
+  the note drawn under the casing shear rams landed inside the next row's
+  controls and was invisible. Red lettering on its own only says "different".
 - **Surface is an elevation and subsea is a schematic**, which is what the two
   references are. A surface stack is one cabinet you stand at; a subsea one is
   a control system you read, and which outlet is still usable depends on what
@@ -566,24 +873,23 @@ Layout notes worth keeping if either face is touched again:
   without reading the plate. They behave differently: an annular closes on
   anything, a pipe ram seals only on the size it was dressed for.
 
-**The subsea layout departs from its photograph, and this is the one place on
-these screens where that is true.** Built to `ss_bop.JPG` verbatim, the outlet
-fail-safe buttons landed on top of the gauge columns either side — the
-reference screen is a wider, shorter window than this face and its own controls
-sit closer together than ours can. What is kept is every idiom of it: the pod
-selector, the position windows between the buttons, the name plate *underneath*
-rather than on the element, the oxide-red piping, and the gauge columns down
-both sides. What changed is the spacing. **Surface is verbatim; subsea is
-re-spaced, and it is the one to check against the photo** if either face is
-revisited.
+**The subsea layout departs from its photograph in pitch, and this is the one
+place on these screens where that is true.** Built to `ss_bop.JPG` verbatim,
+the outlet fail-safe buttons landed on top of the gauge columns either side —
+the reference screen is a wider, shorter window than this face and its own
+controls sit closer together than ours can. What is kept is every idiom and the
+column *order*: the pod selector, the position windows between the buttons, the
+name plate *underneath* rather than on the element, the oxide-red piping, the
+outer fail-safe over the inner, and the gauge columns down both sides. What
+changed is the spacing. **Surface is verbatim; subsea is re-spaced, and it is
+the one to check against the photo** if either face is revisited.
 
-Two things about the subsea face that look like spare room and are not. The
-band between the kill controls and the bore is empty except at the two outlet
-rows, because that is where the outlets actually tap the stack — filling it
-would say there are taps that do not exist. And **the name goes under the
-control block rather than on the element**, unlike the surface face: these
-labels run to "Upper variable bore rams" and would not fit between the buttons
-at any size worth reading.
+One thing about the subsea face that looks like spare room and is not: the
+band between an outlet's controls and the bore is empty except on outlet rows,
+because that is where the outlets actually tap the stack — filling it would say
+there are taps that do not exist. And **the name goes under the control block
+rather than on the element**, unlike the surface face: "Casing shear rams —
+does not seal" would not fit between the buttons at any size worth reading.
 
 ### Controls, and the trap under them
 

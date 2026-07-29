@@ -271,6 +271,14 @@ class ClosingUnitCommand(BaseModel):
     pod: str | None = Field(
         default=None, description="blue or yellow. Subsea stacks only."
     )
+    arm: bool | None = Field(
+        default=None,
+        description=(
+            "Two-handed operation. True arms the panel for exactly one "
+            "function -- the master valve handle on a surface unit, Push to "
+            "Operate on a subsea one. Nothing on the stack shifts without it."
+        ),
+    )
 
 
 class SpeedCommand(BaseModel):

@@ -429,6 +429,8 @@ class Accumulator:
             gallons went out to it. A lamp only says a switch was thrown.
         pod: Which control pod is selected, subsea. Blank on a surface stack.
         failed_pods: Pods that will not answer. Select the other one.
+        armed: Whether the panel has been armed for one function. See
+            ``arm`` -- **nothing on the stack shifts without it.**
     """
 
     pressure_psi: float = 3000.0
@@ -437,6 +439,11 @@ class Accumulator:
     recharge_psi_per_min: float = 60.0
     annular_cost_psi: float = 250.0
     ram_cost_psi: float = 150.0
+    #: An HCR is a gate valve with an actuator on it, not a preventer, so it
+    #: costs a fraction of what a ram does -- but it is not free, and a student
+    #: who lines the choke side up twice has spent it.
+    hcr_cost_psi: float = 40.0
+    connector_cost_psi: float = 320.0
 
     manifold_regulator_psi: float = 1500.0
     annular_regulator_psi: float = 1500.0
@@ -446,13 +453,37 @@ class Accumulator:
     flow_gal: float = 0.0
     annular_gal: float = 20.0
     ram_gal: float = 10.0
+    hcr_gal: float = 2.5
+    connector_gal: float = 26.0
     pod: str = ""
     failed_pods: set[str] = field(default_factory=set)
+    armed: bool = False
 
     #: Regulated pressure below which an element will not shift at all.
     minimum_operating_psi: float = 400.0
     #: Supply air below which the charging pumps stop.
     minimum_air_psi: float = 60.0
+
+    def arm(self) -> None:
+        """Arm the panel for **one** function. Two-handed operation.
+
+        Nothing on a BOP panel is a single press, and that is a safety design
+        rather than an inconvenience: closing a blind shear ram on a live well
+        is not something anybody should be able to do by brushing a switch. So
+        every function takes two deliberate acts -- the master valve handle
+        functioned on a surface unit, the *Push to Operate* button held down on
+        a subsea one -- and *then* the element.
+
+        The arm is spent by the one function that follows, whether or not the
+        element actually moved. A student who arms, presses Close and finds the
+        rams where they left them has to arm again to try, which is what the
+        panel gives them: see ``operate``, where a dead pod, an empty bottle or
+        a regulator wound off all read as the element simply not shifting.
+        """
+        self.armed = True
+
+    def disarm(self) -> None:
+        self.armed = False
 
     @property
     def can_operate(self) -> bool:
@@ -493,21 +524,68 @@ class Accumulator:
             return 0.0
         return self.annular_psi if is_annular else self.manifold_psi
 
-    def operate(self, is_annular: bool) -> bool:
-        """Spend the volume for one element. False if it will not shift.
+    #: What each kind of function costs the bottles, and what it puts through
+    #: the counter. Keyed by ``Valve.bop_kind``, with ``hcr`` for an outlet
+    #: valve -- which has no ``bop_kind`` because it is not a preventer.
+    _COSTS = {
+        "annular": ("annular_cost_psi", "annular_gal"),
+        "ram": ("ram_cost_psi", "ram_gal"),
+        "hcr": ("hcr_cost_psi", "hcr_gal"),
+        # A riser connector is the largest single function on a subsea stack:
+        # it is holding the whole riser on.
+        "connector": ("connector_cost_psi", "connector_gal"),
+    }
 
-        Two ways it will not: nothing left in the bottles, or a regulator wound
-        down below what the element takes. Both read as the element simply not
-        moving, which is what they look like on the rig.
+    def operate(self, kind: str) -> bool:
+        """Spend the volume for one function. False if it will not shift.
+
+        ``kind`` is ``annular``, ``ram`` or ``hcr``. **An HCR is on the
+        closing unit exactly as a ram is** -- hydraulically controlled remote
+        is the whole of the name -- so it comes through here rather than being
+        set like the gate valve on the manifold, and everything below applies
+        to lining a side up as much as to shutting the well in.
+
+        Four ways it will not shift: the panel was never armed (see ``arm`` --
+        every function is two-handed), nothing left in the bottles, the master
+        shut, or a regulator wound down below what the function takes. All of
+        them read as the valve simply not moving, which is what they look like
+        on the rig.
+
+        **The arm is spent first, and unconditionally.** One arm buys one
+        attempt, not one success -- otherwise the lamp staying lit after a
+        function that did nothing would announce the fault, and working out why
+        the stack will not shift is the exercise.
         """
+        if not self.armed:
+            return False
+        self.armed = False
         if not self.can_operate:
             return False
+        # The annular has its own regulator; the rams and the HCRs are both on
+        # the manifold one, which is why winding that off takes the choke line
+        # away as well as the pipe rams.
+        is_annular = kind == "annular"
         if self.supply_psi(is_annular) < self.minimum_operating_psi:
             return False
-        cost = self.annular_cost_psi if is_annular else self.ram_cost_psi
-        self.pressure_psi = max(0.0, self.pressure_psi - cost)
-        self.flow_gal += self.annular_gal if is_annular else self.ram_gal
+        cost, gal = self._COSTS.get(kind, self._COSTS["ram"])
+        self.pressure_psi = max(0.0, self.pressure_psi - getattr(self, cost))
+        self.flow_gal += getattr(self, gal)
         return True
+
+    def adjust(self) -> bool:
+        """Whether a *setting* on the unit may be changed. Two-handed as well.
+
+        The regulators and the bypass decide what pressure every function gets,
+        so reaching for them is reaching into the closing unit and the master
+        valve is held over for it exactly as it is for a ram.
+
+        **It does not spend the arm**, and that is the difference between a
+        setting and a function. Winding a regulator from 1,500 psi down to 500
+        is ten presses of Dec.; charged an arm apiece it would be twenty, and a
+        control nobody uses teaches nothing. The master is held over while the
+        adjustment is made, and it is still over for the function afterwards.
+        """
+        return self.armed
 
     def reset_flow_counter(self) -> None:
         self.flow_gal = 0.0

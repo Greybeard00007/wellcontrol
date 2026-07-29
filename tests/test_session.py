@@ -121,8 +121,12 @@ class TestControls:
         assert session.simulator.state.time_s > 0.0
 
     def test_valves_can_be_operated(self, session):
+        # A stack element is two-handed: arm the closing unit, then function
+        # it. See TestTwoHandedOperation in test_bop_stack.py.
+        session.set_closing_unit(arm=True)
         session.set_valve("annular", "open")
         assert not session.simulator.flow_path.bop_is_closed
+        session.set_closing_unit(arm=True)
         session.set_valve("annular", "closed")
         assert session.simulator.flow_path.bop_is_closed
 
@@ -254,9 +258,13 @@ class TestTheWellStillResponds:
         session = Session.for_configuration(start="drilling", clock=clock)
         session.set_speed(10.0)
         # set_valve names one valve, so both HCRs go individually -- a group
-        # is a setup convenience, not something the panel can operate.
-        session.set_valve("choke_inner_hcr", "open")
-        session.set_valve("choke_outer_hcr", "open")
+        # is a setup convenience, not something the panel can operate. And an
+        # HCR is a closing unit function, so each one needs the panel armed;
+        # the manifold gate valve and the choke do not.
+        for hcr in ("lower_choke_inner", "lower_choke_outer"):
+            session.set_closing_unit(arm=True)
+            session.set_valve(hcr, "open")
+            assert session.simulator.flow_path.valve(hcr).is_open
         session.set_valve("choke_line_to_manifold", "open")
         session.set_valve("choke_1", "open")
         session.set_pump(30.0)

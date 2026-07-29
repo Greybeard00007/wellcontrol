@@ -154,12 +154,26 @@ class TestControls:
         assert body["gauges"]["pump_commanded"] == pytest.approx(30.0)
 
     def test_valves_can_be_operated(self, client, session_id):
+        # A stack element takes two hands: arm the closing unit, then function
+        # it. See TestTwoHandedOperation in test_bop_stack.py.
+        client.post(
+            f"/api/sessions/{session_id}/closingunit", json={"arm": True}
+        )
         body = client.post(
             f"/api/sessions/{session_id}/valve",
             json={"name": "annular", "state": "open"},
         ).json()
         states = {v["name"]: v["state"] for v in body["lineup"]}
         assert states["annular"] == "open"
+
+    def test_an_unarmed_panel_will_not_shift_an_element(self, client, session_id):
+        """The interlock reaches the route, not just the engine."""
+        body = client.post(
+            f"/api/sessions/{session_id}/valve",
+            json={"name": "annular", "state": "open"},
+        ).json()
+        states = {v["name"]: v["state"] for v in body["lineup"]}
+        assert states["annular"] == "closed"
 
     def test_an_unknown_valve_is_a_404_naming_the_options(self, client, session_id):
         response = client.post(
@@ -250,6 +264,9 @@ class TestAccumulator:
         before = client.get(
             f"/api/sessions/{session_id}"
         ).json()["gauges"]["accumulator_psi"]
+        client.post(
+            f"/api/sessions/{session_id}/closingunit", json={"arm": True}
+        )
         body = client.post(
             f"/api/sessions/{session_id}/valve",
             json={"name": "annular", "state": "open"},
@@ -263,6 +280,9 @@ class TestAccumulator:
         session = api_module.store.get(session_id)
         session.simulator.accumulator.pressure_psi = 0.0
         was_closed = session.simulator.flow_path.bop_is_closed
+        client.post(
+            f"/api/sessions/{session_id}/closingunit", json={"arm": True}
+        )
         client.post(
             f"/api/sessions/{session_id}/valve",
             json={"name": "annular", "state": "open"},
@@ -443,6 +463,20 @@ class TestScreens:
         # The joystick and block lever are dragged, not clicked.
         missing = drawn - handled - {"stick"}
         assert not missing, f"drawn but not handled: {sorted(missing)}"
+
+    def test_both_bop_faces_carry_the_second_hand(self, client):
+        """The interlock has to be reachable on whichever stack is under the rig.
+
+        The engine will not shift an element unarmed, so a face without an arm
+        control is a face on which nothing works at all — and the two faces
+        share almost nothing, so one carrying it says nothing about the other.
+        """
+        text = client.get("/").text
+        assert "Master Valve" in text, "surface: the handle is the arm"
+        assert "Push to Operate" in text, "subsea"
+        for face in ("masterValveLever", "pushToOperate"):
+            body = text.split(f"function {face}(")[1].split("\nfunction ")[0]
+            assert 'data-face="arm"' in body, face
 
     def test_the_choke_panel_carries_the_pump_controls(self, client):
         """The driller brings the pump to kill rate while watching these two
@@ -768,8 +802,11 @@ class TestScreens:
         for panel in ("function drawSurfaceBopFace(", "function drawSubseaBopFace("):
             assert panel in text
         # One drawing serves both, so the rams meet across the bore when shut
-        # and draw back into the body when open on either stack.
-        body = text.split("function stackElement(")[1][:1400]
+        # and draw back into the body when open on either stack. Sliced to the
+        # end of the function rather than to a fixed number of characters: a
+        # window measured in bytes stops covering what it was written for the
+        # moment anything is added above the line it is looking for.
+        body = text.split("function stackElement(")[1].split("\nfunction ")[0]
         assert "shut ?" in body
 
 

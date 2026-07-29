@@ -55,9 +55,15 @@ class Node(str, Enum):
     # so each needs its own spool -- sharing one would let the upper inner
     # valve and the lower outer valve add up to a route that does not exist.
     CHOKE_OUTLET = "choke outlet"
+    CHOKE_OUTLET_MIDDLE = "middle choke outlet"
     CHOKE_OUTLET_LOWER = "lower choke outlet"
     KILL_OUTLET = "kill outlet"
+    KILL_OUTLET_MIDDLE = "middle kill outlet"
     KILL_OUTLET_LOWER = "lower kill outlet"
+    #: The gas relief line taps above the lower annular and is **piped into
+    #: the choke line**, which is why its valves carry ``side="choke"``: it is
+    #: a fourth way to the choke manifold, not a third line of its own.
+    GAS_RELIEF_OUTLET = "gas relief outlet"
 
 
 class ValveState(str, Enum):
@@ -122,98 +128,213 @@ class Valve:
     def is_open(self) -> bool:
         return self.state is ValveState.OPEN
 
+    @property
+    def on_the_closing_unit(self) -> bool:
+        """Whether this is worked from the BOP panel rather than by hand.
+
+        The stack elements and the outlet valves both are: an HCR is a
+        *hydraulically controlled remote* valve, which is the whole of its
+        name, and it is shifted by the same bottles and through the same
+        master valve as the rams. So it costs closing unit pressure, it needs
+        the panel armed, and it will not move with the unit dead -- none of
+        which is true of the gate valve on the choke manifold, which somebody
+        walks over and turns.
+        """
+        return self.is_bop or bool(self.side)
+
 
 def surface_stack() -> list[Valve]:
     """A surface stack: one annular, two pipe rams, a blind shear ram.
 
-    Listed top to bottom, which is the order the panel draws them in. The flow
-    cross sits between the blind shear rams and the lower pipe rams and carries
-    **two hydraulically operated valves a side** -- an inner and an outer HCR.
-    Both have to be open for that side to pass anything, which is the whole
-    point of a double barrier and is why they are two valves in series here
-    rather than one valve called "the choke line".
+    **Listed top to bottom, and that order is load-bearing** -- both faces draw
+    the stack by walking this list, so the interleaving of elements and flow
+    crosses here is the drawing:
+
+        annular
+        upper pipe rams
+        lower pipe rams
+        upper flow cross      -- kill and choke outlets, two HCRs each
+        blind shear rams
+        lower flow cross      -- kill and choke outlets, two HCRs each
+
+    **Two flow crosses, because one outlet is one point of failure.** The upper
+    cross is below both pipe rams, so it is the one to take returns from with
+    either of them shut; the lower is below the blind shears as well, so it
+    survives even a stack closed on nothing. That is why "the choke line"
+    resolves to the *lower* outlet -- see ``_group``.
+
+    **The heights are a drawing, not a model.** Every element joins
+    ``ANNULUS`` to ``BOP`` and every outlet taps ``ANNULUS`` directly, so the
+    graph has one annulus and closing a ram does *not* isolate the outlets
+    above it. On a real stack it would. Representing that needs the annulus
+    split into segments between elements, which is a change to the fluid
+    column as much as to this graph, and nothing here should be read as
+    claiming it is already done.
+
+    Every outlet carries **two hydraulically operated valves in series**, an
+    inner and an outer HCR. Both have to be open for that side to pass
+    anything, which is the whole point of a double barrier and is why they are
+    two valves here rather than one called "the choke line". Each outlet needs
+    its own spool node between its pair, or an upper inner and a lower outer
+    would add up to a route that does not exist on the stack.
+
+    Names match the subsea stack's, because the outlets are the same idea on
+    both and nothing driving them should have to care which rig it is. What
+    differs is the label: a surface outlet valve is an **HCR**, and a subsea
+    one is a **fail-safe** -- which is the real distinction, since a fail-safe
+    shuts on loss of control pressure and an HCR simply stays where it was.
     """
     return [
         Valve("annular", "Annular preventer", Node.ANNULUS, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
         Valve("upper_rams", "Upper pipe rams", Node.ANNULUS, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
-        Valve("blind_shear_rams", "Blind shear rams", Node.ANNULUS, Node.BOP,
-              state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
         Valve("lower_rams", "Lower pipe rams", Node.ANNULUS, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
 
-        Valve("kill_inner_hcr", "Kill inner HCR", Node.ANNULUS,
-              Node.KILL_OUTLET, bidirectional=True, side="kill"),
-        Valve("kill_outer_hcr", "Kill outer HCR", Node.KILL_OUTLET,
-              Node.KILL_LINE, bidirectional=True, side="kill"),
-        Valve("choke_inner_hcr", "Choke inner HCR", Node.ANNULUS,
-              Node.CHOKE_OUTLET, bidirectional=True, side="choke"),
-        Valve("choke_outer_hcr", "Choke outer HCR", Node.CHOKE_OUTLET,
-              Node.CHOKE_LINE, bidirectional=True, side="choke"),
+        Valve("upper_kill_inner", "Upper kill inner HCR", Node.ANNULUS,
+              Node.KILL_OUTLET, bidirectional=True, side="kill",
+              outlet="upper"),
+        Valve("upper_kill_outer", "Upper kill outer HCR", Node.KILL_OUTLET,
+              Node.KILL_LINE, bidirectional=True, side="kill", outlet="upper"),
+        Valve("upper_choke_inner", "Upper choke inner HCR", Node.ANNULUS,
+              Node.CHOKE_OUTLET, bidirectional=True, side="choke",
+              outlet="upper"),
+        Valve("upper_choke_outer", "Upper choke outer HCR", Node.CHOKE_OUTLET,
+              Node.CHOKE_LINE, bidirectional=True, side="choke",
+              outlet="upper"),
+
+        Valve("blind_shear_rams", "Blind shear rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
+
+        Valve("lower_kill_inner", "Lower kill inner HCR", Node.ANNULUS,
+              Node.KILL_OUTLET_LOWER, bidirectional=True, side="kill",
+              outlet="lower"),
+        Valve("lower_kill_outer", "Lower kill outer HCR",
+              Node.KILL_OUTLET_LOWER, Node.KILL_LINE, bidirectional=True,
+              side="kill", outlet="lower"),
+        Valve("lower_choke_inner", "Lower choke inner HCR", Node.ANNULUS,
+              Node.CHOKE_OUTLET_LOWER, bidirectional=True, side="choke",
+              outlet="lower"),
+        Valve("lower_choke_outer", "Lower choke outer HCR",
+              Node.CHOKE_OUTLET_LOWER, Node.CHOKE_LINE, bidirectional=True,
+              side="choke", outlet="lower"),
+    ]
+
+
+def _failsafes(key: str, name: str, side: str, outlet: str, spool: Node,
+               line: Node) -> list[Valve]:
+    """One outlet line: two fail-safe valves in series through their spool.
+
+    Written once because there are **seven of these on a subsea stack** and a
+    stack with fourteen valves hand-listed is a stack with a transposed node
+    in it somewhere. The spool between the pair is what makes them a double
+    barrier rather than two parallel routes; each line needs its own, or an
+    inner from one line and an outer from another add up to a path that does
+    not exist.
+    """
+    return [
+        Valve(f"{key}_inner", f"Inner {name}", Node.ANNULUS, spool,
+              bidirectional=True, side=side, outlet=outlet),
+        Valve(f"{key}_outer", f"Outer {name}", spool, line,
+              bidirectional=True, side=side, outlet=outlet),
     ]
 
 
 def subsea_stack() -> list[Valve]:
-    """A subsea stack: two annulars, two shear rams, two variable bore rams.
+    """A subsea stack: two annulars, a riser connector, two shear rams, three
+    pipe rams, and **seven outlet lines**.
 
-    Top to bottom, with the upper choke and kill outlets between the annulars
-    and the rams and the lower pair below everything. Each outlet carries two
-    fail-safe valves, so there are eight of them; a fail-safe closes on loss of
-    control pressure, which is why they are drawn shut and opened deliberately.
+    Listed top to bottom, which is the order both faces draw it in:
+
+        upper annular
+        riser connector
+        gas relief line       -- piped into the choke line
+        lower annular
+        upper kill
+        blind shear rams
+        upper choke
+        upper pipe rams
+        middle kill
+        middle pipe rams
+        middle choke
+        lower pipe rams
+        lower kill
+        casing shear rams
+        lower choke
+
+    **Four lines to the choke side and three to the kill side.** The gas relief
+    line is the fourth choke-side line: it taps above the lower annular and is
+    piped into the choke line rather than run to the surface on its own, so its
+    valves carry ``side="choke"`` and the group that opens "the choke line"
+    finds them. Interleaving the outlets between the rams is the whole point of
+    a stack this size -- whichever ram you close, there is a line below it.
+
+    Every outlet carries **two fail-safes in series** (see ``_failsafes``): a
+    fail-safe shuts on loss of control pressure, which is why they are drawn
+    shut and opened deliberately, and is the real difference between one of
+    these and a surface HCR.
 
     Two elements are not interchangeable with the rest and the names say so.
     The **blind shear rams** cut and seal. The **casing shear rams** cut and
     do *not* -- ``seals=False`` -- so closing them on a live well shears the
     string and leaves the well flowing, which is the thing about them worth
-    knowing before it matters.
+    knowing before it matters. The **riser connector** is `seals=False` too,
+    for a different reason: unlatching it does not shut anything in, and a
+    connector drawn as a barrier would be a lie about the one control on the
+    stack that ends the well rather than securing it.
 
-    The variable bore rams keep the keys ``upper_rams`` and ``lower_rams``:
-    they are the upper and lower ram-type elements on this stack, everything
-    that operates a stack element addresses them by those keys on both, and
+    The pipe rams keep the keys ``upper_rams`` and ``lower_rams``: everything
+    that operates a stack element addresses those keys on both stacks, and
     what a student reads is the label.
     """
     return [
         Valve("annular", "Upper annular", Node.ANNULUS, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
+        Valve("riser_connector", "Riser connector", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="connector",
+              seals=False),
+
+        *_failsafes("gas_relief", "gas relief", "choke", "gas_relief",
+                    Node.GAS_RELIEF_OUTLET, Node.CHOKE_LINE),
+
         Valve("lower_annular", "Lower annular", Node.ANNULUS, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
 
-        Valve("upper_kill_inner", "Upper kill inner fail-safe", Node.ANNULUS,
-              Node.KILL_OUTLET, bidirectional=True, side="kill", outlet="upper"),
-        Valve("upper_kill_outer", "Upper kill outer fail-safe",
-              Node.KILL_OUTLET, Node.KILL_LINE, bidirectional=True,
-              side="kill", outlet="upper"),
-        Valve("upper_choke_inner", "Upper choke inner fail-safe", Node.ANNULUS,
-              Node.CHOKE_OUTLET, bidirectional=True, side="choke",
-              outlet="upper"),
-        Valve("upper_choke_outer", "Upper choke outer fail-safe",
-              Node.CHOKE_OUTLET, Node.CHOKE_LINE, bidirectional=True,
-              side="choke", outlet="upper"),
+        *_failsafes("upper_kill", "upper kill", "kill", "upper",
+                    Node.KILL_OUTLET, Node.KILL_LINE),
 
         Valve("blind_shear_rams", "Blind shear rams", Node.ANNULUS, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
+
+        *_failsafes("upper_choke", "upper choke", "choke", "upper",
+                    Node.CHOKE_OUTLET, Node.CHOKE_LINE),
+
+        Valve("upper_rams", "Upper pipe rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
+
+        *_failsafes("middle_kill", "middle kill", "kill", "middle",
+                    Node.KILL_OUTLET_MIDDLE, Node.KILL_LINE),
+
+        Valve("middle_rams", "Middle pipe rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
+
+        *_failsafes("middle_choke", "middle choke", "choke", "middle",
+                    Node.CHOKE_OUTLET_MIDDLE, Node.CHOKE_LINE),
+
+        Valve("lower_rams", "Lower pipe rams", Node.ANNULUS, Node.BOP,
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
+
+        *_failsafes("lower_kill", "lower kill", "kill", "lower",
+                    Node.KILL_OUTLET_LOWER, Node.KILL_LINE),
+
         # Cuts the string and leaves the bore open. Not a barrier.
         Valve("casing_shear_rams", "Casing shear rams", Node.ANNULUS, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True,
               seals=False),
-        Valve("upper_rams", "Upper variable bore rams", Node.ANNULUS, Node.BOP,
-              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
-        Valve("lower_rams", "Lower variable bore rams", Node.ANNULUS, Node.BOP,
-              state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
 
-        Valve("lower_kill_inner", "Lower kill inner fail-safe", Node.ANNULUS,
-              Node.KILL_OUTLET_LOWER, bidirectional=True, side="kill",
-              outlet="lower"),
-        Valve("lower_kill_outer", "Lower kill outer fail-safe",
-              Node.KILL_OUTLET_LOWER, Node.KILL_LINE, bidirectional=True,
-              side="kill", outlet="lower"),
-        Valve("lower_choke_inner", "Lower choke inner fail-safe", Node.ANNULUS,
-              Node.CHOKE_OUTLET_LOWER, bidirectional=True, side="choke",
-              outlet="lower"),
-        Valve("lower_choke_outer", "Lower choke outer fail-safe",
-              Node.CHOKE_OUTLET_LOWER, Node.CHOKE_LINE, bidirectional=True,
-              side="choke", outlet="lower"),
+        *_failsafes("lower_choke", "lower choke", "choke", "lower",
+                    Node.CHOKE_OUTLET_LOWER, Node.CHOKE_LINE),
     ]
 
 
@@ -303,8 +424,11 @@ def default_valves(subsea: bool = False) -> list[Valve]:
 #: closed in whatever the student does with the HCRs.
 _RETURN_ENTRIES: tuple[Node, ...] = (
     Node.CHOKE_OUTLET,
+    Node.CHOKE_OUTLET_MIDDLE,
     Node.CHOKE_OUTLET_LOWER,
+    Node.GAS_RELIEF_OUTLET,
     Node.KILL_OUTLET,
+    Node.KILL_OUTLET_MIDDLE,
     Node.KILL_OUTLET_LOWER,
     Node.BIT,
 )
@@ -362,14 +486,15 @@ class FlowPath:
         """The valves a rig hand means by "the choke line" or "the kill line".
 
         Lining a side up is one instruction on the floor and several valves on
-        the stack, and how many depends on which stack is under the rig: two
-        HCRs on a surface flow cross, two fail-safes per outlet subsea. Setup
-        code and scenario files should not have to know which, so they name the
-        side and this resolves it. Anything that *operates* one valve --
-        `set_valve`, and so the panel and the API -- still names it exactly.
+        the stack: two HCRs on each surface flow cross, two fail-safes per
+        outlet subsea. Setup code and scenario files should not have to know
+        how many, so they name the side and this resolves it. Anything that
+        *operates* one valve -- `set_valve`, and so the panel and the API --
+        still names it exactly.
 
-        Subsea, this opens the **lower** outlet: it is below every ram on the
-        stack, so it stays useful whatever else has been closed.
+        On either stack this opens the **lower** outlet, which is the one below
+        every ram but the blind shears, so it stays useful whatever else has
+        been closed.
         """
         if name not in ("choke_line", "kill_line"):
             return None
