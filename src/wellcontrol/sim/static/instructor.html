@@ -3,109 +3,203 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Instructor Station — Well Control Simulator</title>
+<title>Administrator Station — Well Control Simulator</title>
 <style>
 /* Self-contained by design: a rig has no internet, and a test pins that no
    external resource is referenced from any page here.
 
-   This is a monitoring station rather than an instrument face, so it does not
-   wear the orange console of the student panel -- an instructor is reading a
-   room, not working a choke. Status colours are the reserved
-   good/warning/serious/critical steps, and every one of them is paired with a
-   word: colour never carries the meaning alone. */
+   This is the admin console the reference photographs show: a fixed-height
+   application window with a dark title bar, a grey chrome, a dark left
+   navigation tree and a content pane that swaps views without the page ever
+   scrolling. The student's panel is an orange instrument face; this is the
+   Windows-style station across the room, and it wears that station's colours.
+
+   Status colours are the reserved good/warning/serious/critical steps, and
+   every one of them is paired with a word: colour never carries the meaning
+   alone. */
 :root {
-  --surface: #1a1a19;
-  --raised: #24241f;
-  --sunk: #0e0e0c;
-  --line: #35352e;
-  --text: #ffffff;
-  --text-2: #c3c2b7;
-  --muted: #86857c;
-  --readout: #4bf07e;
-  --good: #0ca30c;
-  --warning: #fab219;
-  --serious: #ec835a;
-  --critical: #d03b3b;
-  color-scheme: dark;
+  /* The chrome: grey strips, a dark title bar, light-grey content. */
+  --chrome: #d3d0c8;
+  --chrome-line: #a5a196;
+  --titlebar: #2e2e32;
+  --titletext: #dedcd4;
+  --band: #3a3a3e;          /* the dark "Operator Panels" band */
+  --content: #e7e5df;
+  --card: #f4f3ef;
+  --card-line: #b8b4aa;
+  --ink: #1d1d1a;
+  --dim: #6d6a61;
+  /* Readouts are green digits in a black window, like the reference clock. */
+  --sunk: #0c0d0b;
+  --readout: #3fe07a;
+  --sunk-line: #34352f;
+  /* The tree is the reference's dark slate with cyan markers. */
+  --tree: #343b47;
+  --tree-line: #262c36;
+  --tree-text: #dfe5ec;
+  --tree-dim: #93a0b1;
+  --tree-hot: #3f6ea5;
+  --marker: #52d5df;
+  /* Severity steps. Darkened for a light ground; each always carries a word. */
+  --good: #17701c;
+  --warning: #9a6a00;
+  --serious: #b34e12;
+  --critical: #ab2424;
+  color-scheme: light;
 }
 * { box-sizing: border-box; }
+html, body { height: 100%; }
 body {
-  margin: 0; background: var(--surface); color: var(--text);
-  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  margin: 0; background: var(--content); color: var(--ink);
+  font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+  overflow: hidden;
 }
-.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
-h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: .01em; }
-h2 { font-size: 13px; margin: 0 0 10px; color: var(--text-2);
-     text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.mono { font-family: Consolas, ui-monospace, monospace; }
+h2 { font-size: 12px; margin: 0 0 10px; color: var(--dim);
+     text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
 button {
-  font: inherit; color: var(--text); background: var(--raised);
-  border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px;
-  cursor: pointer;
+  font: inherit; color: var(--ink); background: #efede7;
+  border: 1px solid #97938a; border-radius: 3px; padding: 5px 12px;
+  cursor: pointer; box-shadow: 0 1px 0 rgba(255,255,255,.7) inset;
 }
-button:hover { border-color: var(--muted); }
-button.primary { background: #2a78d6; border-color: #2a78d6; }
-button.danger { border-color: var(--critical); color: #ffb3b3; }
-button.on { background: var(--readout); border-color: var(--readout); color: #08160c; }
+button:hover { background: #e2dfd7; }
+/* The chrome's own buttons are the dark slabs the photographs show. */
+button.dark {
+  background: #2c313a; color: #e8e6e0; border-color: #14161a;
+  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset;
+}
+button.dark:hover { background: #3a404c; }
+button.danger { background: #6e1d1d; color: #f2d9d9; border-color: #3f1010; }
+button.danger:hover { background: #832525; }
+button.primary { background: #2a5f9e; color: #f0f4f9; border-color: #1b3f6b; }
+button.primary:hover { background: #3370b8; }
 input, select {
-  font: inherit; color: var(--text); background: var(--sunk);
-  border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
+  font: inherit; color: var(--ink); background: #fdfcfa;
+  border: 1px solid #97938a; border-radius: 3px; padding: 5px 8px;
 }
-label.lbl { color: var(--muted); font-size: 12px; }
-
-header {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding: 12px 18px; background: var(--raised);
-  border-bottom: 1px solid var(--line);
-}
+label.lbl { color: var(--dim); font-size: 12px; }
 .grow { flex: 1; }
-main { padding: 18px; max-width: 1600px; margin: 0 auto; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.hidden { display: none !important; }
+
+/* Green digits in a black window: the reference's Simulation Time. */
+.digits {
+  font: 700 15px/1 Consolas, ui-monospace, monospace; letter-spacing: .08em;
+  color: var(--readout); background: var(--sunk);
+  border: 1px solid var(--sunk-line); border-radius: 3px; padding: 5px 9px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.8);
+}
+
+/* -- login: a small window on the grey, because the console has not opened -- */
+#login {
+  max-width: 380px; margin: 14vh auto; background: var(--card);
+  border: 1px solid var(--card-line); border-radius: 4px; padding: 18px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.25);
+}
+#login h1 { font-size: 16px; margin: 0 0 4px; }
+#login p { color: var(--dim); margin: 0 0 14px; }
+.error { color: var(--critical); min-height: 18px; font-size: 12px; }
+
+/* ======================= the console frame ======================= */
+#console { display: flex; flex-direction: column; height: 100%; }
+
+#topstrip {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+  background: var(--chrome); border-bottom: 1px solid var(--chrome-line);
+}
+#titlebar {
+  display: flex; align-items: center; gap: 12px; padding: 6px 14px;
+  background: var(--titlebar); color: var(--titletext);
+}
+#titlebar .apptitle {
+  flex: 1; font-size: 15px; font-weight: 600; letter-spacing: .04em;
+}
+#titlebar button { padding: 3px 10px; font-size: 12px; }
+#subbar {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+  background: var(--chrome); border-bottom: 1px solid var(--chrome-line);
+  font-size: 12px;
+}
+#subbar .sep { color: var(--dim); margin: 0 2px; }
+#subbar button.mini { padding: 3px 8px; font-size: 11px; }
+
+#frame { flex: 1; display: flex; min-height: 0; }
+
+/* -- the navigation tree, dark slate with cyan markers, as photographed -- */
+#tree {
+  width: 236px; flex: none; overflow-y: auto; padding: 8px 0 20px;
+  background: var(--tree); border-right: 1px solid var(--tree-line);
+  color: var(--tree-text);
+}
+#tree .root {
+  font-weight: 700; font-size: 13px; padding: 6px 12px 8px;
+  color: var(--tree-text);
+}
+#tree .branch {
+  font-size: 11px; text-transform: none; color: var(--tree-dim);
+  padding: 9px 12px 3px 22px; font-weight: 600;
+}
+#tree button.leaf {
+  display: block; width: 100%; text-align: left; border: 0; border-radius: 0;
+  background: none; box-shadow: none; color: var(--tree-text);
+  padding: 5px 10px 5px 34px; font-size: 13px; position: relative;
+}
+#tree button.leaf::before {
+  content: ""; position: absolute; left: 20px; top: 50%;
+  width: 7px; height: 7px; margin-top: -4px; background: var(--marker);
+  border-radius: 1px;
+}
+#tree button.leaf:hover { background: #3e4654; }
+#tree button.leaf.active { background: var(--tree-hot); color: #fff; }
+
+/* -- the content pane: fixed height, each view scrolls inside itself -- */
+#content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.view { display: none; flex: 1; min-height: 0; overflow-y: auto; padding: 14px; }
+.view.active { display: block; }
+/* Operator Panels fills the pane edge to edge; the iframes need the height. */
+#v-panels.active { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 
 .card {
-  background: var(--raised); border: 1px solid var(--line);
-  border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  background: var(--card); border: 1px solid var(--card-line);
+  border-radius: 4px; padding: 14px; margin-bottom: 14px;
 }
-.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.note { color: var(--dim); font-size: 12px; margin-top: 6px; }
+.empty { color: var(--dim); padding: 30px; text-align: center; }
 
-/* -- login ------------------------------------------------------------- */
-#login { max-width: 380px; margin: 12vh auto; }
-#login p { color: var(--text-2); margin: 0 0 14px; }
-.error { color: #ffb3b3; min-height: 18px; font-size: 13px; }
-
-/* -- the code, read out to the room ------------------------------------ */
+/* -- the class code, read out to the room -- */
 .code {
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: Consolas, ui-monospace, monospace;
   font-size: 40px; font-weight: 700; letter-spacing: .12em;
   color: var(--readout); background: var(--sunk);
-  padding: 12px 22px; border-radius: 8px; display: inline-block;
-  border: 1px solid var(--line);
+  padding: 12px 22px; border-radius: 4px; display: inline-block;
+  border: 1px solid var(--sunk-line);
 }
-.code-note { color: var(--muted); font-size: 12px; margin-top: 6px; }
 
-/* -- the grid ----------------------------------------------------------- */
+/* -- the monitor grid -- */
 #grid {
   display: grid; gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
 }
 .tile {
-  background: var(--raised); border: 1px solid var(--line);
-  border-left: 4px solid var(--line);
-  border-radius: 8px; padding: 12px;
+  background: var(--card); border: 1px solid var(--card-line);
+  border-left: 4px solid var(--card-line);
+  border-radius: 4px; padding: 12px;
 }
 .tile.good     { border-left-color: var(--good); }
 .tile.warning  { border-left-color: var(--warning); }
 .tile.serious  { border-left-color: var(--serious); }
-.tile.critical { border-left-color: var(--critical); background: #2a1d1c; }
+.tile.critical { border-left-color: var(--critical); background: #f6e4e2; }
 .tile-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
-.tile-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis;
+.tile-name { font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis;
              white-space: nowrap; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good);
        flex: none; }
-.dot.off { background: var(--muted); }
+.dot.off { background: var(--dim); }
 
 /* Status is an icon plus a word plus a colour -- never the colour alone. */
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
   padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor;
   white-space: nowrap;
 }
@@ -114,65 +208,119 @@ main { padding: 18px; max-width: 1600px; margin: 0 auto; }
 .chip.serious { color: var(--serious); }
 .chip.critical { color: var(--critical); }
 
+/* Instrument numbers stay green on black even on the light console: the
+   readout window is what the reference draws everywhere a number lives. */
 .readout { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px;
            margin: 10px 0; }
-.r { background: var(--sunk); border-radius: 5px; padding: 5px 8px; }
-.r .k { color: var(--muted); font-size: 10px; text-transform: uppercase;
+.r { background: var(--sunk); border-radius: 3px; padding: 5px 8px;
+     border: 1px solid var(--sunk-line); }
+.r .k { color: #8b9199; font-size: 10px; text-transform: uppercase;
         letter-spacing: .06em; display: block; }
-.r .v { font-family: ui-monospace, Consolas, monospace; font-size: 15px;
+.r .v { font-family: Consolas, ui-monospace, monospace; font-size: 15px;
         color: var(--readout); }
-.r .v.bad { color: #ff9a9a; }
-.truth { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px;
-         font-size: 12px; color: var(--text-2); }
-.truth b { color: var(--text); font-family: ui-monospace, Consolas, monospace;
-           font-weight: 500; }
+.r .v.bad { color: #ff8a8a; }
+.truth { border-top: 1px dashed var(--card-line); padding-top: 8px; margin-top: 4px;
+         font-size: 12px; color: #3c3b36; }
+.truth b { font-family: Consolas, ui-monospace, monospace; font-weight: 600; }
 .tile-actions { display: flex; gap: 6px; margin-top: 10px; }
-.tile-actions button { padding: 4px 9px; font-size: 12px; flex: 1; }
-.empty { color: var(--muted); padding: 30px; text-align: center; }
-.hidden { display: none !important; }
+.tile-actions button { padding: 4px 8px; font-size: 12px; flex: 1; }
 
-/* -- drill-down and recordings ------------------------------------------ */
+/* -- drill-down, log windows -- */
 .detail-cols { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; margin-top: 10px; }
 @media (max-width: 900px) { .detail-cols { grid-template-columns: 1fr; } }
 .logbox {
-  background: var(--sunk); border-radius: 5px; padding: 10px; max-height: 340px;
-  overflow-y: auto; font: 12px/1.5 ui-monospace, Consolas, monospace;
+  background: var(--sunk); border: 1px solid var(--sunk-line);
+  border-radius: 3px; padding: 10px; max-height: 340px;
+  overflow-y: auto; font: 12px/1.5 Consolas, ui-monospace, monospace;
+  color: #cfd6dc;
 }
-.logbox div { margin-bottom: 3px; color: var(--text-2); }
-.logbox div.critical { color: #ff9a9a; }
-.logbox div.warning { color: #ffd48a; }
+.logbox div { margin-bottom: 3px; }
+.logbox div.critical { color: #ff8a8a; }
+.logbox div.warning, .logbox div.caution { color: #ffd48a; }
+
+/* -- the operator panels view: the band, the tabs, the pane -- */
+#opband {
+  background: var(--band); color: #e9e7e1; text-align: center;
+  font-size: 13px; font-weight: 600; letter-spacing: .05em; padding: 4px 0;
+  flex: none;
+}
+#opbar {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+  background: var(--chrome); border-bottom: 1px solid var(--chrome-line);
+  flex: none; flex-wrap: wrap;
+}
+#opbar button.optab { padding: 4px 12px; font-size: 12px; }
+#opbar button.optab.active {
+  background: #cfe3f5; border-color: #6f95b5;
+  box-shadow: inset 0 1px 3px rgba(40,70,110,.25);
+}
+#ophost { flex: 1; min-height: 0; background: #565b63; position: relative; }
+#ophost iframe { border: 0; width: 100%; height: 100%; display: block; background: #565b63; }
+#ophost.quad {
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+  gap: 2px;
+}
+#ophint {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; color: #d8d6d0; font-size: 14px; text-align: center;
+  padding: 20px;
+}
+
+/* -- tables (roster, kill sheet) -- */
+table.sheet { border-collapse: collapse; width: 100%; max-width: 640px; }
+table.sheet td, table.sheet th {
+  border: 1px solid var(--card-line); padding: 5px 10px; text-align: left;
+  font-size: 12px;
+}
+table.sheet th { background: #e6e3db; font-weight: 600; }
+table.sheet td.v { font-family: Consolas, ui-monospace, monospace; }
+table.roster { border-collapse: collapse; width: 100%; }
+table.roster td, table.roster th {
+  border-bottom: 1px solid var(--card-line); padding: 6px 10px; text-align: left;
+  font-size: 12px;
+}
+table.roster th { color: var(--dim); text-transform: uppercase; font-size: 10px;
+                  letter-spacing: .06em; }
+table.roster td .row { flex-wrap: nowrap; }
+table.roster button { padding: 3px 9px; font-size: 12px; }
+
+/* -- recordings and charts -- */
 .reclist { display: grid; gap: 6px; margin-top: 10px; }
 .recrow {
-  display: flex; gap: 12px; align-items: center; background: var(--sunk);
-  border-radius: 5px; padding: 8px 10px; font-size: 13px;
+  display: flex; gap: 12px; align-items: center; background: #ecebe5;
+  border: 1px solid var(--card-line);
+  border-radius: 3px; padding: 8px 10px; font-size: 12px;
 }
-.recrow .who { flex: 1; font-weight: 600; }
-.recrow .when { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+.recrow .who { flex: 1; font-weight: 700; }
+.recrow .when { color: var(--dim); font-family: Consolas, monospace; font-size: 11px; }
 .recrow .grade { font-weight: 700; }
 .recrow .grade.pass { color: var(--good); }
 .recrow .grade.fail { color: var(--critical); }
-.tile-actions button.detail { flex: 1.4; }
-#review-chart {
+/* Coloured traces need a dark ground, so every chart is a black window --
+   the same treatment the reference gives its readouts. */
+canvas.chart {
   width: 100%; height: 230px; display: block; margin-top: 10px;
-  background: var(--sunk); border: 1px solid var(--line); border-radius: 6px;
+  background: var(--sunk); border: 1px solid var(--sunk-line); border-radius: 3px;
 }
-.legend { display: flex; gap: 14px; font-size: 11px; color: var(--text-2);
+canvas.chart.short { height: 150px; }
+.legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink);
           margin-top: 6px; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 12px; height: 2px;
             vertical-align: middle; margin-right: 5px; }
-.metric { display: flex; gap: 10px; padding: 5px 8px; background: var(--sunk);
-          border-radius: 5px; margin-bottom: 4px; font-size: 12px; }
+.metric { display: flex; gap: 10px; padding: 5px 8px; background: #ecebe5;
+          border: 1px solid var(--card-line);
+          border-radius: 3px; margin-bottom: 4px; font-size: 12px; }
 .metric .mname { flex: 1; }
-.metric .mval { font-family: ui-monospace, Consolas, monospace; }
-.metric.failed .mval { color: #ff9a9a; }
+.metric .mval { font-family: Consolas, ui-monospace, monospace; }
+.metric.failed .mval { color: var(--critical); font-weight: 700; }
 .metric.passed .mval { color: var(--good); }
 </style>
 </head>
 <body>
 
 <!-- ============================== LOGIN ============================== -->
-<div id="login" class="card">
-  <h1 style="margin-bottom:6px">Instructor Station</h1>
+<div id="login">
+  <h1>Administrator Station</h1>
   <p>Well Control Simulator</p>
   <div class="row">
     <input id="pw" type="password" placeholder="Password" style="flex:1"
@@ -184,95 +332,76 @@ main { padding: 18px; max-width: 1600px; margin: 0 auto; }
 
 <!-- ============================= CONSOLE ============================= -->
 <div id="console" class="hidden">
-<header>
-  <h1>Instructor Station</h1>
-  <select id="class-picker"></select>
-  <button id="new-class">New class</button>
+
+<!-- The top button strip the reference photographs show. "Show Auto Choke"
+     is on the reference and deliberately NOT here: there is no auto choke in
+     the engine yet, and a drawn control that does nothing is worse than an
+     absent one. It goes in when the capability does. -->
+<div id="topstrip">
   <span class="grow"></span>
-  <span class="mono" id="tick-note" style="color:var(--muted);font-size:12px"></span>
+  <button class="dark" id="pause">Pause All</button>
+  <button class="dark" id="resume">Resume All</button>
+  <button class="dark danger" id="stop-all">Stop All</button>
+</div>
+
+<div id="titlebar">
+  <span class="apptitle">Administrator Station - Well Control Simulator</span>
   <button id="logout">Sign out</button>
-</header>
+</div>
 
-<main>
-  <!-- new class -->
-  <div class="card hidden" id="new-panel">
-    <h2>Open a class</h2>
-    <div class="row">
-      <input id="nc-name" placeholder="Class name" value="Well Control 101">
-      <select id="nc-scenario"></select>
-      <label class="lbl">Seats</label>
-      <input id="nc-capacity" type="number" value="16" min="1" max="200"
-             style="width:80px">
-      <label class="lbl">Hours</label>
-      <input id="nc-ttl" type="number" value="12" min="1" max="72"
-             style="width:70px">
-      <button class="primary" id="nc-go">Open</button>
-      <button id="nc-cancel">Cancel</button>
-    </div>
-    <div class="error" id="nc-err"></div>
-  </div>
+<!-- Simulation Speed and the green Simulation Time clock, right-aligned as the
+     reference has them. The clock is the furthest-run well in the class: the
+     classroom itself has no simulated time, only the wells do. -->
+<div id="subbar">
+  <label class="lbl">Class</label>
+  <select id="class-picker"></select>
+  <span id="clock-note" class="note" style="margin:0"></span>
+  <span class="grow"></span>
+  <label class="lbl">Simulation Speed :</label>
+  <select id="speed-select"></select>
+  <span class="sep"></span>
+  <label class="lbl">Simulation Time :</label>
+  <span class="digits" id="sim-clock">00:00:00</span>
+  <button class="mini" id="pause-mini" title="Pause all">&#10073;&#10073;</button>
+  <button class="mini" id="resume-mini" title="Resume all">&#9654;</button>
+</div>
 
-  <!-- the running class -->
-  <div id="running" class="hidden">
-    <div class="card">
-      <div class="row" style="align-items:flex-start">
-        <div>
-          <h2>Class code</h2>
-          <div class="code" id="code">—</div>
-          <div class="code-note" id="code-note"></div>
-        </div>
-        <span class="grow"></span>
-        <div>
-          <h2>Clock</h2>
-          <div class="row">
-            <button data-speed="1">1&times;</button>
-            <button data-speed="10">10&times;</button>
-            <button data-speed="60">60&times;</button>
-            <button id="pause">Pause all</button>
-            <button id="resume">Resume all</button>
-          </div>
-          <div class="code-note" id="clock-note"></div>
-        </div>
-        <span class="grow"></span>
-        <div>
-          <h2>Class</h2>
-          <div class="row">
-            <button id="close-class">Stop admitting</button>
-            <button class="danger" id="end-class">End class</button>
-          </div>
-        </div>
-      </div>
-    </div>
+<div id="frame">
 
-    <!-- Fault induction. Deliberately here rather than buried: it is the
-         thing an instructor reaches for mid-exercise, and the student is
-         never told a human chose the moment. -->
-    <div class="card">
-      <div class="row">
-        <h2 style="margin:0;flex:0 0 auto">Induce a fault</h2>
-        <select id="fault-kind"></select>
-        <select id="fault-target"><option value="">Whole class</option></select>
-        <input id="fault-message" placeholder="What their log says (optional)"
-               style="flex:1;min-width:180px">
-        <button class="danger" id="fault-go">Break it</button>
-      </div>
-      <div class="code-note" id="fault-note">
-        The student sees a rig fault and nothing else — same log entry as a
-        fault written into the exercise. Leave the message blank to use the
-        fault's own wording.
-      </div>
-    </div>
+<!-- The fifteen-entry tree, to the reference's names where a capability
+     exists to answer them. Remote Launch Panel, View Configuration and Mud
+     Circulation Panel are on the reference and not here: nothing behind them
+     yet, and an entry that opens nothing is worse than absent. -->
+<nav id="tree">
+  <div class="root">Administrator Console</div>
+  <div class="branch">Trainee Accounts</div>
+  <button class="leaf" data-view="roster">Manage Trainees</button>
+  <div class="branch">Exercise/Mission Control Panel</div>
+  <button class="leaf" data-view="load">Load Exercise</button>
+  <button class="leaf" data-view="admin">Administrator Control Panel</button>
+  <button class="leaf active" data-view="monitor">Monitor Exercise Parameters</button>
+  <button class="leaf" data-view="panels">Operator Panels</button>
+  <button class="leaf" data-view="faults">Fault Induction Panel</button>
+  <div class="branch">Reports</div>
+  <button class="leaf" data-view="killsheets">Kill Sheets</button>
+  <button class="leaf" data-view="plots">Drilling Plots Report</button>
+  <button class="leaf" data-view="debrief">Debrief Report</button>
+  <div class="branch">Recordings</div>
+  <button class="leaf" data-view="recordings">Load Recording</button>
+</nav>
 
-    <div id="grid"></div>
-    <div class="empty" id="empty">
-      Nobody has joined yet. Read the code out.
-    </div>
-  </div>
+<div id="content">
+
+<!-- ==================== Monitor Exercise Parameters ==================== -->
+<section class="view active" id="v-monitor">
+  <div id="grid"></div>
+  <div class="empty" id="empty">Nobody has joined yet. Read the code out.</div>
 
   <!-- Drill-down: what one student is actually looking at. -->
   <div class="card hidden" id="detail">
     <div class="row">
       <h2 style="margin:0;flex:1" id="detail-name">Student</h2>
+      <button id="detail-panels">Open their panels</button>
       <button id="detail-record">Keep this run</button>
       <button id="detail-close">Close</button>
     </div>
@@ -289,8 +418,175 @@ main { padding: 18px; max-width: 1600px; margin: 0 auto; }
       </div>
     </div>
   </div>
+</section>
 
-  <!-- Recordings outlive the class they came from. -->
+<!-- ========================== Load Exercise =========================== -->
+<section class="view" id="v-load">
+  <div class="card">
+    <h2>Open a class</h2>
+    <div class="row">
+      <input id="nc-name" placeholder="Class name" value="Well Control 101">
+      <select id="nc-scenario"></select>
+      <label class="lbl">Seats</label>
+      <input id="nc-capacity" type="number" value="16" min="1" max="200"
+             style="width:80px">
+      <label class="lbl">Hours</label>
+      <input id="nc-ttl" type="number" value="12" min="1" max="72"
+             style="width:70px">
+      <button class="primary" id="nc-go">Open</button>
+    </div>
+    <div class="error" id="nc-err"></div>
+    <div class="note">The class starts paused. Students join, find their
+      screens and get their bearings; the well does not move until you start
+      the clock.</div>
+  </div>
+  <div class="card">
+    <h2>Open classes</h2>
+    <div id="class-list" class="reclist"></div>
+  </div>
+</section>
+
+<!-- ==================== Administrator Control Panel ==================== -->
+<section class="view" id="v-admin">
+  <div class="card">
+    <div class="row" style="align-items:flex-start">
+      <div>
+        <h2>Class code</h2>
+        <div class="code" id="code">&mdash;</div>
+        <div class="note" id="code-note"></div>
+      </div>
+      <span class="grow"></span>
+      <div>
+        <h2>Class</h2>
+        <div class="row">
+          <button id="close-class">Stop admitting</button>
+          <button class="danger" id="end-class">End class</button>
+        </div>
+        <div class="note">Ending the class captures every run as a recording
+          before the wells go.</div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Exercise</h2>
+    <div id="admin-exercise" class="note" style="margin:0"></div>
+  </div>
+</section>
+
+<!-- ======================== Manage Trainees =========================== -->
+<section class="view" id="v-roster">
+  <div class="card">
+    <h2>Trainees</h2>
+    <table class="roster">
+      <thead><tr><th>Name</th><th>Status</th><th>Screen</th><th></th></tr></thead>
+      <tbody id="roster-body"></tbody>
+    </table>
+    <div class="empty hidden" id="roster-empty">Nobody has joined yet.</div>
+  </div>
+</section>
+
+<!-- ======================== Operator Panels =========================== -->
+<!-- The student's real screens, read-only, inside the console -- the same
+     page they are looking at, polling the drill-down endpoint, with their
+     controls visibly dimmed. The tab strip is the reference chrome's:
+     Choke Panel, DCU, BOP, SP Manifold, Choke Manifold, Trip Tank, and
+     Quad View on the right. -->
+<section class="view" id="v-panels">
+  <div id="opband">Operator Panels</div>
+  <div id="opbar">
+    <label class="lbl">Student</label>
+    <select id="op-student"></select>
+    <span class="sep"></span>
+    <button class="optab active" data-optab="choke">Choke Panel</button>
+    <button class="optab" data-optab="dcu">DCU</button>
+    <button class="optab" data-optab="bop">BOP</button>
+    <button class="optab" data-optab="spmanifold">SP Manifold</button>
+    <button class="optab" data-optab="chokemanifold">Choke Manifold</button>
+    <button class="optab" data-optab="triptank">Trip Tank</button>
+    <button class="optab" data-optab="trends">Trends</button>
+    <button class="optab" data-optab="well">Well</button>
+    <span class="grow"></span>
+    <button id="op-quad">Quad View</button>
+  </div>
+  <div id="ophost"><div id="ophint">Pick a student to open their screens.</div></div>
+</section>
+
+<!-- ====================== Fault Induction Panel ======================= -->
+<section class="view" id="v-faults">
+  <div class="card">
+    <div class="row">
+      <h2 style="margin:0;flex:0 0 auto">Induce a fault</h2>
+      <select id="fault-kind"></select>
+      <select id="fault-target"><option value="">Whole class</option></select>
+      <input id="fault-message" placeholder="What their log says (optional)"
+             style="flex:1;min-width:180px">
+      <button class="danger" id="fault-go">Break it</button>
+    </div>
+    <div class="note" id="fault-note">
+      The student sees a rig fault and nothing else — same log entry as a
+      fault written into the exercise. Leave the message blank to use the
+      fault's own wording.
+    </div>
+  </div>
+</section>
+
+<!-- =========================== Kill Sheets ============================ -->
+<section class="view" id="v-killsheets">
+  <div class="card">
+    <div class="row">
+      <h2 style="margin:0;flex:0 0 auto">Kill Sheets</h2>
+      <label class="lbl">Student</label>
+      <select id="ks-student"></select>
+    </div>
+    <div id="ks-body" style="margin-top:12px"></div>
+  </div>
+</section>
+
+<!-- ====================== Drilling Plots Report ======================= -->
+<section class="view" id="v-plots">
+  <div class="card">
+    <div class="row">
+      <h2 style="margin:0;flex:0 0 auto">Drilling Plots Report</h2>
+      <label class="lbl">Student</label>
+      <select id="dp-student"></select>
+      <span class="grow"></span>
+      <span class="note" style="margin:0" id="dp-note"></span>
+    </div>
+    <h2 style="margin-top:12px">Pressures</h2>
+    <canvas class="chart" id="dp-pressures"></canvas>
+    <div class="legend" id="dp-pressures-legend"></div>
+    <h2 style="margin-top:14px">Volumes</h2>
+    <canvas class="chart short" id="dp-volumes"></canvas>
+    <div class="legend" id="dp-volumes-legend"></div>
+  </div>
+</section>
+
+<!-- ========================== Debrief Report ========================== -->
+<section class="view" id="v-debrief">
+  <div class="card">
+    <div class="row">
+      <h2 style="margin:0;flex:0 0 auto">Debrief Report</h2>
+      <label class="lbl">Student</label>
+      <select id="db-student"></select>
+      <button id="db-refresh">Grade now</button>
+    </div>
+    <div class="detail-cols">
+      <div>
+        <h2>Verdict</h2>
+        <div id="db-verdict"><span class="note">Pick a student and grade the
+          run. This is a running score, not a final one: the well is still
+          theirs.</span></div>
+      </div>
+      <div>
+        <h2>What happened</h2>
+        <div class="logbox" id="db-log"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= Load Recording =========================== -->
+<section class="view" id="v-recordings">
   <div class="card">
     <div class="row">
       <h2 style="margin:0;flex:1">Recordings</h2>
@@ -303,7 +599,7 @@ main { padding: 18px; max-width: 1600px; margin: 0 auto; }
         <h2 style="margin:0;flex:1" id="review-name">Run</h2>
         <button id="review-close">Close</button>
       </div>
-      <canvas id="review-chart"></canvas>
+      <canvas id="review-chart" class="chart"></canvas>
       <div class="legend" id="review-legend"></div>
       <div class="detail-cols">
         <div>
@@ -317,13 +613,19 @@ main { padding: 18px; max-width: 1600px; margin: 0 auto; }
       </div>
     </div>
   </div>
-</main>
-</div>
+</section>
+
+</div><!-- content -->
+</div><!-- frame -->
+</div><!-- console -->
 
 <script>
 const $ = (id) => document.getElementById(id);
 let token = null, currentId = null, timer = null, confirming = null;
-let detailId = null;   // student whose drill-down is open, if any
+let detailId = null;    // student whose drill-down is open, if any
+let view = "monitor";   // which tree entry is lit
+let roster = [];        // last monitor payload's students, for every picker
+let opScreen = "choke", opQuad = false, opStudent = null, opSrcKey = null;
 
 async function api(path, options) {
   const opts = Object.assign({headers: {}}, options || {});
@@ -339,7 +641,31 @@ function detail(e) {
   catch (_) { return e.message; }
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function hms(seconds) {
+  const s = Math.max(0, Math.round(seconds || 0));
+  const p = n => String(n).padStart(2, "0");
+  return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`;
+}
+
 /* ------------------------------- login -------------------------------- */
+async function openConsole() {
+  $("login").classList.add("hidden");
+  $("console").classList.remove("hidden");
+  await loadScenarios();
+  await loadFaultKinds();
+  await loadSpeeds();
+  await refreshClasses();
+  loadRecordings();
+  tick();
+  timer = setInterval(tick, 1000);
+}
+
 async function login() {
   $("login-err").textContent = "";
   try {
@@ -347,13 +673,7 @@ async function login() {
       {method: "POST", body: JSON.stringify({password: $("pw").value})});
     token = body.token;
     sessionStorage.setItem("wc_instructor_token", token);
-    $("login").classList.add("hidden");
-    $("console").classList.remove("hidden");
-    await loadScenarios();
-    await loadFaultKinds();
-    await refreshClasses();
-    loadRecordings();
-    timer = setInterval(tick, 1000);
+    await openConsole();
   } catch (e) { $("login-err").textContent = detail(e); }
 }
 $("login-go").onclick = login;
@@ -366,6 +686,26 @@ $("logout").onclick = async () => {
   location.reload();
 };
 
+/* ---------------------------- the tree -------------------------------- */
+/* One content pane, many views; the tree swaps them and nothing scrolls but
+   the view itself. Leaving Operator Panels tears its iframes down, so a
+   hidden student screen is not still polling the drill-down four times a
+   second behind another view. */
+function show(name) {
+  view = name;
+  document.querySelectorAll("#tree button.leaf").forEach(b =>
+    b.classList.toggle("active", b.dataset.view === name));
+  document.querySelectorAll(".view").forEach(s =>
+    s.classList.toggle("active", s.id === "v-" + name));
+  if (name === "panels") buildPanels();
+  else { $("ophost").querySelectorAll("iframe").forEach(f => f.remove()); opSrcKey = null; }
+  if (name === "recordings") loadRecordings();
+  if (name === "debrief") loadDebrief();
+  if (name === "killsheets" || name === "plots") tick();
+}
+document.querySelectorAll("#tree button.leaf").forEach(b =>
+  b.onclick = () => show(b.dataset.view));
+
 /* ---------------------------- class setup ----------------------------- */
 async function loadScenarios() {
   const list = (await api("/api/scenarios")).scenarios;
@@ -375,6 +715,12 @@ async function loadScenarios() {
     '<option value="">Shut-in kick (vertical, surface)</option>'
     + list.map(s => `<option value="${s.key}">${s.name}`
         + `${s.has_faults ? " — faults" : ""}</option>`).join("");
+}
+
+async function loadSpeeds() {
+  const speeds = (await api("/api/speeds")).speeds.filter(s => s > 0);
+  $("speed-select").innerHTML = speeds
+    .map(s => `<option value="${s}">${s}x</option>`).join("");
 }
 
 async function refreshClasses() {
@@ -389,20 +735,31 @@ async function refreshClasses() {
       currentId = classes[0].classroom_id;
     }
     $("class-picker").value = currentId;
-    $("running").classList.remove("hidden");
   } else {
     currentId = null;
-    $("running").classList.add("hidden");
   }
+  $("class-list").innerHTML = classes.length
+    ? classes.map(c => `
+      <div class="recrow">
+        <span class="who">${escapeHtml(c.name)}</span>
+        <span>${escapeHtml(c.scenario || "shut-in kick")}</span>
+        <span>${c.student_count} of ${c.capacity} seats</span>
+        <span>${c.paused ? "paused" : "running at " + c.speed + "x"}</span>
+        <button data-pick="${c.classroom_id}">Select</button>
+      </div>`).join("")
+    : '<div class="empty">No classes open. Open one above.</div>';
+  document.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => {
+    currentId = b.dataset.pick;
+    $("class-picker").value = currentId;
+    show("admin");
+    tick();
+  });
 }
 
 $("class-picker").addEventListener("change", () => {
   currentId = $("class-picker").value || null;
   tick();
 });
-
-$("new-class").onclick = () => $("new-panel").classList.remove("hidden");
-$("nc-cancel").onclick = () => $("new-panel").classList.add("hidden");
 
 $("nc-go").onclick = async () => {
   $("nc-err").textContent = "";
@@ -417,53 +774,68 @@ $("nc-go").onclick = async () => {
       })
     });
     currentId = made.classroom_id;
-    $("new-panel").classList.add("hidden");
     await refreshClasses();
+    show("admin");
     tick();
   } catch (e) { $("nc-err").textContent = detail(e); }
 };
 
-/* ------------------------------ controls ------------------------------ */
-document.querySelectorAll("[data-speed]").forEach(b => b.onclick = async () => {
+/* --------------------------- the transport ---------------------------- */
+$("speed-select").addEventListener("change", async () => {
   if (!currentId) return;
   await api(`/api/instructor/classes/${currentId}/speed`,
-    {method: "POST", body: JSON.stringify({speed: Number(b.dataset.speed)})});
+    {method: "POST", body: JSON.stringify({speed: Number($("speed-select").value)})});
   tick();
 });
-$("pause").onclick = async () => {
+async function pauseAll() {
   if (currentId) { await api(`/api/instructor/classes/${currentId}/pause`,
     {method: "POST"}); tick(); }
-};
-$("resume").onclick = async () => {
+}
+async function resumeAll() {
   if (currentId) { await api(`/api/instructor/classes/${currentId}/resume`,
     {method: "POST"}); tick(); }
-};
+}
+$("pause").onclick = pauseAll;
+$("resume").onclick = resumeAll;
+$("pause-mini").onclick = pauseAll;
+$("resume-mini").onclick = resumeAll;
+
 $("close-class").onclick = async () => {
   if (currentId) { await api(`/api/instructor/classes/${currentId}/close`,
     {method: "POST"}); tick(); }
 };
 
 /* Ending a class throws everyone out, so it takes two clicks rather than a
-   modal dialog -- a browser confirm() would block the poll loop. */
-$("end-class").onclick = async () => {
+   modal dialog -- a browser confirm() would block the poll loop. Stop All on
+   the chrome and End class on the control panel are the same act, so they
+   share the confirmation. */
+async function endClass(button) {
   if (!currentId) return;
   if (confirming !== "end") {
     confirming = "end";
-    $("end-class").textContent = "Really end it?";
+    button.textContent = "Really end it?";
     setTimeout(() => {
       if (confirming === "end") {
-        confirming = null; $("end-class").textContent = "End class";
+        confirming = null;
+        $("stop-all").textContent = "Stop All";
+        $("end-class").textContent = "End class";
       }
     }, 4000);
     return;
   }
-  confirming = null; $("end-class").textContent = "End class";
+  confirming = null;
+  $("stop-all").textContent = "Stop All";
+  $("end-class").textContent = "End class";
   await api(`/api/instructor/classes/${currentId}`, {method: "DELETE"});
   currentId = null;
   await refreshClasses();
-};
+  loadRecordings();
+  tick();
+}
+$("stop-all").onclick = () => endClass($("stop-all"));
+$("end-class").onclick = () => endClass($("end-class"));
 
-/* -------------------------------- grid -------------------------------- */
+/* ------------------------------- tiles --------------------------------- */
 function severity(t) {
   if (t.shoe_broken) return ["critical", "Shoe broken down"];
   if (t.over_maasp) return ["critical", "Over MAASP"];
@@ -506,33 +878,48 @@ function tileHtml(t) {
           t.additional_influx_bbl > 0.1
             ? ` &middot; <b>+${t.additional_influx_bbl}</b> since start` : ""}
         ${t.connected ? "" :
-          `<br><span style="color:var(--muted)">Screen quiet ${t.quiet_s}s</span>`}
+          `<br><span style="color:var(--dim)">Screen quiet ${t.quiet_s}s</span>`}
         ${t.downhole_visible ? "" :
-          `<br><span style="color:var(--muted)">Still detecting — gauges masked</span>`}
+          `<br><span style="color:var(--dim)">Still detecting — gauges masked</span>`}
       </div>
       <div class="tile-actions">
-        <button class="detail" data-detail="${t.student_id}">Look</button>
+        <button data-detail="${t.student_id}">Look</button>
+        <button data-panels="${t.student_id}">Panels</button>
         <button data-restart="${t.student_id}">Restart</button>
         <button data-drop="${t.student_id}">Drop</button>
       </div>
     </div>`;
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
+/* Every picker that names a student is filled from the same roster, and none
+   of them is rebuilt out from under a selection mid-poll. */
+function fillStudentPicker(picker, students, extraFirst) {
+  const chosen = picker.value;
+  picker.innerHTML = (extraFirst || "")
+    + students.map(t =>
+        `<option value="${t.student_id}">${escapeHtml(t.name)}</option>`).join("");
+  if (students.some(t => t.student_id === chosen)) picker.value = chosen;
 }
 
 let ticks = 0;
 
 async function tick() {
-  if (!currentId) return;
+  if (!currentId) {
+    $("sim-clock").textContent = "00:00:00";
+    $("clock-note").textContent = "No class selected.";
+    $("code").textContent = "—";
+    $("grid").innerHTML = "";
+    $("empty").classList.remove("hidden");
+    $("roster-body").innerHTML = "";
+    $("roster-empty").classList.remove("hidden");
+    return;
+  }
   // The picker carries each class's head count, which goes stale as people
   // join. Refreshing it every tick would rebuild the dropdown under the
   // instructor's cursor, so it is done occasionally instead.
   if (++ticks % 10 === 0) {
     try { await refreshClasses(); } catch (_) {}
+    if (!currentId) return;
   }
   let grid;
   try {
@@ -540,25 +927,61 @@ async function tick() {
   } catch (e) { return; }
 
   const c = grid.classroom;
+  roster = grid.students;
+
+  /* -- the chrome -- */
+  // The furthest-run well is the class's simulated time: they all ride the
+  // same clock, so they only drift apart when one is paused or slowed.
+  $("sim-clock").textContent =
+    hms(Math.max(0, ...grid.students.map(t => t.time_s || 0)));
+  $("clock-note").textContent = c.paused
+    ? "Paused — no well is moving." : `Running at ${c.speed}x`;
+  if (!c.paused && [...$("speed-select").options].some(
+      o => Number(o.value) === c.speed)) {
+    $("speed-select").value = String(c.speed);
+  }
+
+  /* -- administrator control panel -- */
   $("code").textContent = c.open ? c.code : "CLOSED";
   $("code-note").textContent = c.open
     ? `${c.student_count} of ${c.capacity} seats · expires in `
       + `${Math.round(c.seconds_remaining / 3600)}h`
     : "No longer admitting. Students already in keep their wells.";
-  $("clock-note").textContent = c.paused
-    ? "Paused — no well is moving." : `Running at ${c.speed}×`;
-  document.querySelectorAll("[data-speed]").forEach(b =>
-    b.classList.toggle("on", !c.paused && Number(b.dataset.speed) === c.speed));
+  $("admin-exercise").textContent =
+    `${c.name} — ${c.scenario || "shut-in kick"} · ${c.bop} stack, `
+    + `${c.trajectory} well, ${c.start} start.`;
 
+  /* -- monitor grid -- */
   $("empty").classList.toggle("hidden", grid.students.length > 0);
   $("grid").innerHTML = grid.students.map(tileHtml).join("");
-  fillFaultTargets(grid.students);
+  wireTileButtons();
   if (detailId) loadDetail();
 
+  /* -- rosters and pickers -- */
+  drawRoster(grid.students);
+  fillStudentPicker($("fault-target"), grid.students,
+    '<option value="">Whole class</option>');
+  fillStudentPicker($("ks-student"), grid.students);
+  fillStudentPicker($("dp-student"), grid.students);
+  fillStudentPicker($("db-student"), grid.students);
+  fillStudentPicker($("op-student"), grid.students,
+    '<option value="">— pick a student —</option>');
+  if (view === "panels") buildPanels();
+
+  /* -- the live report views poll only while they are on screen -- */
+  if (view === "killsheets") loadKillSheet();
+  if (view === "plots") loadPlots();
+}
+
+function wireTileButtons() {
   document.querySelectorAll("[data-detail]").forEach(b => b.onclick = () => {
     detailId = b.dataset.detail;
     $("detail").classList.remove("hidden");
     loadDetail();
+  });
+  document.querySelectorAll("[data-panels]").forEach(b => b.onclick = () => {
+    $("op-student").value = b.dataset.panels;
+    show("panels");
   });
   document.querySelectorAll("[data-restart]").forEach(b => b.onclick = async () => {
     await api(`/api/instructor/classes/${currentId}`
@@ -576,6 +999,35 @@ async function tick() {
       + `/students/${b.dataset.drop}`, {method: "DELETE"});
     tick();
   });
+  document.querySelectorAll("[data-record]").forEach(b => b.onclick = async () => {
+    try {
+      await api(`/api/instructor/classes/${currentId}`
+        + `/students/${b.dataset.record}/record`, {method: "POST"});
+      b.textContent = "Kept";
+    } catch (e) { console.error(e); }
+  });
+}
+
+/* ------------------------------ roster -------------------------------- */
+function drawRoster(students) {
+  $("roster-empty").classList.toggle("hidden", students.length > 0);
+  $("roster-body").innerHTML = students.map(t => {
+    const [level, label] = severity(t);
+    return `
+      <tr>
+        <td><b>${escapeHtml(t.name)}</b></td>
+        <td><span class="chip ${level}">${ICON[level]} ${label}</span></td>
+        <td>${t.connected ? "live" : `quiet ${t.quiet_s}s`}</td>
+        <td><div class="row">
+          <button data-detail="${t.student_id}">Look</button>
+          <button data-panels="${t.student_id}">Panels</button>
+          <button data-record="${t.student_id}">Record</button>
+          <button data-restart="${t.student_id}">Restart</button>
+          <button data-drop="${t.student_id}">Drop</button>
+        </div></td>
+      </tr>`;
+  }).join("");
+  wireTileButtons();
 }
 
 /* ---------------------------- fault induction --------------------------- */
@@ -583,16 +1035,6 @@ async function loadFaultKinds() {
   const kinds = (await api("/api/fault-kinds")).kinds;
   $("fault-kind").innerHTML = kinds
     .map(k => `<option value="${k.kind}">${escapeHtml(k.label)}</option>`).join("");
-}
-
-function fillFaultTargets(students) {
-  const picker = $("fault-target");
-  const chosen = picker.value;
-  picker.innerHTML = '<option value="">Whole class</option>'
-    + students.map(t =>
-        `<option value="${t.student_id}">${escapeHtml(t.name)}</option>`).join("");
-  // Do not move the instructor's selection out from under them mid-poll.
-  if (students.some(t => t.student_id === chosen)) picker.value = chosen;
 }
 
 $("fault-go").onclick = async () => {
@@ -617,6 +1059,11 @@ $("fault-go").onclick = async () => {
 /* ------------------------------ drill-down ------------------------------ */
 $("detail-close").onclick = () => {
   detailId = null; $("detail").classList.add("hidden");
+};
+$("detail-panels").onclick = () => {
+  if (!detailId) return;
+  $("op-student").value = detailId;
+  show("panels");
 };
 
 $("detail-record").onclick = async () => {
@@ -654,24 +1101,241 @@ async function loadDetail() {
     cell("Shoe", num(iv.shoe_psi)) +
     cell("Trip tank", num(g.trip_tank.change_bbl, 2));
 
-  const sheet = d.kill_sheet;
-  $("detail-sheet").innerHTML = sheet.available
-    ? `<div style="font-family:ui-monospace,Consolas,monospace;font-size:12px">
-         SIDPP ${sheet.sidpp_psi} psi &middot; SICP ${sheet.sicp_psi} psi<br>
-         Kill mud ${sheet.kill_mud_weight_ppg} ppg &middot;
-         ICP ${sheet.icp_psi} &rarr; FCP ${sheet.fcp_psi} psi<br>
-         Strokes to bit ${sheet.strokes_to_bit} &middot;
-         total ${sheet.total_strokes}<br>
-         <span style="color:var(--muted)">Now: ${sheet.actual_strokes} strokes,
-         ${sheet.actual_drill_pipe_psi} psi drill pipe</span>
-       </div>`
-    : `<span style="color:var(--muted)">${escapeHtml(sheet.reason || "Not yet.")}</span>`;
+  $("detail-sheet").innerHTML = sheetSummaryHtml(d.kill_sheet);
 
   $("detail-log").innerHTML = d.events.events.length
     ? d.events.events.slice(-80).map(e =>
         `<div class="${e.severity}">${e.clock} &nbsp;${escapeHtml(e.message)}</div>`
       ).reverse().join("")
-    : '<div style="color:var(--muted)">Nothing logged yet.</div>';
+    : '<div style="color:var(--dim)">Nothing logged yet.</div>';
+}
+
+function sheetSummaryHtml(sheet) {
+  return sheet.available
+    ? `<div style="font-family:Consolas,ui-monospace,monospace;font-size:12px;color:#cfd6dc">
+         SIDPP ${sheet.sidpp_psi} psi &middot; SICP ${sheet.sicp_psi} psi<br>
+         Kill mud ${sheet.kill_mud_weight_ppg} ppg &middot;
+         ICP ${sheet.icp_psi} &rarr; FCP ${sheet.fcp_psi} psi<br>
+         Strokes to bit ${sheet.strokes_to_bit} &middot;
+         total ${sheet.total_strokes}<br>
+         <span style="color:#8b9199">Now: ${sheet.actual_strokes} strokes,
+         ${sheet.actual_drill_pipe_psi} psi drill pipe</span>
+       </div>`
+    : `<span style="color:#8b9199">${escapeHtml(sheet.reason || "Not yet.")}</span>`;
+}
+
+/* --------------------------- operator panels ---------------------------- */
+/* The pane is the student's own page in an iframe: /instructor/panel serves
+   choke_panel.html in watch mode, and embed=1 hides its header and tab strip
+   so this console's strip is the only one. Changing tab or student swaps the
+   src; leaving the view removes the iframes so nothing polls unwatched. */
+function opSrc(screenName) {
+  return `/instructor/panel?classroom=${encodeURIComponent(currentId)}`
+    + `&student=${encodeURIComponent(opStudent)}`
+    + `&screen=${encodeURIComponent(screenName)}&embed=1`;
+}
+
+function buildPanels() {
+  opStudent = $("op-student").value || null;
+  const host = $("ophost");
+  const key = [currentId, opStudent, opQuad ? "quad" : opScreen].join("|");
+  if (key === opSrcKey) return;   // do not reload iframes that are already right
+  opSrcKey = key;
+  host.classList.toggle("quad", opQuad && Boolean(opStudent));
+  if (!currentId || !opStudent) {
+    host.classList.remove("quad");
+    host.innerHTML = '<div id="ophint">Pick a student to open their screens.</div>';
+    return;
+  }
+  // Quad View is the reference chrome's four-up: the scan screens together.
+  const screens = opQuad ? ["choke", "dcu", "bop", "triptank"] : [opScreen];
+  host.innerHTML = screens
+    .map(s => `<iframe src="${opSrc(s)}" title="Operator panel"></iframe>`)
+    .join("");
+}
+
+$("op-student").addEventListener("change", buildPanels);
+$("op-quad").onclick = () => {
+  opQuad = !opQuad;
+  $("op-quad").classList.toggle("primary", opQuad);
+  buildPanels();
+};
+document.querySelectorAll("#opbar .optab").forEach(b => b.onclick = () => {
+  opScreen = b.dataset.optab;
+  opQuad = false;
+  $("op-quad").classList.remove("primary");
+  document.querySelectorAll("#opbar .optab").forEach(x =>
+    x.classList.toggle("active", x === b));
+  buildPanels();
+});
+
+/* ------------------------------ kill sheets ----------------------------- */
+async function loadKillSheet() {
+  const sid = $("ks-student").value;
+  if (!currentId || !sid) {
+    $("ks-body").innerHTML = '<span class="note">Pick a student.</span>';
+    return;
+  }
+  let sheet;
+  try {
+    sheet = await api(
+      `/api/instructor/classes/${currentId}/students/${sid}/killsheet`);
+  } catch (e) { return; }
+  if (!sheet.available) {
+    $("ks-body").innerHTML =
+      `<span class="note">${escapeHtml(sheet.reason || "Not yet.")}</span>`
+      + `<div class="note">Now: ${sheet.actual_strokes} strokes, `
+      + `${sheet.actual_drill_pipe_psi} psi drill pipe, `
+      + `${sheet.actual_casing_psi} psi casing.</div>`;
+    return;
+  }
+  const rows = [
+    ["Readings", sheet.readings_are_the_students
+      ? "the student's own shut-in readings" : "given by the exercise"],
+    ["SIDPP", `${sheet.sidpp_psi} psi`],
+    ["SICP", `${sheet.sicp_psi} psi`],
+    ["Pit gain", `${sheet.pit_gain_bbl} bbl`],
+    ["Mud weight", `${sheet.mud_weight_ppg} ppg`],
+    ["Kill mud weight", `${sheet.kill_mud_weight_ppg} ppg `
+      + `(exact ${sheet.kill_mud_weight_exact_ppg})`],
+    ["ICP", `${sheet.icp_psi} psi`],
+    ["FCP", `${sheet.fcp_psi} psi`],
+    ["SCR", `${sheet.scr_psi} psi at ${sheet.scr_spm} spm`],
+    ["Formation", `${sheet.formation_psi} psi`],
+    ["MAASP", sheet.maasp_psi === null ? "—" : `${sheet.maasp_psi} psi`],
+    ["Fracture at shoe", sheet.frac_psi === null ? "—" : `${sheet.frac_psi} psi`],
+    ["Strokes to bit", sheet.strokes_to_bit],
+    ["Strokes bit to surface", sheet.strokes_bit_to_surface],
+    ["Total strokes", sheet.total_strokes],
+  ];
+  $("ks-body").innerHTML =
+    `<table class="sheet"><tbody>`
+    + rows.map(([k, v]) => `<tr><th>${k}</th><td class="v">${v}</td></tr>`).join("")
+    + `</tbody></table>`
+    + `<div class="note">Against the plan right now: ${sheet.actual_strokes} `
+    + `strokes, ${sheet.actual_drill_pipe_psi} psi drill pipe, `
+    + `${sheet.actual_casing_psi} psi casing.</div>`;
+}
+$("ks-student").addEventListener("change", loadKillSheet);
+
+/* --------------------------- drilling plots ----------------------------- */
+/* Live trace for one student. The drill-down trace carries the downhole
+   series only when the student has earned them -- the chart cannot leak what
+   their own screens withhold, and the masked run is exactly the story. */
+const PRESSURE_SERIES = [
+  {key: "drill_pipe_psi", label: "Drill pipe", colour: "#3987e5"},
+  {key: "casing_psi", label: "Casing", colour: "#c98500"},
+  {key: "bottomhole_psi", label: "Bottomhole", colour: "#199e70"},
+  {key: "shoe_psi", label: "Shoe", colour: "#9085e9"},
+];
+const VOLUME_SERIES = [
+  {key: "pit_gain_bbl", label: "Pit gain", colour: "#3987e5"},
+  {key: "influx_bbl", label: "Influx", colour: "#c98500"},
+  {key: "trip_tank_bbl", label: "Trip tank", colour: "#199e70"},
+];
+
+async function loadPlots() {
+  const sid = $("dp-student").value;
+  if (!currentId || !sid) { $("dp-note").textContent = "Pick a student."; return; }
+  let d;
+  try {
+    d = await api(`/api/instructor/classes/${currentId}/students/${sid}`
+      + `?trace_limit=400`);
+  } catch (e) { return; }
+  $("dp-note").textContent = `${d.student.name} · `
+    + `${hms(d.gauges.time_s)} simulated`;
+  drawTraceChart($("dp-pressures"), $("dp-pressures-legend"),
+    d.trace || [], PRESSURE_SERIES);
+  drawTraceChart($("dp-volumes"), $("dp-volumes-legend"),
+    d.trace || [], VOLUME_SERIES);
+}
+$("dp-student").addEventListener("change", loadPlots);
+
+/* Drawing a trace, shared between the live report and the recording review.
+   Solid hairline grid; every series named in a legend; no second y-axis --
+   volumes get their own panel instead. */
+function drawTraceChart(canvas, legendEl, rows, series) {
+  const ratio = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w || !h) return;
+  canvas.width = w * ratio; canvas.height = h * ratio;
+  const x = canvas.getContext("2d");
+  x.scale(ratio, ratio); x.clearRect(0, 0, w, h);
+
+  const present = series.filter(s =>
+    rows.some(p => p[s.key] !== undefined && p[s.key] !== null));
+  legendEl.innerHTML = present.map(s =>
+    `<span><i style="background:${s.colour}"></i>${s.label}</span>`).join("");
+  if (rows.length < 2 || !present.length) return;
+
+  const pad = {l: 52, r: 12, t: 10, b: 20};
+  let lo = Infinity, hi = -Infinity;
+  rows.forEach(p => present.forEach(s => {
+    const v = p[s.key];
+    if (v === undefined || v === null) return;
+    lo = Math.min(lo, v); hi = Math.max(hi, v);
+  }));
+  if (!isFinite(lo)) return;
+  if (hi - lo < 10) hi = lo + 10;
+
+  const t0 = rows[0].time_s, t1 = rows[rows.length - 1].time_s || t0 + 1;
+  const X = t => pad.l + (t - t0) / Math.max(1e-9, t1 - t0) * (w - pad.l - pad.r);
+  const Y = v => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b);
+
+  x.strokeStyle = "#2a2a26"; x.fillStyle = "#86857c";
+  x.font = "10px Consolas, ui-monospace, monospace"; x.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + (hi - lo) * i / 4, y = Math.round(Y(v)) + 0.5;
+    x.beginPath(); x.moveTo(pad.l, y); x.lineTo(w - pad.r, y); x.stroke();
+    x.fillText(Math.round(v).toLocaleString(), 4, y + 3);
+  }
+  x.fillText(`${Math.round((t1 - t0) / 60)} min`, w - pad.r - 40, h - 6);
+
+  present.forEach(s => {
+    x.strokeStyle = s.colour; x.lineWidth = 2; x.beginPath();
+    let started = false;
+    rows.forEach(p => {
+      const v = p[s.key];
+      if (v === undefined || v === null) return;
+      const px = X(p.time_s), py = Y(v);
+      if (!started) { x.moveTo(px, py); started = true; } else x.lineTo(px, py);
+    });
+    x.stroke();
+  });
+}
+
+/* ------------------------------- debrief -------------------------------- */
+/* Graded on demand rather than every second: a running score changes under
+   the reader, and the point of the report is to be read. */
+async function loadDebrief() {
+  const sid = $("db-student").value;
+  if (!currentId || !sid) return;
+  let d;
+  try {
+    d = await api(`/api/instructor/classes/${currentId}/students/${sid}/debrief`);
+  } catch (e) { return; }
+  $("db-verdict").innerHTML = verdictHtml(d);
+  $("db-log").innerHTML = (d.events || []).length
+    ? d.events.map(e =>
+        `<div class="${e.severity}">${e.clock} &nbsp;${escapeHtml(e.message)}</div>`
+      ).join("")
+    : '<div style="color:#8b9199">Nothing logged.</div>';
+}
+$("db-refresh").onclick = loadDebrief;
+$("db-student").addEventListener("change", loadDebrief);
+
+function verdictHtml(d) {
+  return `<div style="font-size:15px;font-weight:700;margin-bottom:8px">`
+    + `${escapeHtml(d.grade || "—")}`
+    + `<span style="color:var(--dim);font-weight:400;font-size:12px">`
+    + ` · ${d.killed ? "well killed" : "not killed"}`
+    + ` · ${Math.round(d.duration_min || 0)} min</span></div>`
+    + (d.metrics || []).map(m => `
+      <div class="metric ${m.passed ? "passed" : "failed"}">
+        <span class="mname">${escapeHtml(m.name)}</span>
+        <span class="mval">${m.value}${m.limit === null ? "" : " / " + m.limit}
+          ${escapeHtml(m.unit || "")}</span>
+      </div>`).join("");
 }
 
 /* ------------------------------ recordings ------------------------------ */
@@ -712,13 +1376,6 @@ $("rec-refresh").onclick = loadRecordings;
 /* Drawing a recording, not re-running it. The run already happened; a
    re-simulation could disagree with what the student actually saw, which
    would make it useless as evidence. */
-const REVIEW_SERIES = [
-  {key: "drill_pipe_psi", label: "Drill pipe", colour: "#3987e5"},
-  {key: "casing_psi", label: "Casing", colour: "#c98500"},
-  {key: "bottomhole_psi", label: "Bottomhole", colour: "#199e70"},
-  {key: "shoe_psi", label: "Shoe", colour: "#9085e9"},
-];
-
 $("review-close").onclick = () => $("review").classList.add("hidden");
 
 async function openRecording(id) {
@@ -729,96 +1386,25 @@ async function openRecording(id) {
   $("review").classList.remove("hidden");
   $("review-name").textContent =
     `${rec.student_name || "—"} · ${(rec.recorded_at || "").replace("T", " ").slice(0, 16)}`;
-
-  const d = rec.debrief || {};
-  $("review-verdict").innerHTML =
-    `<div style="font-size:15px;font-weight:700;margin-bottom:8px">`
-    + `${escapeHtml(d.grade || "—")}`
-    + `<span style="color:var(--muted);font-weight:400;font-size:12px">`
-    + ` · ${d.killed ? "well killed" : "not killed"}`
-    + ` · ${Math.round(d.duration_min || 0)} min</span></div>`
-    + (d.metrics || []).map(m => `
-      <div class="metric ${m.passed ? "passed" : "failed"}">
-        <span class="mname">${escapeHtml(m.name)}</span>
-        <span class="mval">${m.value}${m.limit === null ? "" : " / " + m.limit}
-          ${escapeHtml(m.unit || "")}</span>
-      </div>`).join("");
-
+  $("review-verdict").innerHTML = verdictHtml(rec.debrief || {});
   $("review-log").innerHTML = (rec.events || []).length
     ? rec.events.map(e =>
         `<div class="${e.severity}">${e.clock} &nbsp;${escapeHtml(e.message)}</div>`
       ).join("")
-    : '<div style="color:var(--muted)">Nothing logged.</div>';
+    : '<div style="color:#8b9199">Nothing logged.</div>';
 
-  drawReview(rec.trace || []);
+  drawTraceChart($("review-chart"), $("review-legend"),
+    rec.trace || [], PRESSURE_SERIES);
 }
-
-function drawReview(rows) {
-  const c = $("review-chart");
-  const ratio = window.devicePixelRatio || 1;
-  const w = c.clientWidth, h = c.clientHeight;
-  if (!w || !h) return;
-  c.width = w * ratio; c.height = h * ratio;
-  const x = c.getContext("2d"); x.scale(ratio, ratio); x.clearRect(0, 0, w, h);
-
-  const present = REVIEW_SERIES.filter(s =>
-    rows.some(p => p[s.key] !== undefined && p[s.key] !== null));
-  $("review-legend").innerHTML = present.map(s =>
-    `<span><i style="background:${s.colour}"></i>${s.label}</span>`).join("");
-  if (rows.length < 2 || !present.length) return;
-
-  const pad = {l: 52, r: 12, t: 10, b: 20};
-  let lo = Infinity, hi = -Infinity;
-  rows.forEach(p => present.forEach(s => {
-    const v = p[s.key];
-    if (v === undefined || v === null) return;
-    lo = Math.min(lo, v); hi = Math.max(hi, v);
-  }));
-  if (!isFinite(lo)) return;
-  if (hi - lo < 10) hi = lo + 10;
-
-  const t0 = rows[0].time_s, t1 = rows[rows.length - 1].time_s || t0 + 1;
-  const X = t => pad.l + (t - t0) / Math.max(1e-9, t1 - t0) * (w - pad.l - pad.r);
-  const Y = v => pad.t + (1 - (v - lo) / (hi - lo)) * (h - pad.t - pad.b);
-
-  x.strokeStyle = "#2a2a26"; x.fillStyle = "#86857c";
-  x.font = "10px ui-monospace, Consolas, monospace"; x.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const v = lo + (hi - lo) * i / 4, y = Math.round(Y(v)) + 0.5;
-    x.beginPath(); x.moveTo(pad.l, y); x.lineTo(w - pad.r, y); x.stroke();
-    x.fillText(Math.round(v).toLocaleString(), 4, y + 3);
-  }
-  x.fillText(`${Math.round((t1 - t0) / 60)} min`, w - pad.r - 40, h - 6);
-
-  present.forEach(s => {
-    x.strokeStyle = s.colour; x.lineWidth = 2; x.beginPath();
-    let started = false;
-    rows.forEach(p => {
-      const v = p[s.key];
-      if (v === undefined || v === null) return;
-      const px = X(p.time_s), py = Y(v);
-      if (!started) { x.moveTo(px, py); started = true; } else x.lineTo(px, py);
-    });
-    x.stroke();
-  });
-}
-
 
 /* Resume a signed-in console across a reload. sessionStorage rather than
    localStorage: closing the tab should end the session. */
 const saved = sessionStorage.getItem("wc_instructor_token");
 if (saved) {
   token = saved;
-  api("/api/instructor/classes").then(async () => {
-    $("login").classList.add("hidden");
-    $("console").classList.remove("hidden");
-    await loadScenarios();
-    await loadFaultKinds();
-    await refreshClasses();
-    loadRecordings();
-    tick();
-    timer = setInterval(tick, 1000);
-  }).catch(() => sessionStorage.removeItem("wc_instructor_token"));
+  api("/api/instructor/classes")
+    .then(openConsole)
+    .catch(() => sessionStorage.removeItem("wc_instructor_token"));
 }
 </script>
 </body>

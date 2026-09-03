@@ -984,6 +984,114 @@ class TestTheNewPages:
         )
         assert result.returncode == 0, result.stderr
 
+class TestTheAdminConsole:
+    """The instructor station is the reference admin console, not a dashboard.
+
+    A fixed-height application window: dark title bar, the top transport
+    strip, Simulation Speed and the green Simulation Time clock, a left
+    navigation tree, and a content pane that swaps views without the page
+    scrolling. The references are ``simulator_screens/IMG_1195-97.PNG`` (the
+    chrome) and ``sim_screen_expectations/admin_panel_left_side.JPG`` (the
+    tree).
+    """
+
+    def test_the_frame_is_the_admin_console(self, client):
+        text = client.get("/instructor").text
+        assert "Administrator Station - Well Control Simulator" in text
+        # Fixed height: the window never scrolls, only the view inside it.
+        assert "overflow: hidden" in text
+        assert 'id="tree"' in text
+        assert 'id="titlebar"' in text
+
+    def test_the_chrome_carries_the_transport_and_the_clock(self, client):
+        """Pause All / Resume All / Stop All, the speed dropdown and the green
+        simulation clock -- the reference's top rows, all wired."""
+        text = client.get("/instructor").text
+        for element in (
+            ">Pause All<", ">Resume All<", ">Stop All<",
+            "Simulation Speed", "Simulation Time",
+            'id="speed-select"', 'id="sim-clock"',
+        ):
+            assert element in text, element
+
+    def test_show_auto_choke_is_not_a_button(self, client):
+        """On the reference chrome, deliberately absent here: there is no auto
+        choke in the engine yet, and a drawn control that does nothing is
+        worse than an absent one."""
+        text = client.get("/instructor").text
+        assert ">Show Auto Choke<" not in text
+
+    def test_every_tree_entry_opens_a_real_view(self, client):
+        """No dead entries: each leaf names a view section that exists, and
+        each view section is reachable from a leaf."""
+        import re
+
+        text = client.get("/instructor").text
+        leaves = re.findall(r'class="leaf[^"]*" data-view="([a-z]+)"', text)
+        views = re.findall(r'<section class="view[^"]*" id="v-([a-z]+)"', text)
+        assert leaves, "no tree entries at all"
+        assert sorted(leaves) == sorted(views), (leaves, views)
+
+    def test_the_tree_carries_the_reference_entries(self, client):
+        """The names the reference photograph shows, where a capability
+        exists to answer them."""
+        text = client.get("/instructor").text
+        for entry in (
+            "Administrator Console",
+            "Load Exercise",
+            "Administrator Control Panel",
+            "Monitor Exercise Parameters",
+            "Operator Panels",
+            "Fault Induction Panel",
+            "Kill Sheets",
+            "Drilling Plots Report",
+            "Load Recording",
+        ):
+            assert entry in text, entry
+
+    def test_the_operator_panels_view_is_the_reference_strip(self, client):
+        """The screen tabs of the reference chrome, plus Quad View, opening
+        the student's real page through /instructor/panel."""
+        text = client.get("/instructor").text
+        for tab in (
+            ">Choke Panel<", ">DCU<", ">BOP<", ">SP Manifold<",
+            ">Choke Manifold<", ">Trip Tank<", ">Quad View<",
+        ):
+            assert tab in text, tab
+        assert "/instructor/panel?classroom=" in text
+        assert "embed=1" in text
+
+    def test_the_student_page_can_be_embedded(self, client):
+        """/instructor/panel with embed=1 drops the page's own header and tab
+        strip, and screen= picks the tab, so the console's strip is the only
+        chrome. The page itself is otherwise untouched."""
+        text = client.get("/instructor/panel").text
+        assert "body.embedded header, body.embedded #tabs { display: none; }" in text
+        assert 'watching.get("embed")' in text
+        assert 'watching.get("screen")' in text
+
+    def test_the_console_keeps_the_class_management(self, client):
+        """Losing capability is a regression: code, close, end, roster
+        actions and the per-student restart/drop survive the rebuild."""
+        text = client.get("/instructor").text
+        for element in (
+            'id="code"', 'id="close-class"', 'id="end-class"',
+            "data-restart", "data-drop", "data-record", "data-panels",
+            'id="nc-scenario"', 'id="nc-go"',
+        ):
+            assert element in text, element
+
+    def test_the_reports_views_name_their_sources(self, client):
+        """Kill Sheets, Drilling Plots and Debrief each drive a real
+        instructor endpoint for a chosen student."""
+        text = client.get("/instructor").text
+        assert "/killsheet" in text
+        assert "trace_limit=400" in text
+        assert "/debrief" in text
+        for picker in ('id="ks-student"', 'id="dp-student"', 'id="db-student"'):
+            assert picker in text, picker
+
+
 class TestTheDriver:
     def test_wells_advance_with_nobody_polling(self, client):
         """End-to-end proof that the background tick is actually wired up.

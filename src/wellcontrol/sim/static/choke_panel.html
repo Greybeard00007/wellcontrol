@@ -200,6 +200,10 @@
   body.watching .hit, body.watching button, body.watching input[type=range],
   body.watching .btns { opacity: .45; pointer-events: none; }
   body.watching #tabs button { opacity: 1; pointer-events: auto; }
+  /* Embedded in the instructor console's Operator Panels view, which carries
+     its own screen-tab strip: this page's header and tabs come off so there
+     are not two of them. The screens themselves are untouched. */
+  body.embedded header, body.embedded #tabs { display: none; }
   .legend { display: flex; gap: 14px; font-size: 11px; color: var(--ink); margin-top: 6px; flex-wrap: wrap; font-weight: 600; }
   .key { display: inline-block; width: 11px; height: 2px; vertical-align: middle; margin-right: 5px; }
 
@@ -4313,6 +4317,16 @@ window.addEventListener("resize", redraw);
 async function boot() {
   if (watchOnly) {
     document.body.classList.add("watching");
+    // Inside the instructor console's Operator Panels view the console's own
+    // strip picks the screen, so this page's chrome comes off and the screen
+    // arrives in the query string instead of from a tab press.
+    if (watching.get("embed")) document.body.classList.add("embedded");
+    const wanted = watching.get("screen");
+    if (wanted) {
+      const tab = document.querySelector(
+        `#tabs button[data-screen="${wanted}"]`);
+      if (tab) tab.click();   // the same path a press takes
+    }
     $("transport").style.display = "none";
     $("restart").style.display = "none";
     $("class-name").style.display = "";

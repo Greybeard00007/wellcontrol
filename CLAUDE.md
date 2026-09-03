@@ -443,11 +443,22 @@ Paid for three times. `--reload` is necessary and not sufficient:
 - **The browser caches the page**: only a hard reload picks up an edited
   `choke_panel.html`.
 
-Still to do: the **instructor station** — the reference is a fixed-height
-admin console with a fifteen-entry navigation tree and an *Operator Panels*
-view opening a student's real screens; ours is a flat page of tiles. The
-groundwork is in: `/instructor/panel?classroom=&student=` serves the
-student's page read-only, controls dimmed, polling the drill-down endpoint.
+The **instructor station is the admin console now**: a fixed-height window —
+dark title bar, Pause All / Resume All / Stop All, *Simulation Speed* dropdown
+and the green *Simulation Time* clock — with a dark left navigation tree built
+to `sim_screen_expectations/admin_panel_left_side.JPG` using the reference's
+own entry names, and a content pane that swaps views without scrolling.
+*Operator Panels* embeds the student's real page in an iframe under the
+reference chrome's screen-tab strip with a Quad View:
+`/instructor/panel?classroom=&student=` serves the student's page read-only,
+controls dimmed, polling the drill-down endpoint; `screen=` and `embed=1` on
+that URL pick the tab and drop the page's own chrome. Reference entries with
+nothing behind them (Remote Launch Panel, View Configuration, Mud Circulation
+Panel, Show Auto Choke) are absent rather than inert, and a structural test
+asserts every tree leaf opens a view that exists. **No new API routes** — every
+view drives an endpoint that already existed, so the `@exclusive` structural
+test is untouched. Full detail in `docs/screens-notes.md` under *The
+instructor station is the admin console now*.
 
 ### The lesson worth keeping
 

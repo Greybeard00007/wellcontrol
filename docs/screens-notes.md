@@ -833,18 +833,53 @@ different hat.** `--reload` is necessary and not sufficient:
   cache; only a hard reload picks up an edited `choke_panel.html`. A hit target
   measured at its old size is the giveaway.
 
-Still to do: the **instructor station** — the biggest structural change of the
-three. The reference is a fixed-height admin console with a fifteen-entry left
-navigation tree (Load Exercise/Recording, Fault Induction Panel, Kill Sheets,
-Drilling Plots Report, Operator Panels…) and an *Operator Panels* view that
-opens a student's real screens. Ours is a flat scrolling page of tiles with no
-navigation at all.
+### The instructor station is the admin console now
 
-The groundwork for Operator Panels is in: **`/instructor/panel?classroom=&student=`
-serves the same page the student is looking at**, polling the instructor's
-drill-down endpoint instead of `/api/me`. It is read-only and the controls are
-visibly dimmed — an instructor nudging a choke while a student flies it would be
-indistinguishable to them from the well doing it.
+The flat scrolling page of tiles was rebuilt as the **reference admin
+console**: a fixed-height application window — dark title bar reading
+*Administrator Station - Well Control Simulator*, the top transport strip
+(Pause All / Resume All / Stop All), *Simulation Speed* dropdown and the green
+*Simulation Time* clock — with a dark left navigation tree and a content pane
+that swaps views without the page ever scrolling. The chrome is built to
+`simulator_screens/IMG_1195-97.PNG`; the tree to
+`sim_screen_expectations/admin_panel_left_side.JPG`, using the reference's own
+entry names wherever a capability exists to answer them: *Load Exercise*,
+*Administrator Control Panel* (code, close, end), *Monitor Exercise
+Parameters* (the tile grid, with the drill-down card), *Operator Panels*,
+*Fault Induction Panel*, *Kill Sheets*, *Drilling Plots Report*, *Debrief
+Report*, *Load Recording*, and *Manage Trainees*. Entries the reference has
+and we have nothing behind — Remote Launch Panel, View Configuration, Mud
+Circulation Panel, and the chrome's *Show Auto Choke* — are **absent rather
+than inert**, the stop-glyph rule again: they go in when the capability does.
+A structural test asserts every leaf opens a view that exists and vice versa.
+
+**Operator Panels embeds the student's real page.** The groundwork was
+already in — `/instructor/panel?classroom=&student=` serves the same page the
+student is looking at, polling the instructor's drill-down endpoint instead of
+`/api/me`, read-only with the controls visibly dimmed (an instructor nudging a
+choke while a student flies it would be indistinguishable to them from the
+well doing it). The console puts that page in an iframe under the reference
+chrome's screen-tab strip (Choke Panel, DCU, BOP, SP Manifold, Choke
+Manifold, Trip Tank, plus Trends and Well, with **Quad View** at the right
+showing choke/DCU/BOP/trip tank four-up). Two query parameters were added to
+`choke_panel.html` for it: `screen=` picks the tab on load — through the same
+click path a press takes, not a second mechanism — and `embed=1` hides the
+page's own header and tab strip so there are not two of them. Leaving the
+view **tears the iframes down**, or a hidden student screen would still be
+polling the drill-down four times a second behind another view.
+
+Three things in the console worth knowing:
+
+- **No new API routes.** Every view drives an endpoint that already existed —
+  the monitor, the drill-down (whose trace feeds the Drilling Plots Report),
+  the per-student kill sheet and debrief, recordings, faults — so nothing new
+  needed `@exclusive` and the structural lock test is untouched.
+- **The Simulation Time clock is the furthest-run well in the class.** The
+  classroom itself has no simulated time, only the wells do; they ride one
+  clock and only drift apart when one is paused or slowed.
+- **Stop All is End Class wearing the chrome's name**, sharing the same
+  two-click confirmation — it captures every run as a recording before the
+  wells go, which is what the server already did on DELETE.
 
 ### The lesson worth keeping
 
