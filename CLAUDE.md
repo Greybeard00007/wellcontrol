@@ -273,7 +273,7 @@ One page, one poll loop; only the visible screen redraws. Everything is served f
 | **Choke Panel** | Drill pipe and casing dials, lamps, the choke, both pressure charts, the event log. |
 | **DCU** | Where a kick is *noticed*: pit deviation, return flow, standpipe, both pump rates, alarms with set points, depths and stroke counter. Pump and **stripping** controls. |
 | **BOP** | The control panel — red remote panel for a surface stack, monitoring screen for a subsea one. |
-| **SP Manifold** | Standpipe manifold and the whole circulating system. |
+| **SP Manifold** | The standpipe manifold: gauge, runs, and every branch valve — both pumps, cement lines, kill line tie-in. |
 | **Choke Manifold** | The manifold, plus all four chokes with their own handles and lineup. |
 | **Trip Tank** | Tank, active and reserve pits, the transfer pumps, level alarms, and whether the tank is actually in service. |
 | **Trends** | Stacked tracks or the reference panel's overlaid parallel axes, against time or strokes. |
@@ -302,9 +302,9 @@ Two engine additions exist because a screen would otherwise be decoration:
 
 Two things follow that are easy to get wrong when repainting from dark to orange. **Mid-tone accents vanish.** The gold used for the briefing objective read perfectly on the old dark page and was invisible on orange; anything on the console needs to be near-black. And **prose does not belong on orange** — the event log, the tables and the charts all get their own black window, which is where the reference panel puts its readouts anyway.
 
-**The panels are drawn the way a rig draws them**, from the references in `simulator_screens/`: round dials with needles for the pressures, the BOP stack in elevation with each element showing its own state, and gate-valve bowties on the P&ID that go green when open. A digital tile tells you the number; a needle tells you the *rate* and which way it is going without being read, and working a choke is a scan rather than a series of readings. The dial's label and unit sit in the gap at the bottom where the 270° sweep does not reach — the upper half has no clear band, since the number ring runs right across it, so a label placed there collides whatever the font size. One thing deliberately **not** copied from the reference app: its trend chart puts pit volume on a second y-axis, which the `dataviz` rules forbid and which the separate panels here avoid.
+**The panels are drawn the way a rig draws them**, from the references in `simulator_screens/`: round dials with needles for the pressures, the BOP stack in elevation with each element showing its own state, and handwheels on the manifold faces whose hub lamp goes green when the valve is passing. A digital tile tells you the number; a needle tells you the *rate* and which way it is going without being read, and working a choke is a scan rather than a series of readings. The dial's label and unit sit in the gap at the bottom where the 270° sweep does not reach — the upper half has no clear band, since the number ring runs right across it, so a label placed there collides whatever the font size. One thing deliberately **not** copied from the reference app: its trend chart puts pit volume on a second y-axis, which the `dataviz` rules forbid and which the separate panels here avoid.
 
-Three more drawing details that were bugs first: **valves sharing a node pair are fanned along the line** (every BOP element joins annulus to stack, so on the lineup schematic only one was visible or clickable); **both schematics are sized by height**, since their viewBoxes are taller than wide and scaling on width alone made them a thousand pixels tall; and **depth labels are nudged apart with a leader line back to the true depth**, because the bit sits exactly on TD whenever it is on bottom.
+Two more drawing details that were bugs first (a third — fanning valves that shared a node pair along their line — went with the P&ID overview card it belonged to): **the well schematic is sized by height**, since its viewBox is taller than wide and scaling on width alone made it a thousand pixels tall; and **depth labels are nudged apart with a leader line back to the true depth**, because the bit sits exactly on TD whenever it is on bottom.
 
 ### Assessment (`sim/assessment.py`)
 
@@ -480,6 +480,33 @@ Done so far:
   preventers; subsea is a fifteen-row P&ID with seven outlet lines running to
   a kill and a choke header. See *The stack* below — it is the longest section
   here and it earns it.
+- **SP Manifold, Choke Manifold and Trip Tank — built to `IMG_1195/96/97.PNG`**
+  (in `simulator_screens/`), each as one wall-to-wall face like the rest,
+  replacing the old card layouts. The idiom is the reference console's: pale
+  panel, oxide-red pipework reusing the subsea face's `pipeRun`/`pipeFlange`/
+  `pipeTee`, **handwheels with a lamp in the hub** (green passing, red shut —
+  one press toggles the valve), dual-scale psi/bar gauges with a digital
+  window set into the face, pumps as volutes that ring green while running,
+  tanks as black cylinders lettered in white with the level drawn in mud.
+  Every control dispatches through `faceAction` (`valve:`/`pump:`/`ckpos±:`
+  and the trip tank's alarm actions), so the scrape test covers them all.
+  Three things worth keeping:
+  - **Every branch on the SP manifold is a real valve.** The reference labels
+    cement head and cement pump lines, so `flowpath.py` grew
+    `cement_head_valve` / `cement_pump_valve` on **blanked lines**
+    (`Node.CEMENT_HEAD/CEMENT_PUMP`, dead ends) — the valve moves and nothing
+    changes, which is what opening it on this rig would do — and
+    `pump_2_discharge`, a **parallel edge** to `pump_discharge` (one PUMP
+    node serves both pumps, an approximation) that **starts closed**, because
+    every scenario that blocks the pump closes `pump_discharge` and a second
+    line open by default would quietly defeat it.
+  - **Each choke carries its own position window and ± steppers** on the
+    manifold face (`send("choke", {choke: name})`), with the in-service one
+    ringed green — changing over after a plug is worked here.
+  - **The trip tank's pumps, valve, alarms and mark all live on its face**;
+    the DCU keeps its own lamps and set points. The old P&ID overview card is
+    gone with the old screens (`id="pid"` is pinned absent), and `drawLineup`
+    now lists only the stack elements.
 
 ### The stack (`sim/flowpath.py`, `Accumulator`, the BOP face)
 

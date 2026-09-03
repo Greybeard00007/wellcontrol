@@ -47,6 +47,14 @@ class Node(str, Enum):
     PITS = "active pits"
     TRIP_TANK = "trip tank"
 
+    # The standpipe manifold's blanked branches. The cement head and cement
+    # pump are equipment this simulator does not model, so the lines go
+    # nowhere -- but the manifold face draws the manifold a rig has, and a
+    # drawn valve must be a real valve. Opening one does exactly what it
+    # would on this rig: nothing.
+    CEMENT_HEAD = "cement head"
+    CEMENT_PUMP = "cement pump"
+
     # The spool between an outlet's two isolation valves. It exists so the
     # pair reads as **in series** rather than in parallel: two valves both
     # joining the annulus straight to the choke line would mean either one
@@ -407,6 +415,22 @@ def default_valves(subsea: bool = False) -> list[Valve]:
     """
     return (subsea_stack() if subsea else surface_stack()) + [
         Valve("pump_discharge", "Mud pump discharge", Node.PUMP, Node.STANDPIPE),
+        # The second pump's discharge line. The graph has one PUMP node for
+        # both pumps, so the two lines are parallel edges and either one open
+        # gives the pumps their route -- an approximation (the graph cannot
+        # tell which pump is turning), and why this one starts closed: every
+        # scenario that blocks the pump closes `pump_discharge`, and a second
+        # line open by default would quietly defeat it.
+        Valve("pump_2_discharge", "Mud pump 2 discharge", Node.PUMP,
+              Node.STANDPIPE),
+        # The manifold's blanked branches -- see Node.CEMENT_HEAD. Real
+        # valves on lines to equipment the simulator does not model, because
+        # the manifold face draws them and a control that is only a picture
+        # is worse than none.
+        Valve("cement_head_valve", "Cement head isolation", Node.STANDPIPE,
+              Node.CEMENT_HEAD),
+        Valve("cement_pump_valve", "Cement pump isolation", Node.CEMENT_PUMP,
+              Node.STANDPIPE),
         Valve("standpipe_valve", "Standpipe valve", Node.STANDPIPE, Node.STRING,
               bidirectional=True),
         # Deliberately one-way. Making this bidirectional would hand reverse

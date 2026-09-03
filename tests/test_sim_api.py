@@ -415,12 +415,32 @@ class TestScreens:
         assert surface["is_subsea"] is False
         assert subsea["is_subsea"] is True
 
-    def test_both_manifolds_are_drawn(self, client):
+    def test_the_manifolds_are_instrument_faces(self, client):
+        """Built to IMG_1195/96/97: one fixed-viewBox face per screen."""
         text = client.get("/").text
-        assert "function drawStandpipeManifold(" in text
-        assert "function drawChokeKillManifold(" in text
-        assert 'id="standpipe"' in text
-        assert 'id="ckmanifold"' in text
+        assert 'id="spface"' in text
+        assert "function drawSpManifoldFace(" in text
+        assert 'id="ckface"' in text
+        assert "function drawChokeManifoldFace(" in text
+        assert 'id="ttface"' in text
+        assert "function drawTripTankFace(" in text
+        # The reference idiom: handwheels with a lamp in the hub, pumps as
+        # volutes, tanks as cylinders, dual-scale gauges with a window.
+        for helper in ("function handwheel(", "function pumpSymbol(",
+                       "function tankCylinder(", "function manifoldGauge("):
+            assert helper in text, helper
+
+    def test_the_sp_manifold_carries_its_branches(self, client):
+        """Every branch the reference photograph labels, as a working valve."""
+        text = client.get("/").text
+        for name in ("standpipe_valve", "standpipe_to_manifold",
+                     "pump_discharge", "pump_2_discharge",
+                     "cement_head_valve", "cement_pump_valve",
+                     "pump_to_kill_line"):
+            assert name in text, name
+        for label in ("STAND PIPE 1", "MUD PUMP 1", "MUD PUMP 2",
+                      "CEMENT HEAD", "CEMENT PUMP", "TO KILL LINE"):
+            assert label in text, label
 
     def test_the_dcu_is_one_instrument_face(self, client):
         """The reference is a single dense console, not rows of cards."""
@@ -630,22 +650,37 @@ class TestScreens:
         assert "alarm.low_active" in text and "alarm.high_active" in text
         assert "alarm.sounding" in text
 
-    def test_the_trip_tank_screen_is_operable(self, client):
-        """Both halves of the lineup, and a way to mark the tank."""
-        text = client.get("/").text
-        for element in (
-            'data-tt="trip_tank_fillup"', 'data-tt="trip_tank_fill"',
-            'data-tt="trip_tank_drain"', 'data-tt="pit_transfer"',
-            'data-valve-toggle="trip_tank_valve"',
-            'data-zero="trip_tank"', "tt-service",
-        ):
-            assert element in text, element
+    def test_the_trip_tank_face_is_operable(self, client):
+        """Both halves of the lineup, the alarms, and a way to mark the tank.
 
-    def test_the_choke_bank_offers_all_four(self, client):
+        The controls are templated (`data-face="pump:${name}"`), so what is
+        asserted is that each control's name reaches the draw code and that
+        its action is dispatched -- the scrape test covers the wiring.
+        """
         text = client.get("/").text
-        assert "choke-bank" in text
-        for name in ("choke_1", "choke_2", "manual_choke_1", "manual_choke_2"):
-            assert name in text, name
+        face = text.split("function drawTripTankFace(")[1].split("\nfunction ")[0]
+        for name in ("trip_tank_fillup", "trip_tank_fill", "trip_tank_drain",
+                     "pit_transfer", "trip_tank_valve", "flowline",
+                     "shakers_to_pits"):
+            assert name in face, name
+        for act in ("ttzero", "ttarm", "ttlow-", "ttlow+", "tthigh-", "tthigh+"):
+            assert act in face, act
+        # The set points and the mark reach the server.
+        assert 'case "ttzero":' in text
+        assert 'name: "trip_tank_level"' in text
+
+    def test_the_choke_manifold_offers_all_four(self, client):
+        """Four chokes, each with its own position window and steppers."""
+        text = client.get("/").text
+        face = text.split("function drawChokeManifoldFace(")[1].split("\nfunction ")[0]
+        for name in ("choke_1", "choke_2", "manual_choke_1", "manual_choke_2",
+                     "choke_line_to_manifold", "kill_line_to_manifold",
+                     "choke_bypass", "separator_to_pits",
+                     "standpipe_to_manifold"):
+            assert name in face, name
+        assert "ckpos-:" in face and "ckpos+:" in face
+        # Each choke's steppers drive that choke, not the one in service.
+        assert "choke: name" in text
 
     def test_the_trends_screen_offers_both_views(self, client):
         """Stacked tracks by default, with the commercial panel's overlaid
@@ -661,10 +696,12 @@ class TestScreens:
         assert 'id="strip"' in text
         assert 'data-strip="30"' in text
 
-    def test_the_schematics_are_drawn(self, client):
+    def test_the_well_schematic_is_drawn(self, client):
+        """The P&ID overview is gone -- the SP manifold face replaced it, per
+        IMG_1195 -- but the well cross-section is still the Well screen."""
         text = client.get("/").text
-        assert 'id="pid"' in text
         assert 'id="schematic"' in text
+        assert 'id="pid"' not in text, "the P&ID card should be gone"
 
     def test_the_closing_unit_is_on_the_bop_face(self, client):
         """Bottle pressure is not the whole unit, and the panel says so.

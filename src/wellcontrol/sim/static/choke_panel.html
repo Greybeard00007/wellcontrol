@@ -259,28 +259,13 @@
     width: calc(100% + 32px);
     margin: -16px -16px 12px;
   }
+  /* The three manifold faces: same rule, same reason. */
+  #spface, #ckface, #ttface {
+    display: block; height: auto;
+    width: calc(100% + 32px);
+    margin: -16px -16px 12px;
+  }
   .armbtn.off { opacity: .55; text-decoration: line-through; }
-
-  /* ---- choke bank ---- */
-  .chokegrid { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
-  @media (max-width: 820px) { .chokegrid { grid-template-columns: repeat(2, 1fr); } }
-  .chokecell {
-    background: var(--panel); border: 1px solid var(--edge); border-radius: 5px;
-    padding: 9px;
-  }
-  .chokecell.live { border-color: var(--good); box-shadow: 0 0 0 1px var(--good); }
-  .chokecell h3 {
-    margin: 0 0 6px; font-size: 11px; text-transform: uppercase;
-    letter-spacing: .07em; color: var(--ink);
-  }
-  .chokecell .state { font-size: 10px; color: var(--faint); margin-top: 4px; }
-
-  /* ---- trip tank ---- */
-  .service {
-    font: 700 14px system-ui; padding: 9px 12px; border-radius: 4px;
-    background: var(--sunk); color: var(--readout); text-align: center;
-  }
-  .service.out { color: #ff9a6a; }
 
   /* ---- trends ---- */
   .trendbar { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -659,104 +644,51 @@
 </section>
 
 <!-- ========================= SP MANIFOLD ========================== -->
+<!-- Built to simulator_screens/IMG_1195.PNG: the standpipe manifold as one
+     instrument face. One standpipe gauge over two manifold runs, and every
+     branch a handwheel -- standpipe, both mud pumps, the cement lines and
+     the kill line tie-in. -->
 <section class="screen" id="s-spmanifold">
-  <div class="cols">
-    <div>
-      <div class="card">
-        <h2>Standpipe manifold</h2>
-        <svg id="standpipe" viewBox="0 0 470 460" role="img"
-             aria-label="Standpipe manifold"></svg>
-        <div class="note">
-          Click any handwheel to work it. A wrong lineup is not marked wrong —
-          it simply does not work, and the well tells you by doing nothing.
-        </div>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <h2>Circulating system</h2>
-        <svg id="pid" viewBox="0 0 720 420" role="img" aria-label="Piping schematic"></svg>
-      </div>
-      <div class="card">
-        <h2>All valves</h2>
-        <div class="valves" id="valve-list"></div>
-      </div>
+  <svg id="spface" viewBox="0 0 1600 680" role="img"
+       aria-label="Standpipe manifold"></svg>
+  <div class="card">
+    <div class="note">
+      Click a handwheel to work it — green hub passing, red shut. A wrong
+      lineup is not marked wrong; it simply does not work, and the well tells
+      you by doing nothing. The cement lines are blanked on this rig, which
+      is exactly what opening them tells you.
     </div>
   </div>
 </section>
 
 <!-- ======================= CHOKE MANIFOLD ========================= -->
+<!-- Built to simulator_screens/IMG_1196.PNG: choke line in bottom left, kill
+     line bottom right, the feed from the SP manifold between them, four
+     chokes across the top and the riser to the pits between them. -->
 <section class="screen" id="s-chokemanifold">
+  <svg id="ckface" viewBox="0 0 1600 680" role="img"
+       aria-label="Choke and kill manifold"></svg>
   <div class="card">
-    <h2>Choke and kill manifold</h2>
-    <svg id="ckmanifold" viewBox="0 0 640 330" role="img"
-         aria-label="Choke and kill manifold"></svg>
-  </div>
-
-  <div class="card">
-    <h2>Chokes</h2>
-    <!-- Four throttling routes, as the manifold has. Only the ones actually
-         lined up pass anything, and two open at once pass more than the
-         handle in your hand accounts for. -->
-    <div class="chokegrid" id="choke-bank"></div>
     <div class="note">
       The remote chokes travel fast; the handwheels are slower, which is the
-      difference you feel when a remote fails and you change over.
+      difference you feel when a remote fails and you change over. Two chokes
+      open at once pass more than the handle in your hand accounts for.
     </div>
   </div>
 </section>
 
 <!-- =========================== TRIP TANK ========================== -->
+<!-- Built to simulator_screens/IMG_1197.PNG: the stack in elevation on the
+     left, the flow line across the top to the shakers, the trip tank in the
+     middle with its alarms, and the active mud volume on the right. -->
 <section class="screen" id="s-triptank">
-  <div class="cols">
-    <div>
-      <div class="card">
-        <h2>Trip tank</h2>
-        <svg id="triptank" viewBox="0 0 560 360" role="img"
-             aria-label="Trip tank and pit system"></svg>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <h2>Tank in service</h2>
-        <div id="tt-service" class="service">&mdash;</div>
-        <div class="note">
-          A trip tank measures a trip only with the valve open <em>and</em> the
-          fill-up pump running. Lined up half way, the hole is still being
-          filled — from the active system, where a barrel and a half does not
-          show against eight hundred.
-        </div>
-        <div class="btns" style="margin-top:8px">
-          <button data-tt="trip_tank_fillup">Fill-up line pump</button>
-          <button data-tt="trip_tank_fill">Tank fill pump</button>
-          <button data-tt="trip_tank_drain">Drain pump</button>
-          <button data-tt="pit_transfer">Reserve transfer</button>
-        </div>
-        <div class="btns" style="margin-top:6px">
-          <button data-valve-toggle="trip_tank_valve">Trip tank valve</button>
-          <button class="zero" data-zero="trip_tank">Zero trip tank</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Level alarms</h2>
-        <div class="alarm-lamps" style="margin-bottom:8px">
-          <span id="lamp-tt-low"></span><span id="lamp-tt-high"></span>
-        </div>
-        <div class="setpoints">
-          <label>Low</label><input type="number" id="sp-tt-low" step="1">
-          <label>High</label><input type="number" id="sp-tt-high" step="1">
-          <button id="arm-tt" class="armbtn">Alarm</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Trip tank history</h2>
-        <canvas id="c-tt" class="strip"></canvas>
-        <div class="legend">
-          <span><i class="key" style="background:var(--csg)"></i>Trip tank (bbl from mark)</span>
-        </div>
-      </div>
+  <svg id="ttface" viewBox="0 0 1600 680" role="img"
+       aria-label="Trip tank and pit system"></svg>
+  <div class="card">
+    <h2>Trip tank history</h2>
+    <canvas id="c-tt" class="strip"></canvas>
+    <div class="legend">
+      <span><i class="key" style="background:var(--csg)"></i>Trip tank (bbl from mark)</span>
     </div>
   </div>
 </section>
@@ -973,13 +905,9 @@ async function poll() {
 function redraw() {
   if (screen === "choke") drawCharts();
   else if (screen === "bop") { drawBopPanel(lastGauges); drawLineup(lineupCache); }
-  else if (screen === "spmanifold") {
-    drawStandpipeManifold(); drawPid(); drawLineup(lineupCache);
-  }
-  else if (screen === "chokemanifold") {
-    drawChokeKillManifold(); drawChokeBank();
-  }
-  else if (screen === "triptank") { drawTripTank(); drawTripTankChart(); }
+  else if (screen === "spmanifold") drawSpManifoldFace(lastGauges);
+  else if (screen === "chokemanifold") drawChokeManifoldFace(lastGauges);
+  else if (screen === "triptank") { drawTripTankFace(lastGauges); drawTripTankChart(); }
   else if (screen === "trends") drawTrends();
   else if (screen === "well") drawSchematic();
 }
@@ -1652,9 +1580,51 @@ function faceAction(act, g) {
   const regBy = (key, d) => send("closingunit",
     {[key]: Math.max(0, Math.min(unit.capacity_psi || 3000, (unit[key] || 0) + d))});
 
+  /* The manifold faces' controls. A handwheel toggles its own valve; a pump
+     symbol toggles its own pump against what the face last drew; a choke's
+     steppers nudge that choke's own opening -- each manifold choke has its
+     own, which is what changing over after a plug is about. */
+  const pumpRunning = name => ({
+    trip_tank_fillup: g.trip_tank && g.trip_tank.fillup_pump,
+    trip_tank_fill: g.trip_tank && g.trip_tank.fill_pump,
+    trip_tank_drain: g.trip_tank && g.trip_tank.drain_pump,
+    pit_transfer: g.pits && g.pits.transfer_pump,
+  })[name];
+  const ckBy = (name, d) => {
+    const c = (g.chokes || {})[name] || {commanded: 0};
+    send("choke", {percent: Math.max(0, Math.min(100, c.commanded + d)),
+                   choke: name});
+  };
+  /* The trip tank's set points move independently and stay uncrossed, for
+     the same reasons as the DCU's. */
+  const ttBy = (which, d) => {
+    const a = g.trip_tank.alarm;
+    if (which === "low") {
+      send("alarm", {name: "trip_tank_level",
+                     low: Math.min(a.high, (a.low || 0) + d)});
+    } else {
+      send("alarm", {name: "trip_tank_level",
+                     high: Math.max(a.low, (a.high || 0) + d)});
+    }
+  };
+
   switch (act) {
     case "open":    chokeBy(5); break;
     case "close":   chokeBy(-5); break;
+
+    // -- the manifold faces -------------------------------------------------
+    case "valve":   toggleValve(arg); break;
+    case "pump":    send("transfer", {name: arg, running: !pumpRunning(arg)});
+                    break;
+    case "ckpos-":  ckBy(arg, -5); break;
+    case "ckpos+":  ckBy(arg, 5); break;
+    case "ttzero":  send("zero", {instrument: "trip_tank"}); break;
+    case "ttarm":   send("alarm", {name: "trip_tank_level",
+                      armed: !g.trip_tank.alarm.armed}); break;
+    case "ttlow-":  ttBy("low", -1); break;
+    case "ttlow+":  ttBy("low", 1); break;
+    case "tthigh-": ttBy("high", -1); break;
+    case "tthigh+": ttBy("high", 1); break;
 
     // -- the BOP panel ------------------------------------------------------
     // Nothing here reports failure, and that is deliberate: with the bottles
@@ -2224,22 +2194,16 @@ function drawDcuFace(g) {
 function drawDcu(g) {
   drawDcuFace(g);
 
-  const pit = g.pits, flow = g.return_flow, tt = g.trip_tank, dr = g.drilling;
-  // The trip tank screen keeps its own lamps; the DCU's are on the face.
-  $("lamp-tt-low").innerHTML = lamp(tt.alarm.low_active, "Low level", "#e0a020");
-  $("lamp-tt-high").innerHTML = lamp(tt.alarm.high_active, "High level", "#e2453d");
-
+  const pit = g.pits, flow = g.return_flow, dr = g.drilling;
+  // The trip tank's lamps and set points live on its own face now.
   setpoint("sp-pit-low", pit.alarm.low);
   setpoint("sp-pit-high", pit.alarm.high);
   setpoint("sp-flow-low", flow.alarm.low);
   setpoint("sp-flow-high", flow.alarm.high);
-  setpoint("sp-tt-low", tt.alarm.low);
-  setpoint("sp-tt-high", tt.alarm.high);
   setpoint("set-wob", dr.auto_driller ? dr.wob_setpoint_klbf : dr.wob_commanded_klbf);
   setpoint("set-rpm", dr.rpm_commanded);
   armButton("arm-pit", pit.alarm.armed);
   armButton("arm-flow", flow.alarm.armed);
-  armButton("arm-tt", tt.alarm.armed);
   armButton2("auto-driller", dr.auto_driller);
 
   $("flow-pct").textContent = flow.flowing_with_the_pump_off
@@ -2274,114 +2238,9 @@ function chartFull() {
   return Math.max(2000, Math.ceil((maaspPsi || 1500) * 1.6 / 500) * 500);
 }
 
-/* ------------------------------ choke bank ------------------------------ */
-const CHOKE_LABELS = {
-  choke_1: "Remote choke 1", choke_2: "Remote choke 2",
-  manual_choke_1: "Manual choke 1", manual_choke_2: "Manual choke 2",
-};
-
-function drawChokeBank() {
-  const g = lastGauges; if (!g || !g.chokes) return;
-  $("choke-bank").innerHTML = Object.keys(CHOKE_LABELS).map(name => {
-    const c = g.chokes[name] || {position: 0, commanded: 0};
-    const live = g.choke_in_service === name;
-    const open = valveState(name) === "open";
-    return `<div class="chokecell ${live ? "live" : ""}">
-      <h3>${CHOKE_LABELS[name]}</h3>
-      ${dial({value: c.position, max: 100, label: "", unit: "% open",
-              size: 130, ticks: 6, decimals: 0})}
-      <div class="row" style="margin-top:6px">
-        <input type="range" min="0" max="100" step="1" value="${c.commanded}"
-               data-chokeset="${name}">
-        <div class="readback">${c.commanded.toFixed(0)}</div>
-      </div>
-      <div class="btns">
-        <button data-valve-toggle="${name}">${open ? "Isolate" : "Line up"}</button>
-      </div>
-      <div class="state">${open ? "on the return route" : "isolated"}${
-        live ? " &middot; in service" : ""}</div>
-    </div>`;
-  }).join("");
-}
-
-/* ------------------------------- trip tank ------------------------------ */
-/* The tank, the two pits, and the lines between them. Levels are drawn to
-   scale against each vessel's own capacity, because the point of the screen
-   is that a 35 bbl tank resolves what an 800 bbl system cannot. */
-function drawTripTank() {
-  const g = lastGauges; if (!g || !g.trip_tank) return;
-  const tt = g.trip_tank, pits = g.pits;
-  const bits = [];
-
-  const vessel = (x, y, w, h, frac, title, sub, colour) => {
-    const fh = Math.max(0, Math.min(1, frac)) * h;
-    return `
-      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4"
-            fill="#10151b" stroke="#7b8a96" stroke-width="2"/>
-      <rect x="${x + 2}" y="${y + h - fh + 2}" width="${w - 4}"
-            height="${Math.max(0, fh - 4)}" rx="2" fill="${colour}" opacity="0.85"/>
-      <text x="${x + w / 2}" y="${y - 8}" text-anchor="middle" fill="var(--console-ink)"
-            font-size="12" font-weight="700" font-family="system-ui">${title}</text>
-      <text x="${x + w / 2}" y="${y + h + 16}" text-anchor="middle" fill="#5c4415"
-            font-size="11" font-family="Consolas, monospace">${sub}</text>`;
-  };
-
-  // Trip tank, with its alarm set points marked on the side of the glass.
-  bits.push(vessel(40, 60, 110, 170, tt.level_fraction, "Trip tank",
-    `${tt.volume_bbl.toFixed(1)} / ${tt.capacity_bbl} bbl`, "#c98a12"));
-  [["low", tt.alarm.low, "#e0a020"], ["high", tt.alarm.high, "#c4302a"]]
-    .forEach(([, level, colour]) => {
-      if (level === null || level === undefined) return;
-      const y = 60 + 170 * (1 - level / tt.capacity_bbl);
-      bits.push(`<line x1="34" y1="${y}" x2="156" y2="${y}" stroke="${colour}"
-        stroke-width="2" stroke-dasharray="5 3"/>`);
-    });
-
-  bits.push(vessel(230, 60, 120, 170,
-    pits.active_bbl / pits.active_capacity_bbl, "Active",
-    `${pits.active_bbl.toFixed(0)} / ${pits.active_capacity_bbl} bbl`, "#8a5a20"));
-  bits.push(vessel(410, 60, 110, 170,
-    pits.reserve_bbl / pits.reserve_capacity_bbl, "Reserve",
-    `${pits.reserve_bbl.toFixed(0)} / ${pits.reserve_capacity_bbl} bbl`, "#6a4a18"));
-
-  // The lines, coloured live when their pump is running.
-  const line = (x1, y1, x2, y2, on, label) => `
-    <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
-          stroke="${on ? "#3fdc6a" : "#7b8a96"}" stroke-width="${on ? 5 : 3}"/>
-    <text x="${(x1 + x2) / 2}" y="${y1 - 7}" text-anchor="middle"
-          fill="var(--console-ink)" font-size="10" font-weight="600"
-          font-family="system-ui">${label}</text>`;
-  bits.push(line(150, 105, 230, 105, tt.fill_pump, "fill"));
-  bits.push(line(230, 185, 150, 185, tt.drain_pump, "drain"));
-  bits.push(line(350, 145, 410, 145, pits.transfer_pump, "transfer"));
-
-  // Down to the well, which is the line that matters.
-  const inService = g.trip_tank_in_service;
-  bits.push(`<line x1="95" y1="230" x2="95" y2="300"
-    stroke="${inService ? "#3fdc6a" : "#7b8a96"}" stroke-width="${inService ? 5 : 3}"/>`);
-  bits.push(`<text x="95" y="320" text-anchor="middle" fill="var(--console-ink)"
-    font-size="11" font-weight="700" font-family="system-ui">
-    ${inService ? "fill-up line — hole being kept full" : "fill-up line — not running"}</text>`);
-  bits.push(`<text x="95" y="336" text-anchor="middle" fill="#5c4415"
-    font-size="11" font-family="Consolas, monospace">${
-      tt.change_bbl >= 0 ? "+" : ""}${tt.change_bbl.toFixed(2)} bbl from mark</text>`);
-
-  $("triptank").innerHTML = bits.join("");
-
-  const el = $("tt-service");
-  el.textContent = inService
-    ? "IN SERVICE — the trip is being measured"
-    : "NOT IN SERVICE — valve and fill-up pump both needed";
-  el.classList.toggle("out", !inService);
-
-  document.querySelectorAll("[data-tt]").forEach(b => {
-    const running = {
-      trip_tank_fillup: tt.fillup_pump, trip_tank_fill: tt.fill_pump,
-      trip_tank_drain: tt.drain_pump, pit_transfer: pits.transfer_pump,
-    }[b.dataset.tt];
-    b.classList.toggle("on", Boolean(running));
-  });
-}
+/* The choke bank and the old trip tank cards are gone: the chokes live on
+   the choke manifold face and the tank on the trip tank face, both drawn to
+   their reference photographs. See "the three manifold faces" below. */
 
 /* -------------------------------- trends -------------------------------- */
 /* Both forms, because a student who will sit a commercial box later should be
@@ -2640,259 +2499,533 @@ function drawSchematic() {
      <tbody>${rows}</tbody>`;
 }
 
-/* --------------------------------- P&ID -------------------------------- */
-const PID_NODES = {
-  "mud pump":          [40, 40, 92, 30],
-  "standpipe":         [190, 40, 92, 30],
-  "drill string":      [340, 40, 92, 30],
-  "bit":               [480, 40, 60, 30],
-  "annulus":           [480, 130, 92, 30],
-  "BOP stack":         [480, 210, 92, 30],
-  "flowline":          [340, 300, 92, 30],
-  "choke line":        [300, 210, 92, 30],
-  "kill line":         [140, 130, 92, 30],
-  "choke manifold":    [140, 300, 110, 30],
-  "mud gas separator": [140, 360, 110, 30],
-  "active pits":       [340, 360, 92, 30],
-  "trip tank":         [600, 130, 80, 30],
+/* ===================== the three manifold faces ======================== */
+/* Built to the photographs in simulator_screens/ -- IMG_1195 (standpipe
+   manifold), IMG_1196 (choke manifold), IMG_1197 (trip tank) -- as one fixed
+   viewBox per screen, everything at fixed coordinates, wall to wall like the
+   choke panel and the DCU. The idiom is the reference console's: a pale
+   grey-blue panel, oxide-red pipework drawn as pipe (three passes, flanges,
+   tee collars -- the same treatment as the subsea BOP face), black
+   handwheels with a lamp in the hub, white dual-scale gauges with a digital
+   window in the face, pumps as volutes with an impeller, tanks as black
+   cylinders lettered in white.
+
+   Same host rules as every face: innerHTML replaced whole on each poll, so
+   handlers live on the host via wireFace, controls fire on pointerdown, and
+   every control carries a hit target larger than the drawing. */
+
+const MFACE = {
+  W: 1600, H: 680,
+  panel: "#b9c0c6", panelEdge: "#8f989f", ink: "#22282e",
+  lampOn: "#25c04e", lampOff: "#c4302a",
 };
-
-/* Drawn as a manifold panel rather than a graph: heavy red pipework on a
-   light panel, with gate valves that show green when they are passing. That is
-   what the schematic on a standpipe or choke manifold screen looks like, and a
-   student who has seen one should recognise this. See simulator_screens/. */
-const PIPE_RED = "#b8322c";
-const PIPE_DARK = "#7d211c";
-const VALVE_OPEN = "#25c04e";
-const VALVE_SHUT = "#14181c";
-
-function drawPid() {
-  const svg = $("pid");
-  const active = new Set();
-  lineupCache.forEach(v => { if (v.state === "open" && !v.is_bop) { active.add(v.from); active.add(v.to); } });
-  const bits = [`<rect width="720" height="420" fill="#b9c0c6"/>`];
-
-  // In the engine each BOP element joins two stack bore segments -- that is
-  // what makes the outlet heights real -- but the P&ID is a simplified
-  // overview with one annulus box and one stack box, so every element is
-  // pinned back onto that line. The BOP screen is where the segments show.
-  const pidEnds = v => v.is_bop ? ["annulus", "BOP stack"] : [v.from, v.to];
-
-  // Several valves can join the same pair of nodes -- the BOP elements
-  // all sit between the annulus and the stack, and the kelly cock and the
-  // float share the string and the bit. Drawn on the raw midpoint they land on
-  // top of each other and only the last one is visible or clickable, so they
-  // are counted first and then fanned out along the line.
-  const groups = {};
-  lineupCache.forEach(v => {
-    const key = pidEnds(v).sort().join("|");
-    (groups[key] = groups[key] || []).push(v);
-  });
-
-  // Edges first, so boxes sit on top.
-  Object.values(groups).forEach(group => {
-    group.forEach((v, i) => {
-      const [fromEnd, toEnd] = pidEnds(v);
-      const a = PID_NODES[fromEnd], b = PID_NODES[toEnd];
-      if (!a || !b) return;
-      const ax = a[0] + a[2] / 2, ay = a[1] + a[3] / 2;
-      const bx = b[0] + b[2] / 2, by = b[1] + b[3] / 2;
-      // A BOP element reads backwards: closed is what seals the annulus, so
-      // closed is the state worth colouring as significant.
-      const open = v.state === "open";
-      if (i === 0) {
-        // Pipework is pipework whether or not it is flowing -- it is the
-        // valves that say what is passing. Drawn heavy, with a darker casing
-        // line under it so it reads as pipe rather than as a connector.
-        const live = group.some(g => g.state === "open" && !g.is_bop);
-        bits.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}"
-          stroke="${PIPE_DARK}" stroke-width="13" stroke-linecap="round"/>`);
-        bits.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}"
-          stroke="${live ? PIPE_RED : "#9c4a45"}" stroke-width="9"
-          stroke-linecap="round"/>`);
-      }
-      // Fan the markers along the line, centred on its midpoint.
-      const spread = 19;
-      const offset = (i - (group.length - 1) / 2) * spread;
-      const len = Math.hypot(bx - ax, by - ay) || 1;
-      const mx = (ax + bx) / 2 + (bx - ax) / len * offset;
-      const my = (ay + by) / 2 + (by - ay) / len * offset;
-      // A gate valve: the bowtie every P&ID uses, with a stem and handwheel,
-      // ringed in green when it is passing. The ring is what the manifold
-      // screens use to make an open valve findable at a glance.
-      const ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
-      const face = v.is_bop
-        ? (open ? "#4a5560" : "#c0392b")
-        : (open ? VALVE_OPEN : VALVE_SHUT);
-      bits.push(`<g class="pv" data-valve="${v.name}" style="cursor:pointer"
-        transform="translate(${mx} ${my}) rotate(${ang})">
-        <circle r="14" fill="transparent"/>
-        ${open && !v.is_bop
-          ? `<circle r="12" fill="none" stroke="${VALVE_OPEN}" stroke-width="2.5"
-               opacity="0.85"/>` : ""}
-        <polygon points="-9,-8 -9,8 0,0" fill="${face}" stroke="#12161a" stroke-width="1.2"/>
-        <polygon points="9,-8 9,8 0,0" fill="${face}" stroke="#12161a" stroke-width="1.2"/>
-        <line x1="0" y1="0" x2="0" y2="-13" stroke="#12161a" stroke-width="2"/>
-        <line x1="-5" y1="-13" x2="5" y2="-13" stroke="#12161a" stroke-width="2.5"/>
-        <title>${v.label} — ${v.state}${v.is_bop
-          ? " (BOP: closed seals the annulus)" : ""}</title></g>`);
-    });
-  });
-
-  // Equipment as labelled plates on the panel, in the manifold-screen idiom:
-  // a dark tag with light lettering, brightened when fluid can reach it.
-  Object.entries(PID_NODES).forEach(([name, [x, yy, w, h]]) => {
-    const on = active.has(name);
-    bits.push(`<rect x="${x}" y="${yy}" width="${w}" height="${h}" rx="3"
-      fill="${on ? "#1d2830" : "#454e56"}" stroke="#12161a" stroke-width="1.5"/>`);
-    bits.push(`<text x="${x + w / 2}" y="${yy + h / 2 + 4}" text-anchor="middle"
-      fill="${on ? "#eef3f7" : "#c2c9cf"}" font-size="10.5"
-      font-family="system-ui, sans-serif" font-weight="600">${name}</text>`);
-  });
-  svg.innerHTML = bits.join("");
-  svg.querySelectorAll(".pv").forEach(g => {
-    g.onclick = () => toggleValve(g.dataset.valve);
-  });
-}
-
-/* ------------------------------ manifolds ------------------------------ */
-/* Laid out as the manifold screens are: heavy red pipework on a grey panel,
-   gate valves as red bodies ringed in green when they are passing, digital
-   pressure tags in black, pumps as blue blocks. See simulator_screens/. */
-
-function pipe(x1, y1, x2, y2) {
-  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${PIPE_DARK}"
-      stroke-width="17" stroke-linecap="square"/>
-    <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${PIPE_RED}"
-      stroke-width="12" stroke-linecap="square"/>`;
-}
-
-function gateValve(cx, cy, name, label, open, vertical) {
-  // The green ring is what makes an open valve findable at a glance, which is
-  // the whole job of a manifold screen.
-  return `<g class="pv" data-valve="${name}" style="cursor:pointer"
-      transform="translate(${cx} ${cy}) rotate(${vertical ? 90 : 0})">
-    <circle r="17" fill="transparent"/>
-    ${open ? `<circle r="15" fill="none" stroke="${VALVE_OPEN}" stroke-width="3"/>` : ""}
-    <rect x="-11" y="-11" width="22" height="22" rx="2" fill="${PIPE_RED}"
-      stroke="#12161a" stroke-width="1.5"/>
-    <polygon points="-8,-7 -8,7 0,0" fill="${open ? VALVE_OPEN : VALVE_SHUT}"
-      stroke="#12161a"/>
-    <polygon points="8,-7 8,7 0,0" fill="${open ? VALVE_OPEN : VALVE_SHUT}"
-      stroke="#12161a"/>
-    <title>${label} — ${open ? "open" : "shut"}</title></g>`;
-}
-
-function digitalTag(x, y, label, value, unit) {
-  return `<text x="${x + 46}" y="${y - 4}" text-anchor="middle" fill="#22282e"
-      font-size="10" font-weight="600" font-family="system-ui, sans-serif">${label}</text>
-    <rect x="${x}" y="${y}" width="92" height="26" rx="2" fill="#0d1117" stroke="#3c4650"/>
-    <text x="${x + 46}" y="${y + 18}" text-anchor="middle" fill="#5df08a"
-      font-size="12" font-weight="700"
-      font-family="Consolas, monospace">${value} ${unit}</text>`;
-}
 
 function valveState(name) {
   const v = lineupCache.find(x => x.name === name);
   return v ? v.state === "open" : false;
 }
 
-function drawStandpipeManifold() {
-  const svg = $("standpipe"); if (!svg || !lineupCache.length) return;
-  const bits = [`<rect width="470" height="460" fill="#b9c0c6"/>`];
-  bits.push(`<text x="235" y="24" text-anchor="middle" fill="#22282e" font-size="13"
-    font-weight="700" font-family="system-ui, sans-serif">STANDPIPE MANIFOLD</text>`);
-
-  bits.push(digitalTag(60, 38, "Standpipe", Math.round(drillPipePsi), "psi"));
-  bits.push(digitalTag(310, 38, "Choke", Math.round(chokePsi), "psi"));
-
-  // Header across the middle, risers up to the taps, and the two pumps below.
-  const HEADER = 250, LEFT = 70, RIGHT = 400;
-  bits.push(pipe(LEFT, HEADER, RIGHT, HEADER));
-  bits.push(pipe(150, HEADER, 150, 120));       // standpipe riser
-  bits.push(pipe(320, HEADER, 320, 120));       // choke/kill riser
-  bits.push(pipe(LEFT, HEADER, LEFT, 360));     // down to MP1
-  bits.push(pipe(RIGHT, HEADER, RIGHT, 360));   // down to MP2
-  bits.push(pipe(235, HEADER, 235, 410));       // kill line take-off
-
-  bits.push(`<text x="150" y="112" text-anchor="middle" fill="#22282e" font-size="10"
-    font-weight="700" font-family="system-ui, sans-serif">TO STANDPIPE</text>`);
-  bits.push(`<text x="320" y="112" text-anchor="middle" fill="#22282e" font-size="10"
-    font-weight="700" font-family="system-ui, sans-serif">TO KILL LINE</text>`);
-
-  bits.push(gateValve(150, 180, "standpipe_valve", "Standpipe valve",
-    valveState("standpipe_valve"), true));
-  bits.push(gateValve(320, 180, "pump_to_kill_line", "Pump to kill line",
-    valveState("pump_to_kill_line"), true));
-  bits.push(gateValve(LEFT, 310, "pump_discharge", "Mud pump discharge",
-    valveState("pump_discharge"), true));
-  bits.push(gateValve(235, 330, "kill_line_valve", "Kill line valve",
-    valveState("kill_line_valve"), true));
-
-  // Pumps, drawn as the blue blocks the manifold screens use.
-  [[LEFT, "MP1"], [RIGHT, "MP2"]].forEach(([x, tag]) => {
-    bits.push(`<rect x="${x - 34}" y="362" width="68" height="34" rx="3"
-      fill="#2f5fa8" stroke="#12161a" stroke-width="2"/>`);
-    bits.push(`<text x="${x}" y="384" text-anchor="middle" fill="#eaf1fb"
-      font-size="12" font-weight="700" font-family="system-ui, sans-serif">${tag}</text>`);
-  });
-  bits.push(`<text x="235" y="432" text-anchor="middle" fill="#22282e" font-size="11"
-    font-weight="700" font-family="system-ui, sans-serif">KILL LINE</text>`);
-
-  svg.innerHTML = bits.join("");
-  svg.querySelectorAll(".pv").forEach(g =>
-    g.onclick = () => toggleValve(g.dataset.valve));
+function mfBase() {
+  return `<rect width="${MFACE.W}" height="${MFACE.H}" fill="${MFACE.panel}"/>
+    <rect x="0" y="0" width="${MFACE.W}" height="6" fill="#cdd3d8"/>
+    <rect x="0" y="${MFACE.H - 6}" width="${MFACE.W}" height="6" fill="#9aa2a9"/>`;
 }
 
-function drawChokeKillManifold() {
-  const svg = $("ckmanifold"); if (!svg || !lineupCache.length) return;
-  const bits = [`<rect width="640" height="330" fill="#b9c0c6"/>`];
-  bits.push(`<text x="320" y="22" text-anchor="middle" fill="#22282e" font-size="13"
-    font-weight="700" font-family="system-ui, sans-serif">CHOKE AND KILL MANIFOLD</text>`);
+function mfLabel(x, y, text, size = 15, anchor = "middle", weight = 700) {
+  return `<text x="${x}" y="${y}" text-anchor="${anchor}" fill="${MFACE.ink}"
+    font-size="${size}" font-weight="${weight}"
+    font-family="system-ui, sans-serif">${text}</text>`;
+}
 
-  const IN = 60, HEADER = 150, OUT = 590;
-  // Two lines in from the stack, a common header, three ways out.
-  bits.push(pipe(IN, 78, 250, 78));
-  bits.push(pipe(IN, 232, 250, 232));
-  bits.push(pipe(250, 78, 250, 232));
-  bits.push(pipe(250, HEADER, 430, HEADER));
-  bits.push(pipe(430, 78, 430, 232));
-  bits.push(pipe(430, 78, OUT, 78));
-  bits.push(pipe(430, HEADER, OUT, HEADER));
-  bits.push(pipe(430, 232, OUT, 232));
+/* A black digital window with green lettering -- the reference's readout
+   idiom, shared by the gauges and the choke position boxes. */
+function mfWindow(x, y, w, h, text, size = 15) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3"
+      fill="#0d1117" stroke="#3c4650" stroke-width="1.5"/>
+    <text x="${x + w / 2}" y="${y + h / 2 + size * 0.36}" text-anchor="middle"
+      fill="#5df08a" font-size="${size}" font-weight="700"
+      font-family="Consolas, monospace">${text}</text>`;
+}
 
-  const tag = (x, y, text, anchor) =>
-    `<text x="${x}" y="${y}" text-anchor="${anchor || "middle"}" fill="#22282e"
-      font-size="10" font-weight="700"
-      font-family="system-ui, sans-serif">${text}</text>`;
-  bits.push(tag(IN - 4, 74, "CHOKE LINE", "end"));
-  bits.push(tag(IN - 4, 228, "KILL LINE", "end"));
-  bits.push(tag(OUT + 6, 74, "CHOKE 1", "start"));
-  bits.push(tag(OUT + 6, 146, "BYPASS", "start"));
-  bits.push(tag(OUT + 6, 228, "CHOKE 2", "start"));
+/* A gate valve drawn the way the reference draws one: a black handwheel
+   face-on with a lamp in the hub -- green passing, red shut. The wheel is
+   the control; one press toggles the valve. `fill="transparent"` on the hit
+   disc, never "none": none is not hit-tested at all. */
+function handwheel(cx, cy, name, label, r = 30) {
+  const open = valveState(name);
+  const spokes = [0, 60, 120].map(a =>
+    `<line x1="${-r * 0.78}" y1="0" x2="${r * 0.78}" y2="0"
+       transform="rotate(${a})" stroke="#14181c"
+       stroke-width="${r * 0.17}"/>`).join("");
+  return `<g transform="translate(${cx} ${cy})" data-face="valve:${name}"
+      style="cursor:pointer">
+    <circle r="${r + 14}" fill="transparent"/>
+    <circle r="${r}" fill="none" stroke="#0b0e11" stroke-width="${r * 0.36}"/>
+    <circle r="${r}" fill="none" stroke="#2e353c" stroke-width="${r * 0.16}"/>
+    <circle cx="${-r * 0.28}" cy="${-r * 0.28}" r="${r * 0.9}" fill="none"
+      stroke="#4a525a" stroke-width="${r * 0.05}" opacity="0.6"/>
+    ${spokes}
+    <circle r="${r * 0.36}" fill="#14181c"/>
+    <circle r="${r * 0.23}" fill="${open ? MFACE.lampOn : MFACE.lampOff}"/>
+    <circle cx="${-r * 0.07}" cy="${-r * 0.09}" r="${r * 0.07}"
+      fill="#ffffff" opacity="0.75"/>
+    <title>${label} — ${open ? "open" : "shut"}</title></g>`;
+}
 
-  bits.push(gateValve(155, 78, "choke_line_to_manifold", "Choke line to manifold",
-    valveState("choke_line_to_manifold"), false));
-  bits.push(gateValve(155, 232, "kill_line_to_manifold", "Kill line to manifold",
-    valveState("kill_line_to_manifold"), false));
-  bits.push(gateValve(515, 78, "choke_1", "Adjustable choke 1",
-    valveState("choke_1"), false));
-  bits.push(gateValve(515, HEADER, "choke_bypass", "Choke manifold bypass",
-    valveState("choke_bypass"), false));
-  bits.push(gateValve(515, 232, "choke_2", "Adjustable choke 2",
-    valveState("choke_2"), false));
+/* A dual-scale pressure gauge as the reference draws one: white face, black
+   bezel, an outer psi scale and an inner red bar scale, with the reading
+   repeated in a digital window set into the face. A needle says which way
+   the pressure is going without being read; the window says exactly what it
+   is. 270-degree sweep, zero at 7:30. */
+function manifoldGauge(cx, cy, r, label, value, max = 5000) {
+  const a0 = 135, sweep = 270;                    // degrees, clockwise from +x
+  const pol = (rr, deg) => {
+    const rad = deg * Math.PI / 180;
+    return [cx + rr * Math.cos(rad), cy + rr * Math.sin(rad)];
+  };
+  const b = [];
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#14181c"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.94}" fill="#22282e"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.86}" fill="#f4f5f4"/>`);
 
-  // The adjustable choke's opening, which is the one thing here that is not
-  // simply open or shut.
-  bits.push(`<rect x="250" y="266" width="140" height="30" rx="3" fill="#0d1117"
-    stroke="#3c4650"/>`);
-  bits.push(`<text x="320" y="286" text-anchor="middle" fill="#5df08a" font-size="13"
-    font-weight="700" font-family="Consolas, monospace">CHOKE ${chokePercent.toFixed(1)}%</text>`);
-  bits.push(tag(320, 312, "adjustable choke position"));
+  // Outer psi scale: a major every tenth with a numeral on every other one.
+  for (let i = 0; i <= 20; i++) {
+    const deg = a0 + sweep * i / 20;
+    const major = i % 2 === 0;
+    const [x1, y1] = pol(r * 0.80, deg), [x2, y2] = pol(r * (major ? 0.70 : 0.745), deg);
+    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+      stroke="#191d21" stroke-width="${r * (major ? 0.022 : 0.012)}"/>`);
+    if (major) {
+      const [tx, ty] = pol(r * 0.60, deg);
+      b.push(`<text x="${tx}" y="${ty + r * 0.035}" text-anchor="middle"
+        fill="#191d21" font-size="${r * 0.105}" font-weight="600"
+        font-family="system-ui, sans-serif">${max * i / 20}</text>`);
+    }
+  }
+  // Inner bar scale, in the red the reference prints it in: clean multiples
+  // of 50 bar, each placed where that pressure actually falls on the sweep.
+  const fullBar = max / 14.5038;
+  for (let bar = 0; bar <= fullBar; bar += 50) {
+    const deg = a0 + sweep * bar / fullBar;
+    const [x1, y1] = pol(r * 0.475, deg), [x2, y2] = pol(r * 0.42, deg);
+    b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+      stroke="#b02620" stroke-width="${r * 0.014}"/>`);
+    const [tx, ty] = pol(r * 0.36, deg);
+    b.push(`<text x="${tx}" y="${ty + r * 0.03}" text-anchor="middle"
+      fill="#b02620" font-size="${r * 0.08}" font-weight="600"
+      font-family="system-ui, sans-serif">${bar}</text>`);
+  }
 
-  svg.innerHTML = bits.join("");
-  svg.querySelectorAll(".pv").forEach(g =>
-    g.onclick = () => toggleValve(g.dataset.valve));
+  const frac = Math.max(0, Math.min(1, (value || 0) / max));
+  const deg = a0 + sweep * frac;
+  const [nx, ny] = pol(r * 0.72, deg);
+  const [bx, by] = pol(-r * 0.10, deg);
+  b.push(`<line x1="${bx}" y1="${by}" x2="${nx}" y2="${ny}" stroke="#101316"
+    stroke-width="${r * 0.045}" stroke-linecap="round"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.09}" fill="#101316"/>`);
+
+  b.push(mfWindow(cx - r * 0.34, cy + r * 0.30, r * 0.68, r * 0.24,
+    Math.round(value || 0).toLocaleString(), r * 0.15));
+  b.push(`<text x="${cx}" y="${cy + r * 0.68}" text-anchor="middle"
+    fill="#5a6167" font-size="${r * 0.085}" font-weight="600"
+    font-family="system-ui, sans-serif">psi</text>`);
+  b.push(mfLabel(cx, cy + r + 26, label, 14));
+  return b.join("");
+}
+
+/* A centrifugal pump: the volute face-on with a swept impeller in it, on a
+   base. The whole symbol is the switch -- ringed green and turning a green
+   hub while it runs. */
+function pumpSymbol(cx, cy, name, label, running, r = 30) {
+  const blades = [0, 90, 180, 270].map(a =>
+    `<path d="M 0 0 Q ${r * 0.42} ${-r * 0.18} ${r * 0.62} ${r * 0.10}"
+       transform="rotate(${a})" fill="none" stroke="#e8ebee"
+       stroke-width="${r * 0.13}" stroke-linecap="round"/>`).join("");
+  return `<g transform="translate(${cx} ${cy})" data-face="pump:${name}"
+      style="cursor:pointer">
+    <circle r="${r + 14}" fill="transparent"/>
+    <rect x="${-r * 0.9}" y="${r * 0.72}" width="${r * 1.8}" height="${r * 0.34}"
+      rx="${r * 0.1}" fill="#3a424a"/>
+    <circle r="${r}" fill="${running ? "#1d6b35" : "#3a424a"}"
+      stroke="#14181c" stroke-width="${r * 0.12}"/>
+    ${blades}
+    <circle r="${r * 0.18}" fill="${running ? MFACE.lampOn : "#14181c"}"/>
+    ${running ? `<circle r="${r + 5}" fill="none" stroke="${MFACE.lampOn}"
+      stroke-width="3" opacity="0.85"/>` : ""}
+    <title>${label} — ${running ? "running" : "stopped"} (click to ${
+      running ? "stop" : "start"})</title></g>`;
+}
+
+/* A vertical tank: black cylinder, white lettering, the level as a band of
+   mud. `lines` are [text, size, dy] rows drawn down the shell. */
+function tankCylinder(cx, top, w, h, frac, lines) {
+  const ry = w * 0.13, x = cx - w / 2;
+  const level = Math.max(0, Math.min(1, frac || 0));
+  const ly = top + h - h * level;
+  const b = [];
+  b.push(`<rect x="${x}" y="${top}" width="${w}" height="${h}" fill="#14181c"/>`);
+  b.push(`<rect x="${x}" y="${top}" width="${w * 0.16}" height="${h}"
+    fill="#2b3138"/>`);
+  b.push(`<rect x="${x + w * 0.80}" y="${top}" width="${w * 0.2}" height="${h}"
+    fill="#07090b"/>`);
+  if (level > 0.005) {
+    b.push(`<rect x="${x}" y="${ly}" width="${w}" height="${top + h - ly}"
+      fill="#7a5a17" opacity="0.55"/>`);
+    b.push(`<ellipse cx="${cx}" cy="${ly}" rx="${w / 2}" ry="${ry * 0.9}"
+      fill="#c98a12" opacity="0.8"/>`);
+  }
+  b.push(`<ellipse cx="${cx}" cy="${top + h}" rx="${w / 2}" ry="${ry}"
+    fill="#0b0e11"/>`);
+  b.push(`<ellipse cx="${cx}" cy="${top}" rx="${w / 2}" ry="${ry}"
+    fill="#31383f" stroke="#0b0e11" stroke-width="2"/>`);
+  let y = top + h * 0.30;
+  lines.forEach(([text, size, dy]) => {
+    y += dy || 0;
+    b.push(`<text x="${cx}" y="${y}" text-anchor="middle" fill="#f2f4f5"
+      font-size="${size}" font-weight="700"
+      font-family="system-ui, sans-serif">${text}</text>`);
+    y += size * 1.5;
+  });
+  return b.join("");
+}
+
+/* A square stepper button for the set point boxes -- small, so it carries a
+   hit disc well past its own edge. */
+function mfStep(x, y, glyph, act) {
+  return `<g transform="translate(${x} ${y})" data-face="${act}"
+      style="cursor:pointer">
+    <circle r="17" fill="transparent"/>
+    <rect x="-11" y="-11" width="22" height="22" rx="4" fill="#3a424a"
+      stroke="#14181c" stroke-width="1.5"/>
+    <text x="0" y="5" text-anchor="middle" fill="#e8ebee" font-size="15"
+      font-weight="700" font-family="system-ui">${glyph}</text></g>`;
+}
+
+/* A lamp with a fixed legend, same shape as the BOP face's ARMED lamp: the
+   word stays put and the light behind it comes on. */
+function mfLamp(cx, cy, on, legend, colour) {
+  return `<circle cx="${cx}" cy="${cy}" r="9" fill="${on ? colour : "#20262c"}"
+      stroke="#14181c" stroke-width="2"/>
+    ${on ? `<circle cx="${cx}" cy="${cy}" r="13" fill="none" stroke="${colour}"
+      stroke-width="2" opacity="0.6"/>` : ""}
+    <text x="${cx + 20}" y="${cy + 4}" text-anchor="start" fill="${MFACE.ink}"
+      font-size="12" font-weight="700" font-family="system-ui">${legend}</text>`;
+}
+
+/* ------------------------- SP manifold face ----------------------------- */
+/* IMG_1195: the standpipe gauge over two manifold runs, the standpipe riser
+   top left, and the branches along the bottom run -- both mud pumps, the two
+   cement lines, and the kill line tie-in. Everything is a real valve; the
+   cement lines run to equipment this rig does not have, which is exactly
+   what opening them teaches. */
+function drawSpManifoldFace(g) {
+  const host = $("spface");
+  if (!host || !lineupCache.length || !g) return;
+  const PW = 18;
+  const b = [mfBase()];
+
+  const UPPER = 430, LOWER = 550;
+
+  // Runs first, controls on top.
+  b.push(pipeRun([[90, UPPER], [1510, UPPER]], PW));
+  b.push(pipeRun([[200, UPPER], [200, LOWER], [1400, LOWER], [1400, UPPER]], PW));
+  b.push(pipeRun([[280, UPPER], [280, 130]], PW));            // standpipe riser
+  [[340, "pump_discharge", "MUD PUMP 1"],
+   [620, "cement_head_valve", "CEMENT HEAD"],
+   [850, "cement_pump_valve", "CEMENT PUMP"],
+   [1080, "pump_to_kill_line", "TO KILL LINE"],
+   [1330, "pump_2_discharge", "MUD PUMP 2"]].forEach(([x]) => {
+    b.push(pipeRun([[x, LOWER], [x, 645]], PW));
+  });
+
+  b.push(pipeTee(200, UPPER, PW)); b.push(pipeTee(1400, UPPER, PW));
+  b.push(pipeTee(280, UPPER, PW));
+  b.push(pipeFlange(280, 150, PW, true));
+  b.push(pipeFlange(120, UPPER, PW, false));
+  b.push(pipeFlange(1480, UPPER, PW, false));
+  [340, 620, 850, 1080, 1330].forEach(x => {
+    b.push(pipeTee(x, LOWER, PW));
+    b.push(pipeFlange(x, 632, PW, true));
+  });
+
+  // The gauge dominates the face, as it does the photograph.
+  b.push(manifoldGauge(800, 200, 165, "STAND PIPE PRESSURE",
+    g.drill_pipe_psi));
+
+  b.push(mfLabel(280, 108, "STAND PIPE 1", 15));
+  b.push(mfLabel(96, UPPER - 60, "TO CHOKE MANIFOLD", 12, "start"));
+  b.push(handwheel(280, 300, "standpipe_valve", "Standpipe valve"));
+  b.push(handwheel(150, UPPER, "standpipe_to_manifold",
+    "Standpipe to choke manifold"));
+
+  [[340, "pump_discharge", "Mud pump discharge", "MUD PUMP 1"],
+   [620, "cement_head_valve", "Cement head isolation", "CEMENT HEAD"],
+   [850, "cement_pump_valve", "Cement pump isolation", "CEMENT PUMP"],
+   [1080, "pump_to_kill_line", "Pump to kill line", "TO KILL LINE"],
+   [1330, "pump_2_discharge", "Mud pump 2 discharge", "MUD PUMP 2"]]
+    .forEach(([x, name, label, tag]) => {
+      b.push(handwheel(x, 597, name, label));
+      b.push(mfLabel(x, 668, tag, 13));
+    });
+
+  host.innerHTML = b.join("");
+  wireFace(host, g);
+}
+
+/* ------------------------ choke manifold face --------------------------- */
+/* IMG_1196: the choke line in from bottom left, the kill line bottom right,
+   the feed from the SP manifold between them, four chokes across the top --
+   remote outboard, manual inboard -- and the riser to the pits between them.
+   Each choke carries its own position window with steppers; the one the
+   remote panel is driving is ringed green. */
+function drawChokeManifoldFace(g) {
+  const host = $("ckface");
+  if (!host || !lineupCache.length || !g) return;
+  const PW = 18;
+  const b = [mfBase()];
+
+  const COLLECT = 120, HEADER = 430, FOOT = 590;
+  const CHOKES = [
+    [320, "choke_1", "REMOTE CHOKE 1", true],
+    [560, "manual_choke_1", "MANUAL CHOKE 1", false],
+    [1040, "manual_choke_2", "MANUAL CHOKE 2", false],
+    [1280, "choke_2", "REMOTE CHOKE 2", true],
+  ];
+
+  // Pipework: collection line to the pits, the header, the three entries.
+  b.push(pipeRun([[180, COLLECT], [1400, COLLECT]], PW));
+  b.push(pipeRun([[800, COLLECT], [800, 34]], PW));           // to pits
+  b.push(pipeRun([[180, HEADER], [180, COLLECT]], PW));       // bypass
+  CHOKES.forEach(([x]) => b.push(pipeRun([[x, HEADER], [x, COLLECT]], PW)));
+  b.push(pipeRun([[110, HEADER], [1490, HEADER]], PW));
+  b.push(pipeRun([[60, FOOT], [250, FOOT], [250, HEADER]], PW));    // choke line
+  b.push(pipeRun([[1540, FOOT], [1350, FOOT], [1350, HEADER]], PW)); // kill line
+  b.push(pipeRun([[700, FOOT + 55], [700, HEADER]], PW));     // from SP manifold
+
+  b.push(pipeTee(800, COLLECT, PW)); b.push(pipeTee(180, COLLECT, PW));
+  CHOKES.forEach(([x]) => { b.push(pipeTee(x, COLLECT, PW)); b.push(pipeTee(x, HEADER, PW)); });
+  b.push(pipeTee(250, HEADER, PW)); b.push(pipeTee(1350, HEADER, PW));
+  b.push(pipeTee(700, HEADER, PW)); b.push(pipeTee(180, HEADER, PW));
+  b.push(pipeFlange(800, 48, PW, true));
+  b.push(pipeFlange(75, FOOT, PW, false)); b.push(pipeFlange(1525, FOOT, PW, false));
+  b.push(pipeFlange(700, FOOT + 42, PW, true));
+
+  b.push(mfLabel(800, 24, "TO PITS — via the separator", 14));
+  b.push(handwheel(800, 75, "separator_to_pits", "Separator to pits", 24));
+  b.push(mfLabel(180, HEADER - 190, "BY-PASS", 12));
+  b.push(handwheel(180, 275, "choke_bypass", "Choke manifold bypass", 26));
+
+  // The chokes. A remote is its actuator on a body; a manual is a handwheel.
+  // Both carry the position window, because the position is the one thing
+  // about a choke that is not simply open or shut.
+  CHOKES.forEach(([x, name, tag, remote]) => {
+    const c = (g.chokes || {})[name] || {position: 0, commanded: 0};
+    const live = g.choke_in_service === name;
+    b.push(mfLabel(x, 165, tag, 13));
+    if (remote) {
+      b.push(`<g transform="translate(${x} 265)" data-face="valve:${name}"
+          style="cursor:pointer">
+        <circle r="52" fill="transparent"/>
+        <rect x="-26" y="-38" width="52" height="76" rx="9" fill="#a8332d"
+          stroke="#14181c" stroke-width="2.5"/>
+        <rect x="-26" y="-38" width="12" height="76" rx="6" fill="#c05a54"
+          opacity="0.7"/>
+        <rect x="-14" y="-54" width="28" height="18" rx="4" fill="#3a424a"
+          stroke="#14181c" stroke-width="2"/>
+        <circle cy="0" r="9" fill="${valveState(name) ? MFACE.lampOn : MFACE.lampOff}"
+          stroke="#14181c" stroke-width="2"/>
+        <title>${tag} — ${valveState(name) ? "lined up" : "isolated"}
+          (click to ${valveState(name) ? "isolate" : "line up"})</title></g>`);
+    } else {
+      b.push(handwheel(x, 265, name, tag, 34));
+    }
+    if (live) {
+      b.push(`<rect x="${x - 62}" y="332" width="124" height="36" rx="6"
+        fill="none" stroke="${MFACE.lampOn}" stroke-width="3"/>`);
+    }
+    b.push(mfWindow(x - 52, 336, 104, 28, `${c.position.toFixed(0)} %`, 15));
+    b.push(mfStep(x - 76, 350, "−", `ckpos-:${name}`));
+    b.push(mfStep(x + 76, 350, "+", `ckpos+:${name}`));
+    if (live) b.push(mfLabel(x, 390, "IN SERVICE", 10));
+  });
+
+  // Gauges: the choke side on the header, the kill line on its own riser.
+  b.push(manifoldGauge(850, HEADER, 100, "CHOKE LINE PRESSURE", g.casing_psi));
+  b.push(manifoldGauge(1465, 470, 78, "KILL LINE PRESSURE", g.kill_line_psi));
+
+  b.push(handwheel(250, 510, "choke_line_to_manifold", "Choke line to manifold"));
+  b.push(mfLabel(140, FOOT + 45, "CHOKE LINE", 14));
+  b.push(handwheel(1350, 510, "kill_line_to_manifold", "Kill line to manifold"));
+  b.push(mfLabel(1450, FOOT + 45, "KILL LINE", 14));
+  b.push(handwheel(700, 510, "standpipe_to_manifold", "Standpipe to choke manifold"));
+  b.push(mfLabel(700, FOOT + 78, "FROM SP MANIFOLD", 13));
+
+  host.innerHTML = b.join("");
+  wireFace(host, g);
+}
+
+/* -------------------------- trip tank face ------------------------------ */
+/* IMG_1197: the stack in elevation on the left, the flow line across the top
+   to the shakers, the return and fill-up lines to the trip tank, the tank
+   with its alarms beside it, and the active mud volume on the right. The
+   tank is in service only with the valve open *and* the fill-up pump
+   running -- lined up half way, the hole is being filled from the active
+   system, where a barrel and a half does not show against eight hundred. */
+function drawTripTankFace(g) {
+  const host = $("ttface");
+  if (!host || !lineupCache.length || !g || !g.trip_tank) return;
+  const tt = g.trip_tank, pits = g.pits;
+  const PW = 14;
+  const b = [mfBase()];
+
+  // -- the stack, in elevation, as context rather than control -------------
+  // Read-only: the BOP screen is where it is worked. Drawn from the lineup,
+  // so a closed element shows its rams met across the bore.
+  const elements = lineupCache.filter(v => v.is_bop);
+  const SX = 170, STOP = 150, SBOT = 560;
+  const eh = Math.min(58, (SBOT - STOP) / elements.length);
+  b.push(`<rect x="${SX - 16}" y="80" width="32" height="${STOP - 80}"
+    fill="#b04a44" stroke="#6e2b25" stroke-width="2"/>`);
+  elements.forEach((v, i) => {
+    const y = STOP + i * eh, shut = v.state !== "open";
+    if (v.bop_kind === "annular") {
+      b.push(`<path d="M ${SX - 52} ${y + eh - 4} L ${SX - 52} ${y + eh * 0.45}
+        Q ${SX - 52} ${y + 2} ${SX - 20} ${y + 2} L ${SX + 20} ${y + 2}
+        Q ${SX + 52} ${y + 2} ${SX + 52} ${y + eh * 0.45}
+        L ${SX + 52} ${y + eh - 4} Z"
+        fill="#b04a44" stroke="#6e2b25" stroke-width="2"/>`);
+    } else if (v.bop_kind === "connector") {
+      b.push(`<rect x="${SX - 58}" y="${y + eh * 0.25}" width="116"
+        height="${eh * 0.5}" fill="#8f3a34" stroke="#6e2b25" stroke-width="2"/>`);
+    } else {
+      b.push(`<rect x="${SX - 46}" y="${y + 2}" width="92" height="${eh - 6}"
+        rx="4" fill="#b04a44" stroke="#6e2b25" stroke-width="2"/>`);
+      b.push(`<rect x="${SX - 74}" y="${y + eh * 0.28}" width="28"
+        height="${eh * 0.42}" rx="4" fill="#9c423c" stroke="#6e2b25"
+        stroke-width="2"/>`);
+      b.push(`<rect x="${SX + 46}" y="${y + eh * 0.28}" width="28"
+        height="${eh * 0.42}" rx="4" fill="#9c423c" stroke="#6e2b25"
+        stroke-width="2"/>`);
+    }
+    if (shut) b.push(`<rect x="${SX - 14}" y="${y + eh * 0.38}" width="28"
+      height="${eh * 0.24}" fill="#f2d8d6" stroke="#6e2b25"/>`);
+  });
+  b.push(`<rect x="${SX - 30}" y="${SBOT}" width="60" height="18"
+    fill="#8f3a34" stroke="#6e2b25" stroke-width="2"/>`);
+  b.push(mfLabel(SX, SBOT + 44, "BOP", 15));
+
+  // -- the alarm box, top left ---------------------------------------------
+  b.push(`<rect x="46" y="34" width="150" height="86" rx="6" fill="#cdd3d8"
+    stroke="#8f989f" stroke-width="2"/>`);
+  b.push(mfLabel(121, 54, "ALARM", 13));
+  b.push(`<g data-face="ttarm" style="cursor:pointer">
+    <rect x="56" y="62" width="130" height="50" fill="transparent"/>
+    <path d="M 76 96 q 0 -18 12 -18 q 12 0 12 18 z" fill="${
+      tt.alarm.armed ? "#c98a12" : "#5a6167"}" stroke="#14181c" stroke-width="2"/>
+    <circle cx="88" cy="100" r="3" fill="#14181c"/>
+    <text x="112" y="86" fill="${MFACE.ink}" font-size="13" font-weight="700"
+      font-family="system-ui">${tt.alarm.armed ? "ON" : "OFF"}</text>
+    <title>Trip tank level alarm — ${tt.alarm.armed ? "armed" : "off"}</title></g>`);
+
+  // -- lines: flow line to the shakers, return and fill-up to the tank -----
+  const TANKX = 700, TANKTOP = 330, TANKH = 200, TANKW = 190;
+  b.push(pipeRun([[SX, 140], [1270, 140], [1270, 205]], PW));      // flow line
+  b.push(pipeRun([[SX + 16, 270], [TANKX, 270], [TANKX, TANKTOP]], PW)); // return
+  b.push(pipeRun([[TANKX - 60, TANKTOP + TANKH - 12], [400, TANKTOP + TANKH - 12],
+    [400, 500], [SX + 16, 500]], PW));                             // fill-up
+  b.push(pipeRun([[TANKX + 60, 380], [1200, 380], [1200, 205]], PW)); // drain
+  b.push(pipeRun([[1350, 600], [TANKX, 600], [TANKX, TANKTOP + TANKH]], PW)); // fill
+  b.push(pipeRun([[1010, 640], [1240, 640]], PW));                 // transfer
+
+  b.push(pipeTee(1270, 140, PW)); b.push(pipeTee(TANKX, 270, PW));
+  b.push(pipeFlange(870, 140, PW, false));
+  b.push(pipeFlange(600, 270, PW, false));
+
+  b.push(mfLabel(650, 118, "FLOW LINE", 13));
+  b.push(handwheel(500, 140, "flowline", "Flowline to shakers", 26));
+  b.push(mfLabel(560, 248, "RETURN LINE", 13));
+  b.push(handwheel(430, 270, "trip_tank_valve", "Trip tank to annulus", 26));
+  b.push(mfLabel(560, 480, "FILL-UP LINE", 13));
+  b.push(pumpSymbol(430, 500, "trip_tank_fillup", "Fill-up line pump",
+    tt.fillup_pump, 27));
+  b.push(mfLabel(950, 358, "DRAIN PUMP", 12));
+  b.push(pumpSymbol(1000, 380, "trip_tank_drain", "Trip tank drain pump",
+    tt.drain_pump, 25));
+  b.push(mfLabel(950, 578, "TRIP TANK FILL PUMP", 12));
+  b.push(pumpSymbol(1000, 600, "trip_tank_fill", "Trip tank fill pump",
+    tt.fill_pump, 25));
+  b.push(mfLabel(1300, 628, "RESERVE TRANSFER", 11));
+  b.push(pumpSymbol(1125, 640, "pit_transfer", "Reserve to active transfer",
+    pits.transfer_pump, 22));
+
+  // -- the trip tank, its alarms and its mark ------------------------------
+  b.push(tankCylinder(TANKX, TANKTOP, TANKW, TANKH, tt.level_fraction, [
+    [`${tt.capacity_bbl.toFixed(1)} bbls`, 14, -24],
+    ["Capacity Max", 11, -6],
+    ["TRIP TANK", 13, 8],
+    [`${tt.volume_bbl.toFixed(1)} BBLS`, 17, 2],
+  ]));
+  [[tt.alarm.low, "#e0a020"], [tt.alarm.high, "#e2453d"]].forEach(([level, colour]) => {
+    if (level === null || level === undefined) return;
+    const y = TANKTOP + TANKH * (1 - level / tt.capacity_bbl);
+    b.push(`<path d="M ${TANKX + TANKW / 2 + 24} ${y - 8}
+      L ${TANKX + TANKW / 2 + 24} ${y + 8} L ${TANKX + TANKW / 2 + 6} ${y} Z"
+      fill="${colour}" stroke="#14181c"/>`);
+  });
+
+  const spBox = (y, legend, val, active, colour, minus, plus) => {
+    b.push(mfLamp(920, y - 22, active, legend, colour));
+    b.push(mfStep(905, y + 4, "−", minus));
+    b.push(mfWindow(925, y - 10, 74, 28, `${Math.round(val || 0)}`, 15));
+    b.push(mfStep(1019, y + 4, "+", plus));
+    b.push(mfLabel(1046, y + 9, "bbls", 11, "start"));
+  };
+  spBox(240, "HIGH ALARM", tt.alarm.high, tt.alarm.high_active, "#e2453d",
+    "tthigh-", "tthigh+");
+  spBox(310, "LOW ALARM", tt.alarm.low, tt.alarm.low_active, "#e0a020",
+    "ttlow-", "ttlow+");
+
+  const inService = g.trip_tank_in_service;
+  b.push(mfLamp(620, 620, inService, inService
+    ? "IN SERVICE — the trip is being measured"
+    : "NOT IN SERVICE — valve and fill-up pump both needed",
+    MFACE.lampOn));
+  b.push(mfWindow(615, 634, 120, 26,
+    `${tt.change_bbl >= 0 ? "+" : ""}${tt.change_bbl.toFixed(2)} bbl`, 13));
+  b.push(`<g data-face="ttzero" style="cursor:pointer">
+    <rect x="745" y="630" width="76" height="34" fill="transparent"/>
+    <rect x="749" y="634" width="68" height="26" rx="4" fill="#3a424a"
+      stroke="#14181c" stroke-width="1.5"/>
+    <text x="783" y="651" text-anchor="middle" fill="#e8ebee" font-size="12"
+      font-weight="700" font-family="system-ui">ZERO</text>
+    <title>Mark the trip tank level here</title></g>`);
+
+  // -- shakers and the active system, right --------------------------------
+  b.push(`<rect x="1160" y="180" width="220" height="52" rx="5" fill="#14181c"
+    stroke="#3c4650" stroke-width="2"/>`);
+  b.push(`<text x="1270" y="212" text-anchor="middle" fill="#f2f4f5"
+    font-size="15" font-weight="700" font-family="system-ui">SHALE SHAKERS</text>`);
+  b.push(pipeRun([[1270, 232], [1270, 268]], PW));
+  b.push(handwheel(1270, 252, "shakers_to_pits", "Shakers to pits", 22));
+
+  b.push(tankCylinder(1350, 285, 260, 260,
+    pits.active_bbl / pits.active_capacity_bbl, [
+      [`${pits.active_capacity_bbl.toFixed(1)} bbls Capacity Max`, 12, -22],
+      ["ACTIVE MUD VOLUME", 13, 14],
+      [`${pits.active_bbl.toFixed(1)} BBLS`, 17, 2],
+    ]));
+  b.push(tankCylinder(1470, 570, 150, 84,
+    pits.reserve_bbl / pits.reserve_capacity_bbl, [
+      ["RESERVE", 12, -14],
+      [`${pits.reserve_bbl.toFixed(0)} / ${pits.reserve_capacity_bbl} bbl`, 11, -4],
+    ]));
+  b.push(pipeRun([[1240, 640], [1470, 640]], PW));
+
+  b.push(mfLabel(60, 640, `Active pit capacity ${pits.active_capacity_bbl} bbl
+    · Reserve ${pits.reserve_capacity_bbl} bbl`, 12, "start", 600));
+
+  host.innerHTML = b.join("");
+  wireFace(host, g);
 }
 
 /* ------------------------- BOP control panels -------------------------- */
@@ -3825,23 +3958,25 @@ function drawSubseaBopFace(g, host) {
 }
 
 /* -------------------------------- lineup ------------------------------- */
+/* Only the stack elements are listed now: the manifold valves all live on
+   their own faces, where a handwheel is the control. */
 function drawLineup(valves) {
   if (!valves) return;
   lineupCache = valves;
-  const bopHost = $("bop-list"), valveHost = $("valve-list");
-  if (!bopHost || !valveHost) return;
-  bopHost.innerHTML = ""; valveHost.innerHTML = "";
-  valves.forEach(v => {
+  const bopHost = $("bop-list");
+  if (!bopHost) return;
+  bopHost.innerHTML = "";
+  valves.filter(v => v.is_bop).forEach(v => {
     const row = document.createElement("div");
     row.className = "valve";
     const open = v.state === "open";
-    row.innerHTML = `<span class="${v.is_bop ? "bop" : ""}">${v.label}</span>`;
+    row.innerHTML = `<span class="bop">${v.label}</span>`;
     const b = document.createElement("button");
-    b.textContent = v.is_bop ? (open ? "Open" : "Closed") : (open ? "Open" : "Shut");
-    b.className = v.is_bop ? (open ? "" : "danger") : (open ? "on" : "");
+    b.textContent = open ? "Open" : "Closed";
+    b.className = open ? "" : "danger";
     b.onclick = () => toggleValve(v.name);
     row.appendChild(b);
-    (v.is_bop ? bopHost : valveHost).appendChild(row);
+    bopHost.appendChild(row);
   });
 }
 
@@ -3986,18 +4121,14 @@ function sendPause(paused) {
   return send("speed", {speed: paused ? 0 : runSpeed});
 }
 
-/* ---- stage 3 controls: the mud system and the choke bank ---- */
+/* ---- stage 3 controls: the mud system ---- */
+/* The trip tank's pumps, valve, alarms and mark all live on its face now,
+   dispatched through faceAction like every other face control; the choke
+   bank's job moved onto the choke manifold face. */
 $("pump2").addEventListener("change", () =>
   send("pump", {spm: Number($("pump2").value), pump: 2}));
 $("pump2").addEventListener("input", () =>
   $("pump2-read").textContent = $("pump2").value);
-
-document.querySelectorAll("[data-tt]").forEach(b => b.onclick = async () => {
-  // Toggle against what the panel last saw, so the button follows the pump
-  // rather than the other way round.
-  const running = b.classList.contains("on");
-  await send("transfer", {name: b.dataset.tt, running: !running});
-});
 
 document.querySelectorAll("[data-zero]").forEach(b => b.onclick = () =>
   send("zero", {instrument: b.dataset.zero}));
@@ -4005,7 +4136,6 @@ document.querySelectorAll("[data-zero]").forEach(b => b.onclick = () =>
 const ALARM_FIELDS = {
   "sp-pit-low": ["pit_deviation", "low"], "sp-pit-high": ["pit_deviation", "high"],
   "sp-flow-low": ["return_flow", "low"], "sp-flow-high": ["return_flow", "high"],
-  "sp-tt-low": ["trip_tank_level", "low"], "sp-tt-high": ["trip_tank_level", "high"],
 };
 Object.keys(ALARM_FIELDS).forEach(id => {
   const el = $(id); if (!el) return;
@@ -4016,27 +4146,13 @@ Object.keys(ALARM_FIELDS).forEach(id => {
 });
 
 const ARM_BUTTONS = {
-  "arm-pit": "pit_deviation", "arm-flow": "return_flow", "arm-tt": "trip_tank_level",
+  "arm-pit": "pit_deviation", "arm-flow": "return_flow",
 };
 Object.keys(ARM_BUTTONS).forEach(id => {
   const el = $(id); if (!el) return;
   el.onclick = () => send("alarm", {
     name: ARM_BUTTONS[id], armed: el.classList.contains("off"),
   });
-});
-
-// The choke bank is rebuilt on every redraw, so its handlers are delegated.
-$("choke-bank").addEventListener("input", e => {
-  const slider = e.target.closest("[data-chokeset]"); if (!slider) return;
-  slider.nextElementSibling.textContent = Number(slider.value).toFixed(0);
-});
-$("choke-bank").addEventListener("change", e => {
-  const slider = e.target.closest("[data-chokeset]"); if (!slider) return;
-  send("choke", {percent: Number(slider.value), choke: slider.dataset.chokeset});
-});
-document.addEventListener("click", e => {
-  const b = e.target.closest("[data-valve-toggle]"); if (!b) return;
-  toggleValve(b.dataset.valveToggle);
 });
 
 $("set-wob").addEventListener("change", () => {

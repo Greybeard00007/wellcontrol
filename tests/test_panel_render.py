@@ -109,16 +109,19 @@ function attempt(name, fn) {
 
 attempt("paint", () => paint(gauges));
 attempt("drawDcu", () => drawDcu(gauges));
-attempt("drawChokeBank", () => drawChokeBank());
-attempt("drawTripTank", () => drawTripTank());
 
-/* The BOP face draws itself from the lineup, so it needs one -- and it needs
-   *both* stacks driven, because the two faces share almost no code and a
-   payload from a surface well would never reach the subsea one. */
+/* The BOP face and the three manifold faces draw themselves from the lineup,
+   so they need one -- and the BOP face needs *both* stacks driven, because
+   the two faces share almost no code and a payload from a surface well would
+   never reach the subsea one. */
 lineupCache = __LINEUP__;
+attempt("drawSpManifoldFace", () => drawSpManifoldFace(gauges));
+attempt("drawChokeManifoldFace", () => drawChokeManifoldFace(gauges));
+attempt("drawTripTankFace", () => drawTripTankFace(gauges));
 attempt("drawBopPanel surface", () => { isSubsea = false; drawBopPanel(gauges); });
 lineupCache = __SUBSEA_LINEUP__;
 attempt("drawBopPanel subsea", () => { isSubsea = true; drawBopPanel(gauges); });
+attempt("drawTripTankFace subsea", () => drawTripTankFace(gauges));
 isSubsea = false;
 
 trace = traceRows;

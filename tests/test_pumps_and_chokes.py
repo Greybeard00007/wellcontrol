@@ -31,6 +31,37 @@ def shut_in() -> Simulator:
     return sim
 
 
+class TestTheManifoldBranches:
+    """The SP manifold face's branches are real valves, not decoration.
+
+    The cement lines run to equipment this simulator does not model, so
+    they are blanked: the valves move and nothing changes, which is what
+    opening them on this rig would do. The second discharge line parallels
+    the first, because the graph has one PUMP node for both pumps.
+    """
+
+    def test_the_cement_lines_are_blanked(self):
+        sim = shut_in()
+        before = sim.flow_path.return_route().route
+        assert not sim.flow_path.pump_is_deadheaded
+        sim.flow_path.open("cement_head_valve", "cement_pump_valve")
+        assert sim.flow_path.return_route().route == before
+        assert not sim.flow_path.pump_is_deadheaded
+
+    def test_the_second_discharge_parallels_the_first(self):
+        sim = shut_in()
+        sim.flow_path.close("pump_discharge")
+        assert sim.flow_path.pump_is_deadheaded
+        sim.flow_path.open("pump_2_discharge")
+        assert not sim.flow_path.pump_is_deadheaded
+
+    def test_the_second_discharge_starts_closed(self):
+        """Every scenario that blocks the pump closes `pump_discharge`; a
+        second line open by default would quietly defeat it."""
+        sim = shut_in()
+        assert not sim.flow_path.valve("pump_2_discharge").is_open
+
+
 class TestTwoPumps:
     def test_the_flows_add(self):
         sim = drilling()
