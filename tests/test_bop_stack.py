@@ -139,10 +139,8 @@ class TestTheStackFollowsTheWell:
     def test_both_stacks_have_an_upper_and_a_lower_outlet(self, config):
         """One outlet is one point of failure, on either stack.
 
-        Note what is *not* asserted: that closing a ram isolates the outlets
-        above it. Every element joins ANNULUS to BOP and every outlet taps
-        ANNULUS, so the graph has one annulus and the heights are a drawing.
-        See `surface_stack`.
+        And the heights are real: closing a ram isolates the outlets above
+        it, which is what `TestTheOutletHeightsAreReal` is about.
         """
         path = make(config).flow_path
         for side in ("kill", "choke"):
@@ -150,6 +148,89 @@ class TestTheStackFollowsTheWell:
             assert {"upper", "lower"} <= outlets, side
             # Two valves on every outlet, both sides, both stacks.
             assert len(path.outlet_valves(side)) == 2 * len(outlets)
+
+
+class TestTheOutletHeightsAreReal:
+    """Closing a ram isolates every outlet above it, exactly as the iron would.
+
+    This used to be a drawing: every element joined the annulus to the stack
+    and every outlet tapped the annulus, so the graph had one annulus and the
+    interleaving was decorative. Now the bore is segments, an outlet taps the
+    segment at its own height, and it reaches the well only while every
+    element *below* that height is open -- which is what makes "take returns
+    from a cross below the ram you closed" a real decision.
+    """
+
+    def test_surface_the_upper_cross_dies_with_the_blind_shears(self):
+        """The upper flow cross sits above the blind shears; the lower does not.
+
+        Worked on the FlowPath directly rather than through the closing unit,
+        because what is under test is the graph and not the interlock.
+        """
+        path = make().flow_path
+        path.close("blind_shear_rams")
+        path.open("upper_choke_inner", "upper_choke_outer",
+                  "choke_line_to_manifold", "choke_1")
+        assert path.is_closed_in, "the upper cross is above the closed rams"
+        path.open("lower_choke_inner", "lower_choke_outer")
+        assert path.return_route().through_choke, \
+            "the lower cross taps below them"
+
+    def test_subsea_a_closed_ram_takes_the_lines_above_it(self):
+        path = make(SUBSEA).flow_path
+        path.close("upper_rams")
+        path.open("upper_choke_inner", "upper_choke_outer",
+                  "choke_line_to_manifold", "choke_1")
+        assert path.is_closed_in, "the upper choke line taps above the rams"
+        path.open("middle_choke_inner", "middle_choke_outer")
+        assert path.return_route().through_choke, \
+            "the middle choke line taps below them"
+
+    def test_a_cut_is_not_a_seal(self):
+        """Closed casing shears still pass flow to the lines above them.
+
+        `seals=False` has to mean the bore stays open through the element,
+        or shearing the casing would quietly isolate the lower kill line --
+        a barrier the rams explicitly do not provide.
+        """
+        path = make(SUBSEA).flow_path
+        path.close("casing_shear_rams")
+        path.open("lower_kill_inner", "lower_kill_outer")
+        assert path.kill_line_is_open
+
+    def test_lubricating_into_an_isolated_segment_deadheads_the_pump(self):
+        """Mud pumped in above a closed ram has nowhere to go.
+
+        The upper kill line taps between the blind shears and the lower
+        annular; with both closed the segment is sealed at both ends, and a
+        pump lined up to it is pumping against a closed volume. Wrong lineups
+        are not scored -- they simply do not work.
+        """
+        path = make(SUBSEA).flow_path
+        path.close("blind_shear_rams")
+        path.close("lower_annular")
+        path.open("pump_to_kill_line", "upper_kill_inner", "upper_kill_outer")
+        assert path.pump_is_deadheaded
+
+    def test_the_kill_line_gauge_goes_dead_when_a_ram_below_its_tap_closes(self):
+        path = make(SUBSEA).flow_path
+        path.open("middle_kill_inner", "middle_kill_outer")
+        assert path.kill_line_is_open
+        path.close("lower_rams")
+        assert not path.kill_line_is_open
+
+    def test_the_standard_shut_in_is_untouched(self):
+        """Shut on the annular, returns through the lower choke outlet.
+
+        The annular is the top element and the group lines up the lowest
+        outlet, so the ordinary kill never notices any of this -- which is
+        the claim that matters most.
+        """
+        for config in (SURFACE, SUBSEA):
+            path = make(config).flow_path
+            path.close("annular")
+            path.open("choke_line", "choke_line_to_manifold", "choke_1")
+            assert path.return_route().through_choke, config
 
 
 class TestTheDoubleBarrier:

@@ -13,7 +13,7 @@ Usage::
     sim = Simulator(well=examples.well_state(config))
 
     sim.flow_path.close("annular")            # shut in
-    sim.flow_path.open("choke_line_valve", "choke_line_to_manifold", "choke_1")
+    sim.flow_path.open("choke_line", "choke_line_to_manifold", "choke_1")
     sim.choke.command(30.0)                   # 30% open
     sim.pump.command(30.0)                    # 30 spm
 

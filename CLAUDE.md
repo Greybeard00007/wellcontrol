@@ -513,15 +513,29 @@ either of them shut; the lower is below the blind shears as well. That is why
 `_group` resolves "the choke line" to the **lower** outlet on both stacks now
 rather than only subsea.
 
-**But the heights are a drawing, not a model, and this was claimed the other
-way round once already.** Every element joins `ANNULUS` to `BOP` and every
-outlet taps `ANNULUS` directly, so the graph has **one annulus**: closing a ram
-does not isolate the outlets above it, and every outlet stays reachable
-whatever is shut. On a rig it would not. Representing it needs the annulus
-split into segments between elements — a change to the fluid column as much as
-to this graph, since `FluidColumn` also assumes one continuous annulus — so it
-is not a small edit and it has not been made. Do not write documentation or
-tests that imply otherwise.
+**The heights are the model now.** The stack bore is split into segments —
+`ANNULUS` below the lowest element, `STACK_BORE_1..7` between adjacent
+elements, `BOP` (the bell nipple or riser) above the top — each element is an
+edge between the segments either side of it, and each outlet taps the segment
+at its own height. So closing a ram isolates every outlet above it from the
+well, "take returns from a cross below the ram you closed" is a real decision,
+and mud pumped into a line above a closed ram deadheads instead of reaching
+the well. A closed element that does not seal still passes flow — casing
+shears cut and leave the bore open. Two approximations remain, deliberately:
+the few barrels **trapped between two closed elements are not their own
+pressure vessel** (no trapped-pressure-between-rams exercises), and the few
+feet between outlet taps are **hydrostatically invisible** — `FluidColumn`
+still sees one continuous annulus, which is fine because the tap heights
+matter for connectivity, not for the weight of a column thousands of feet
+tall. `TestTheOutletHeightsAreReal` in `tests/test_bop_stack.py` pins all of
+it, including that the standard shut-in — annular closed, lower outlet lined
+up — never notices the change.
+
+One consequence for `return_route()`: the flowline is found **by name, not by
+search**. The bore chain made the flowline path longer than the choke path,
+and a breadth-first search would prefer the choke — but an open well takes the
+path of least resistance, and that is the flowline at atmospheric whatever the
+choke is set to.
 
 **The two stacks are not the same shape and are not meant to converge.** This
 has had to be said more than once: they are different equipment, they are
@@ -555,8 +569,8 @@ run to surface on its own, so its valves carry `side="choke"` and the group
 that opens "the choke line" finds them.
 
 Interleaving the outlets between the rams is the whole point of a stack this
-size: whichever ram is closed, there is a line below it. (Below it *on the
-drawing* — see the one-annulus limitation above.)
+size: whichever ram is closed, there is a line below it — and since the bore
+is segmented, that is now true in the flow model as well as on the drawing.
 
 Two elements carry `seals=False` for quite different reasons, and the face
 must not caption them alike. **Casing shear rams** cut and do not seal, and

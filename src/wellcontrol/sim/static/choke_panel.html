@@ -2672,21 +2672,28 @@ function drawPid() {
   lineupCache.forEach(v => { if (v.state === "open" && !v.is_bop) { active.add(v.from); active.add(v.to); } });
   const bits = [`<rect width="720" height="420" fill="#b9c0c6"/>`];
 
-  // Several valves can join the same pair of nodes -- the three BOP elements
+  // In the engine each BOP element joins two stack bore segments -- that is
+  // what makes the outlet heights real -- but the P&ID is a simplified
+  // overview with one annulus box and one stack box, so every element is
+  // pinned back onto that line. The BOP screen is where the segments show.
+  const pidEnds = v => v.is_bop ? ["annulus", "BOP stack"] : [v.from, v.to];
+
+  // Several valves can join the same pair of nodes -- the BOP elements
   // all sit between the annulus and the stack, and the kelly cock and the
   // float share the string and the bit. Drawn on the raw midpoint they land on
   // top of each other and only the last one is visible or clickable, so they
   // are counted first and then fanned out along the line.
   const groups = {};
   lineupCache.forEach(v => {
-    const key = [v.from, v.to].sort().join("|");
+    const key = pidEnds(v).sort().join("|");
     (groups[key] = groups[key] || []).push(v);
   });
 
   // Edges first, so boxes sit on top.
   Object.values(groups).forEach(group => {
     group.forEach((v, i) => {
-      const a = PID_NODES[v.from], b = PID_NODES[v.to];
+      const [fromEnd, toEnd] = pidEnds(v);
+      const a = PID_NODES[fromEnd], b = PID_NODES[toEnd];
       if (!a || !b) return;
       const ax = a[0] + a[2] / 2, ay = a[1] + a[3] / 2;
       const bx = b[0] + b[2] / 2, by = b[1] + b[3] / 2;

@@ -65,6 +65,22 @@ class Node(str, Enum):
     #: a fourth way to the choke manifold, not a third line of its own.
     GAS_RELIEF_OUTLET = "gas relief outlet"
 
+    # The stack bore between two adjacent elements, numbered from the bottom.
+    # These are what make the outlet heights *real*: an outlet taps the
+    # segment at its own height, an element is an edge between the segments
+    # either side of it, and closing a ram therefore isolates every outlet
+    # above it from the well -- which is the decision "take returns from a
+    # cross below the ram you closed" turns on. ANNULUS is the bore below the
+    # lowest element and BOP the bore above the highest, so a surface stack
+    # uses segments 1-3 and a subsea one 1-7.
+    STACK_BORE_1 = "stack bore 1"
+    STACK_BORE_2 = "stack bore 2"
+    STACK_BORE_3 = "stack bore 3"
+    STACK_BORE_4 = "stack bore 4"
+    STACK_BORE_5 = "stack bore 5"
+    STACK_BORE_6 = "stack bore 6"
+    STACK_BORE_7 = "stack bore 7"
+
 
 class ValveState(str, Enum):
     OPEN = "open"
@@ -163,13 +179,16 @@ def surface_stack() -> list[Valve]:
     survives even a stack closed on nothing. That is why "the choke line"
     resolves to the *lower* outlet -- see ``_group``.
 
-    **The heights are a drawing, not a model.** Every element joins
-    ``ANNULUS`` to ``BOP`` and every outlet taps ``ANNULUS`` directly, so the
-    graph has one annulus and closing a ram does *not* isolate the outlets
-    above it. On a real stack it would. Representing that needs the annulus
-    split into segments between elements, which is a change to the fluid
-    column as much as to this graph, and nothing here should be read as
-    claiming it is already done.
+    **The heights are the model now, not just the drawing.** The stack bore
+    is split into segments -- ``ANNULUS`` below the lowest element, a
+    ``STACK_BORE_n`` between each adjacent pair, ``BOP`` above the top -- and
+    each element is an edge between the segments either side of it. An outlet
+    taps the segment at its own height, so closing a ram isolates every
+    outlet above it from the well, exactly as the iron would. Two
+    approximations remain, both deliberate: the few barrels trapped between
+    two closed elements are not tracked as their own pressure vessel, and the
+    few feet of height between outlet taps are hydrostatically invisible next
+    to the thousands of feet of annulus below them.
 
     Every outlet carries **two hydraulically operated valves in series**, an
     inner and an outer HCR. Both have to be open for that side to pass
@@ -185,26 +204,34 @@ def surface_stack() -> list[Valve]:
     shuts on loss of control pressure and an HCR simply stays where it was.
     """
     return [
-        Valve("annular", "Annular preventer", Node.ANNULUS, Node.BOP,
+        # Elements are edges between adjacent bore segments, frm below and to
+        # above, numbered from the bottom: the well is ANNULUS, the bell
+        # nipple is BOP, and each ram separates the two spaces it sits
+        # between. The upper flow cross taps segment 1 (above the blind
+        # shears), the lower one taps the well itself.
+        Valve("annular", "Annular preventer", Node.STACK_BORE_3, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
-        Valve("upper_rams", "Upper pipe rams", Node.ANNULUS, Node.BOP,
+        Valve("upper_rams", "Upper pipe rams", Node.STACK_BORE_2,
+              Node.STACK_BORE_3,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
-        Valve("lower_rams", "Lower pipe rams", Node.ANNULUS, Node.BOP,
+        Valve("lower_rams", "Lower pipe rams", Node.STACK_BORE_1,
+              Node.STACK_BORE_2,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
 
-        Valve("upper_kill_inner", "Upper kill inner HCR", Node.ANNULUS,
+        Valve("upper_kill_inner", "Upper kill inner HCR", Node.STACK_BORE_1,
               Node.KILL_OUTLET, bidirectional=True, side="kill",
               outlet="upper"),
         Valve("upper_kill_outer", "Upper kill outer HCR", Node.KILL_OUTLET,
               Node.KILL_LINE, bidirectional=True, side="kill", outlet="upper"),
-        Valve("upper_choke_inner", "Upper choke inner HCR", Node.ANNULUS,
+        Valve("upper_choke_inner", "Upper choke inner HCR", Node.STACK_BORE_1,
               Node.CHOKE_OUTLET, bidirectional=True, side="choke",
               outlet="upper"),
         Valve("upper_choke_outer", "Upper choke outer HCR", Node.CHOKE_OUTLET,
               Node.CHOKE_LINE, bidirectional=True, side="choke",
               outlet="upper"),
 
-        Valve("blind_shear_rams", "Blind shear rams", Node.ANNULUS, Node.BOP,
+        Valve("blind_shear_rams", "Blind shear rams", Node.ANNULUS,
+              Node.STACK_BORE_1,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
 
         Valve("lower_kill_inner", "Lower kill inner HCR", Node.ANNULUS,
@@ -222,8 +249,8 @@ def surface_stack() -> list[Valve]:
     ]
 
 
-def _failsafes(key: str, name: str, side: str, outlet: str, spool: Node,
-               line: Node) -> list[Valve]:
+def _failsafes(key: str, name: str, side: str, outlet: str, bore: Node,
+               spool: Node, line: Node) -> list[Valve]:
     """One outlet line: two fail-safe valves in series through their spool.
 
     Written once because there are **seven of these on a subsea stack** and a
@@ -232,9 +259,13 @@ def _failsafes(key: str, name: str, side: str, outlet: str, spool: Node,
     barrier rather than two parallel routes; each line needs its own, or an
     inner from one line and an outer from another add up to a path that does
     not exist.
+
+    ``bore`` is the stack bore segment the line taps -- the space between the
+    two elements it sits between, which is what makes its height real: the
+    line reaches the well only while every element below that segment is open.
     """
     return [
-        Valve(f"{key}_inner", f"Inner {name}", Node.ANNULUS, spool,
+        Valve(f"{key}_inner", f"Inner {name}", bore, spool,
               bidirectional=True, side=side, outlet=outlet),
         Valve(f"{key}_outer", f"Outer {name}", spool, line,
               bidirectional=True, side=side, outlet=outlet),
@@ -289,52 +320,69 @@ def subsea_stack() -> list[Valve]:
     what a student reads is the label.
     """
     return [
-        Valve("annular", "Upper annular", Node.ANNULUS, Node.BOP,
+        # Eight elements, so seven bore segments between them, numbered from
+        # the bottom: ANNULUS below the casing shears, BOP (the riser) above
+        # the upper annular. Each outlet taps the segment at its listed
+        # height, which is what makes the interleaving real rather than
+        # decorative: whichever ram is closed, the lines below it still reach
+        # the well and the lines above it do not.
+        Valve("annular", "Upper annular", Node.STACK_BORE_7, Node.BOP,
               state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
-        Valve("riser_connector", "Riser connector", Node.ANNULUS, Node.BOP,
+        Valve("riser_connector", "Riser connector", Node.STACK_BORE_6,
+              Node.STACK_BORE_7,
               state=ValveState.OPEN, is_bop=True, bop_kind="connector",
               seals=False),
 
         *_failsafes("gas_relief", "gas relief", "choke", "gas_relief",
-                    Node.GAS_RELIEF_OUTLET, Node.CHOKE_LINE),
+                    Node.STACK_BORE_6, Node.GAS_RELIEF_OUTLET,
+                    Node.CHOKE_LINE),
 
-        Valve("lower_annular", "Lower annular", Node.ANNULUS, Node.BOP,
+        Valve("lower_annular", "Lower annular", Node.STACK_BORE_5,
+              Node.STACK_BORE_6,
               state=ValveState.OPEN, is_bop=True, bop_kind="annular"),
 
         *_failsafes("upper_kill", "upper kill", "kill", "upper",
-                    Node.KILL_OUTLET, Node.KILL_LINE),
+                    Node.STACK_BORE_5, Node.KILL_OUTLET, Node.KILL_LINE),
 
-        Valve("blind_shear_rams", "Blind shear rams", Node.ANNULUS, Node.BOP,
+        Valve("blind_shear_rams", "Blind shear rams", Node.STACK_BORE_4,
+              Node.STACK_BORE_5,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
 
         *_failsafes("upper_choke", "upper choke", "choke", "upper",
-                    Node.CHOKE_OUTLET, Node.CHOKE_LINE),
+                    Node.STACK_BORE_4, Node.CHOKE_OUTLET, Node.CHOKE_LINE),
 
-        Valve("upper_rams", "Upper pipe rams", Node.ANNULUS, Node.BOP,
+        Valve("upper_rams", "Upper pipe rams", Node.STACK_BORE_3,
+              Node.STACK_BORE_4,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
 
         *_failsafes("middle_kill", "middle kill", "kill", "middle",
-                    Node.KILL_OUTLET_MIDDLE, Node.KILL_LINE),
+                    Node.STACK_BORE_3, Node.KILL_OUTLET_MIDDLE,
+                    Node.KILL_LINE),
 
-        Valve("middle_rams", "Middle pipe rams", Node.ANNULUS, Node.BOP,
+        Valve("middle_rams", "Middle pipe rams", Node.STACK_BORE_2,
+              Node.STACK_BORE_3,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
 
         *_failsafes("middle_choke", "middle choke", "choke", "middle",
-                    Node.CHOKE_OUTLET_MIDDLE, Node.CHOKE_LINE),
+                    Node.STACK_BORE_2, Node.CHOKE_OUTLET_MIDDLE,
+                    Node.CHOKE_LINE),
 
-        Valve("lower_rams", "Lower pipe rams", Node.ANNULUS, Node.BOP,
+        Valve("lower_rams", "Lower pipe rams", Node.STACK_BORE_1,
+              Node.STACK_BORE_2,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram"),
 
         *_failsafes("lower_kill", "lower kill", "kill", "lower",
-                    Node.KILL_OUTLET_LOWER, Node.KILL_LINE),
+                    Node.STACK_BORE_1, Node.KILL_OUTLET_LOWER,
+                    Node.KILL_LINE),
 
         # Cuts the string and leaves the bore open. Not a barrier.
-        Valve("casing_shear_rams", "Casing shear rams", Node.ANNULUS, Node.BOP,
+        Valve("casing_shear_rams", "Casing shear rams", Node.ANNULUS,
+              Node.STACK_BORE_1,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True,
               seals=False),
 
         *_failsafes("lower_choke", "lower choke", "choke", "lower",
-                    Node.CHOKE_OUTLET_LOWER, Node.CHOKE_LINE),
+                    Node.ANNULUS, Node.CHOKE_OUTLET_LOWER, Node.CHOKE_LINE),
     ]
 
 
@@ -492,9 +540,11 @@ class FlowPath:
         *operates* one valve -- `set_valve`, and so the panel and the API --
         still names it exactly.
 
-        On either stack this opens the **lower** outlet, which is the one below
-        every ram but the blind shears, so it stays useful whatever else has
-        been closed.
+        On either stack this opens the **lower** outlet, the lowest line on
+        the stack -- below every sealing element, or above only the casing
+        shears, which never seal -- so it keeps its route to the well
+        whatever else has been closed. Now that the outlet heights are real,
+        that is a property of the graph rather than a promise.
         """
         if name not in ("choke_line", "kill_line"):
             return None
@@ -565,12 +615,16 @@ class FlowPath:
     def _edges(self) -> dict[Node, list[Node]]:
         """Adjacency for the currently open valves.
 
-        BOP elements do not appear as ordinary edges, because their sense is
-        inverted -- closing one *removes* a route rather than adding one. The
-        annulus reaches the BOP outlet, and so the flowline, only while every
-        element is open. The choke and kill lines take off from the stack below
-        the elements, so they stay available with the stack shut, which is the
-        whole point of having them.
+        A BOP element is an edge between the bore segments either side of it,
+        and its sense is inverted -- *closing* one removes the route. An open
+        element passes both ways, because fluid in an open bore does. A closed
+        element that does not seal still passes: casing shear rams cut and
+        leave the bore open, and an unlatched riser connector has not shut
+        anything in. The well reaches the bell nipple, and so the flowline,
+        only through the whole chain of open elements; an outlet taps its own
+        segment, so it reaches the well only while every element *below* it is
+        open. That is what makes "take returns from a cross below the ram you
+        closed" a real decision rather than a drawing.
 
         **A sheared string is not a route.** Once a shear ram has been closed
         on pipe the string is cut at the stack, so every edge through it goes:
@@ -581,7 +635,13 @@ class FlowPath:
         edges: dict[Node, list[Node]] = {}
         severed = {Node.STRING, Node.BIT}
         for valve in self.valves:
-            if valve.is_bop or not valve.is_open:
+            if valve.is_bop:
+                if not valve.is_open and valve.seals:
+                    continue
+                edges.setdefault(valve.frm, []).append(valve.to)
+                edges.setdefault(valve.to, []).append(valve.frm)
+                continue
+            if not valve.is_open:
                 continue
             if self.pipe_sheared and (
                 valve.frm in severed or valve.to in severed
@@ -590,9 +650,6 @@ class FlowPath:
             edges.setdefault(valve.frm, []).append(valve.to)
             if valve.bidirectional:
                 edges.setdefault(valve.to, []).append(valve.frm)
-
-        if not self.bop_is_closed:
-            edges.setdefault(Node.ANNULUS, []).append(Node.BOP)
         return edges
 
     @staticmethod
@@ -649,14 +706,23 @@ class FlowPath:
         """
         edges = self._edges()
 
+        # The flowline is checked for by name rather than found by search:
+        # with the bore now a chain of segments it is a longer path than the
+        # choke route, and a breadth-first search would prefer the choke --
+        # but an open well takes the path of least resistance, and that is
+        # the flowline at atmospheric whatever the choke is set to.
         if not self.bop_is_closed:
-            path = self._reachable(edges, Node.ANNULUS, Node.PITS)
-            if path is not None and Node.FLOWLINE in path:
-                return ReturnRoute(True, False, path)
+            lead = self._reachable(edges, Node.ANNULUS, Node.FLOWLINE)
+            if lead is not None:
+                rest = self._reachable(edges, Node.FLOWLINE, Node.PITS)
+                if rest is not None:
+                    return ReturnRoute(True, False, lead + rest[1:])
 
         # Stack closed: the flowline is sealed off, so only routes through the
         # choke or kill line count -- or, reverse circulating, back through the
-        # bit and up the inside of the string.
+        # bit and up the inside of the string. An entry is only usable if the
+        # well actually reaches it, which is where a closed ram takes the
+        # outlets above it out of play.
         #
         # Whatever the pump is coming in through is an inlet, not an outlet.
         # Without that exclusion a line that runs both ways gets picked as the
@@ -664,11 +730,14 @@ class FlowPath:
         # back on itself.
         inlet = self.injection_path() or ()
         for entry in _RETURN_ENTRIES:
-            if entry not in edges.get(Node.ANNULUS, ()) or entry in inlet:
+            if entry in inlet:
+                continue
+            lead = self._reachable(edges, Node.ANNULUS, entry)
+            if lead is None:
                 continue
             path = self._reachable(edges, entry, Node.PITS)
             if path is not None:
-                return ReturnRoute(True, True, (Node.ANNULUS,) + path)
+                return ReturnRoute(True, True, lead + path[1:])
 
         return ReturnRoute(False, False, ())
 
