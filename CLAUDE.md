@@ -481,32 +481,55 @@ Done so far:
   a kill and a choke header. See *The stack* below — it is the longest section
   here and it earns it.
 - **SP Manifold, Choke Manifold and Trip Tank — built to `IMG_1195/96/97.PNG`**
-  (in `simulator_screens/`), each as one wall-to-wall face like the rest,
-  replacing the old card layouts. The idiom is the reference console's: pale
-  panel, oxide-red pipework reusing the subsea face's `pipeRun`/`pipeFlange`/
-  `pipeTee`, **handwheels with a lamp in the hub** (green passing, red shut —
-  one press toggles the valve), dual-scale psi/bar gauges with a digital
-  window set into the face, pumps as volutes that ring green while running,
-  tanks as black cylinders lettered in white with the level drawn in mud.
-  Every control dispatches through `faceAction` (`valve:`/`pump:`/`ckpos±:`
-  and the trip tank's alarm actions), so the scrape test covers them all.
-  Three things worth keeping:
-  - **Every branch on the SP manifold is a real valve.** The reference labels
-    cement head and cement pump lines, so `flowpath.py` grew
-    `cement_head_valve` / `cement_pump_valve` on **blanked lines**
-    (`Node.CEMENT_HEAD/CEMENT_PUMP`, dead ends) — the valve moves and nothing
-    changes, which is what opening it on this rig would do — and
-    `pump_2_discharge`, a **parallel edge** to `pump_discharge` (one PUMP
-    node serves both pumps, an approximation) that **starts closed**, because
-    every scenario that blocks the pump closes `pump_discharge` and a second
-    line open by default would quietly defeat it.
-  - **Each choke carries its own position window and ± steppers** on the
-    manifold face (`send("choke", {choke: name})`), with the in-service one
-    ringed green — changing over after a plug is worked here.
-  - **The trip tank's pumps, valve, alarms and mark all live on its face**;
-    the DCU keeps its own lamps and set points. The old P&ID overview card is
-    gone with the old screens (`id="pid"` is pinned absent), and `drawLineup`
-    now lists only the stack elements.
+  (in `simulator_screens/`), each as one wall-to-wall face, **coordinates
+  measured off the photographs** the way the choke panel's were — the first
+  pass took the idiom and improvised the layout, and that was not what was
+  asked for. The idiom: pale panel, oxide-red pipework reusing the subsea
+  face's pipe helpers plus `pipeBlock` junction fittings, **handwheels with a
+  lamp in the hub** on the manifolds and **P&ID bowties on the trip tank
+  face** (its photograph uses them), dual-scale psi/bar gauges hung on thin
+  black stems with the reading in a window under a large hub, white
+  Windows-style **spinners** for the choke positions and alarm set points,
+  pumps as volutes, tanks as cylinders with a *light* top ellipse carrying
+  the capacity in black. Everything dispatches through `faceAction`
+  (`valve:`/`pump:`/`ckpos±:`/the trip tank actions), so the scrape test
+  covers it all. What the photographs forced on the engine:
+  - **The manifolds became real plumbing** (`SPM_UPPER/LOWER/EAST`,
+    `CKM_WEST/EAST/LOWER` nodes), segmented like the stack bore. The SP
+    manifold has **two standpipes on two columns** — mud pump 1 up the west
+    (the `STANDPIPE` node) to standpipe 1, mud pump 2 up the east to
+    standpipe 2 — with section wheels on both runs; the choke manifold's
+    header is split by two section wheels at the To Pits riser, with each
+    choke's isolation wheel on its riser and a lower run joining the choke
+    and kill lines with the SP feed in its middle. Every wheel is a real
+    valve; the section-valve defaults (headers open, lower runs mostly
+    closed) keep every existing lineup working unchanged.
+  - **Two method lineups changed, both toward the rig.** `pump_to_kill_line`
+    now hangs off the SP manifold's lower run, so **lubricating closes the
+    standpipe valve rather than the pump discharge** — the pump is how mud
+    reaches the lower run at all. **Reverse circulation feeds the kill line
+    from mud pump 2 through the east column** and takes the string returns
+    through `standpipe_to_manifold` to the choke manifold's *lower run* and
+    up through the choke line entry to remote choke 1; the closed section
+    valves (`lower_west_valve`, `header_east_valve`) are what keep the two
+    flows apart, which is what section valves are *for*. See
+    `scenario._REVERSE`/`_LUBRICATE` and their `_CLOSED` tuples.
+  - **The cement lines stay blanked** (`Node.CEMENT_HEAD/CEMENT_PUMP`, dead
+    ends off the lower run): the valve moves and nothing changes, which is
+    what opening it on this rig would do.
+  - **The trip tank's fill and drain lines carry real isolation valves**
+    (`tank_fill_suction`/`tank_fill_discharge`/`trip_tank_drain_valve`) that
+    the engine's `_advance_mud_system` consults — a transfer pump against a
+    closed valve moves nothing. They are **`Valve.off_graph`**: the volume
+    moves in the balance, not the flow graph, and a graph edge into the pits
+    would invent circulation routes through the pit room.
+  - Deliberate departures from the photographs, all capability: the To Pits
+    riser carries the `separator_to_pits` and `choke_bypass` wheels (the
+    photo shows none, but an unshuttable bypass defeats the choke), the
+    gauges take small captions, and the trip tank face keeps the in-service
+    lamp, mark window, ZERO, shakers bowtie and the reserve pit with its
+    transfer pump. The old P&ID overview card is gone (`id="pid"` pinned
+    absent) and `drawLineup` lists only the stack elements.
 
 ### The stack (`sim/flowpath.py`, `Accumulator`, the BOP face)
 

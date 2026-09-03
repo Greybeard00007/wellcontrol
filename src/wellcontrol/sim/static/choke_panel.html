@@ -2531,14 +2531,15 @@ function mfBase() {
     <rect x="0" y="${MFACE.H - 6}" width="${MFACE.W}" height="6" fill="#9aa2a9"/>`;
 }
 
-function mfLabel(x, y, text, size = 15, anchor = "middle", weight = 700) {
+/* The reference labels are small black title-case text beside the thing they
+   name, not silkscreened capitals -- so that is what these are. */
+function mfLabel(x, y, text, size = 13, anchor = "middle", weight = 700) {
   return `<text x="${x}" y="${y}" text-anchor="${anchor}" fill="${MFACE.ink}"
     font-size="${size}" font-weight="${weight}"
     font-family="system-ui, sans-serif">${text}</text>`;
 }
 
-/* A black digital window with green lettering -- the reference's readout
-   idiom, shared by the gauges and the choke position boxes. */
+/* A black digital window with green lettering -- the gauges' readout. */
 function mfWindow(x, y, w, h, text, size = 15) {
   return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3"
       fill="#0d1117" stroke="#3c4650" stroke-width="1.5"/>
@@ -2547,11 +2548,28 @@ function mfWindow(x, y, w, h, text, size = 15) {
       font-family="Consolas, monospace">${text}</text>`;
 }
 
-/* A gate valve drawn the way the reference draws one: a black handwheel
-   face-on with a lamp in the hub -- green passing, red shut. The wheel is
-   the control; one press toggles the valve. `fill="transparent"` on the hit
+/* A junction block: the chunky red cross fitting the reference draws where
+   runs meet, which is what stops a tee reading as two lines crossing. */
+function pipeBlock(x, y, w) {
+  const s = w * 1.55;
+  return `<rect x="${x - s / 2}" y="${y - s / 2}" width="${s}" height="${s}"
+      rx="${w * 0.28}" fill="#8c2f29" stroke="#5e1d18" stroke-width="2"/>
+    <rect x="${x - s / 2 + 3}" y="${y - s / 2 + 3}" width="${s * 0.35}"
+      height="${s - 6}" rx="${w * 0.2}" fill="#a84740" opacity="0.8"/>`;
+}
+
+/* A small flow arrow on a run, the way the trip tank screen marks which way
+   a line moves. */
+function flowArrow(x, y, deg = 0) {
+  return `<polygon points="-7,-6 -7,6 7,0" transform="translate(${x} ${y})
+    rotate(${deg})" fill="#14181c"/>`;
+}
+
+/* A gate valve as the manifold screens draw one: a black handwheel face-on
+   with a lamp in the hub -- green passing, red shut. The wheel is the
+   control; one press toggles the valve. `fill="transparent"` on the hit
    disc, never "none": none is not hit-tested at all. */
-function handwheel(cx, cy, name, label, r = 30) {
+function handwheel(cx, cy, name, label, r = 32) {
   const open = valveState(name);
   const spokes = [0, 60, 120].map(a =>
     `<line x1="${-r * 0.78}" y1="0" x2="${r * 0.78}" y2="0"
@@ -2572,71 +2590,125 @@ function handwheel(cx, cy, name, label, r = 30) {
     <title>${label} — ${open ? "open" : "shut"}</title></g>`;
 }
 
-/* A dual-scale pressure gauge as the reference draws one: white face, black
-   bezel, an outer psi scale and an inner red bar scale, with the reading
-   repeated in a digital window set into the face. A needle says which way
-   the pressure is going without being read; the window says exactly what it
-   is. 270-degree sweep, zero at 7:30. */
+/* The trip tank screen's valve idiom is different -- a P&ID bowtie, green
+   passing, red with its wings crossed when shut -- so that is what its face
+   draws. Same contract: the symbol is the control. */
+function bowtie(cx, cy, name, label, vertical = false) {
+  const open = valveState(name);
+  const colour = open ? MFACE.lampOn : "#d8352c";
+  return `<g transform="translate(${cx} ${cy}) rotate(${vertical ? 90 : 0})"
+      data-face="valve:${name}" style="cursor:pointer">
+    <circle r="26" fill="transparent"/>
+    <polygon points="-16,-12 -16,12 0,0" fill="${colour}"
+      stroke="#14181c" stroke-width="1.6"/>
+    <polygon points="16,-12 16,12 0,0" fill="${colour}"
+      stroke="#14181c" stroke-width="1.6"/>
+    ${open ? "" : `<line x1="-13" y1="-13" x2="13" y2="13" stroke="#7a100c"
+      stroke-width="3"/><line x1="-13" y1="13" x2="13" y2="-13"
+      stroke="#7a100c" stroke-width="3"/>`}
+    <title>${label} — ${open ? "open" : "shut"}</title></g>`;
+}
+
+/* A dual-scale pressure gauge to the reference photograph: white face,
+   black bezel, a large black hub, the outer psi scale numbered every 500,
+   the inner bar scale in red, and the reading in a digital window under the
+   hub with "bar / psi" beneath it. 270-degree sweep, zero at 7:30. */
 function manifoldGauge(cx, cy, r, label, value, max = 5000) {
-  const a0 = 135, sweep = 270;                    // degrees, clockwise from +x
+  const a0 = 135, sweep = 270;
   const pol = (rr, deg) => {
     const rad = deg * Math.PI / 180;
     return [cx + rr * Math.cos(rad), cy + rr * Math.sin(rad)];
   };
   const b = [];
   b.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#14181c"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.94}" fill="#22282e"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.86}" fill="#f4f5f4"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.95}" fill="#22282e"/>`);
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.88}" fill="#f4f5f4"/>`);
 
-  // Outer psi scale: a major every tenth with a numeral on every other one.
   for (let i = 0; i <= 20; i++) {
     const deg = a0 + sweep * i / 20;
     const major = i % 2 === 0;
-    const [x1, y1] = pol(r * 0.80, deg), [x2, y2] = pol(r * (major ? 0.70 : 0.745), deg);
+    const [x1, y1] = pol(r * 0.82, deg), [x2, y2] = pol(r * (major ? 0.72 : 0.765), deg);
     b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
       stroke="#191d21" stroke-width="${r * (major ? 0.022 : 0.012)}"/>`);
     if (major) {
-      const [tx, ty] = pol(r * 0.60, deg);
-      b.push(`<text x="${tx}" y="${ty + r * 0.035}" text-anchor="middle"
-        fill="#191d21" font-size="${r * 0.105}" font-weight="600"
+      const [tx, ty] = pol(r * 0.63, deg);
+      b.push(`<text x="${tx}" y="${ty + r * 0.032}" text-anchor="middle"
+        fill="#191d21" font-size="${r * 0.088}" font-weight="600"
         font-family="system-ui, sans-serif">${max * i / 20}</text>`);
     }
   }
-  // Inner bar scale, in the red the reference prints it in: clean multiples
-  // of 50 bar, each placed where that pressure actually falls on the sweep.
+  // Inner bar scale, red as the reference prints it, at clean multiples of
+  // 50 placed where that pressure actually falls on the sweep.
   const fullBar = max / 14.5038;
   for (let bar = 0; bar <= fullBar; bar += 50) {
     const deg = a0 + sweep * bar / fullBar;
-    const [x1, y1] = pol(r * 0.475, deg), [x2, y2] = pol(r * 0.42, deg);
+    const [x1, y1] = pol(r * 0.50, deg), [x2, y2] = pol(r * 0.445, deg);
     b.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
       stroke="#b02620" stroke-width="${r * 0.014}"/>`);
-    const [tx, ty] = pol(r * 0.36, deg);
-    b.push(`<text x="${tx}" y="${ty + r * 0.03}" text-anchor="middle"
-      fill="#b02620" font-size="${r * 0.08}" font-weight="600"
+    const [tx, ty] = pol(r * 0.395, deg);
+    b.push(`<text x="${tx}" y="${ty + r * 0.028}" text-anchor="middle"
+      fill="#b02620" font-size="${r * 0.075}" font-weight="600"
       font-family="system-ui, sans-serif">${bar}</text>`);
   }
 
   const frac = Math.max(0, Math.min(1, (value || 0) / max));
   const deg = a0 + sweep * frac;
-  const [nx, ny] = pol(r * 0.72, deg);
-  const [bx, by] = pol(-r * 0.10, deg);
-  b.push(`<line x1="${bx}" y1="${by}" x2="${nx}" y2="${ny}" stroke="#101316"
-    stroke-width="${r * 0.045}" stroke-linecap="round"/>`);
-  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.09}" fill="#101316"/>`);
+  const [nx, ny] = pol(r * 0.74, deg);
+  b.push(`<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#8c1e18"
+    stroke-width="${r * 0.035}" stroke-linecap="round"/>`);
+  // The large black hub the reference gauge carries.
+  b.push(`<circle cx="${cx}" cy="${cy}" r="${r * 0.20}" fill="#101316"/>`);
+  b.push(`<circle cx="${cx - r * 0.05}" cy="${cy - r * 0.05}" r="${r * 0.05}"
+    fill="#3a424a" opacity="0.8"/>`);
 
-  b.push(mfWindow(cx - r * 0.34, cy + r * 0.30, r * 0.68, r * 0.24,
-    Math.round(value || 0).toLocaleString(), r * 0.15));
-  b.push(`<text x="${cx}" y="${cy + r * 0.68}" text-anchor="middle"
-    fill="#5a6167" font-size="${r * 0.085}" font-weight="600"
+  b.push(mfWindow(cx - r * 0.30, cy + r * 0.30, r * 0.60, r * 0.21,
+    Math.round(value || 0).toLocaleString(), r * 0.14));
+  b.push(`<text x="${cx}" y="${cy + r * 0.62}" text-anchor="middle"
+    fill="#b02620" font-size="${r * 0.075}" font-weight="700"
+    font-family="system-ui, sans-serif">bar</text>`);
+  b.push(`<text x="${cx}" y="${cy + r * 0.70}" text-anchor="middle"
+    fill="#191d21" font-size="${r * 0.075}" font-weight="600"
     font-family="system-ui, sans-serif">psi</text>`);
-  b.push(mfLabel(cx, cy + r + 26, label, 14));
+  if (label) b.push(mfLabel(cx, cy + r + 24, label, 12));
   return b.join("");
 }
 
-/* A centrifugal pump: the volute face-on with a swept impeller in it, on a
-   base. The whole symbol is the switch -- ringed green and turning a green
-   hub while it runs. */
-function pumpSymbol(cx, cy, name, label, running, r = 30) {
+/* The thin black tapping the reference hangs its gauges on. */
+function gaugeStem(points) {
+  const d = points.map(([x, y], i) => `${i ? "L" : "M"} ${x} ${y}`).join(" ");
+  return `<path d="${d}" fill="none" stroke="#14181c" stroke-width="3"/>`;
+}
+
+/* A spin box as the reference draws one -- a white Windows spinner with its
+   up/down arrows on the right edge. Each arrow is its own control with a
+   hit target well past the drawing. */
+function spinBox(x, y, w, val, downAct, upAct, suffix) {
+  const h = 26, aw = 15;
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#ffffff"
+      stroke="#7b848c" stroke-width="1.5"/>
+    <text x="${x + (w - aw) / 2}" y="${y + 18}" text-anchor="middle"
+      fill="#14181c" font-size="14" font-weight="600"
+      font-family="system-ui, sans-serif">${val}</text>
+    <rect x="${x + w - aw}" y="${y}" width="${aw}" height="${h}"
+      fill="#dfe3e7" stroke="#7b848c" stroke-width="1"/>
+    <g data-face="${upAct}" style="cursor:pointer">
+      <rect x="${x + w - aw - 6}" y="${y - 8}" width="${aw + 14}"
+        height="${h / 2 + 8}" fill="transparent"/>
+      <polygon points="${x + w - aw / 2 - 4},${y + 10}
+        ${x + w - aw / 2 + 4},${y + 10} ${x + w - aw / 2},${y + 4}"
+        fill="#14181c"/></g>
+    <g data-face="${downAct}" style="cursor:pointer">
+      <rect x="${x + w - aw - 6}" y="${y + h / 2}" width="${aw + 14}"
+        height="${h / 2 + 8}" fill="transparent"/>
+      <polygon points="${x + w - aw / 2 - 4},${y + 16}
+        ${x + w - aw / 2 + 4},${y + 16} ${x + w - aw / 2},${y + 22}"
+        fill="#14181c"/></g>
+    ${suffix ? mfLabel(x + w + 10, y + 18, suffix, 12, "start") : ""}`;
+}
+
+/* A centrifugal pump: the volute face-on with a swept impeller. The whole
+   symbol is the switch -- ringed green while it runs. */
+function pumpSymbol(cx, cy, name, label, running, r = 26) {
   const blades = [0, 90, 180, 270].map(a =>
     `<path d="M 0 0 Q ${r * 0.42} ${-r * 0.18} ${r * 0.62} ${r * 0.10}"
        transform="rotate(${a})" fill="none" stroke="#e8ebee"
@@ -2644,21 +2716,20 @@ function pumpSymbol(cx, cy, name, label, running, r = 30) {
   return `<g transform="translate(${cx} ${cy})" data-face="pump:${name}"
       style="cursor:pointer">
     <circle r="${r + 14}" fill="transparent"/>
-    <rect x="${-r * 0.9}" y="${r * 0.72}" width="${r * 1.8}" height="${r * 0.34}"
-      rx="${r * 0.1}" fill="#3a424a"/>
     <circle r="${r}" fill="${running ? "#1d6b35" : "#3a424a"}"
       stroke="#14181c" stroke-width="${r * 0.12}"/>
     ${blades}
-    <circle r="${r * 0.18}" fill="${running ? MFACE.lampOn : "#14181c"}"/>
+    <circle r="${r * 0.18}" fill="${running ? MFACE.lampOn : "#d8352c"}"/>
     ${running ? `<circle r="${r + 5}" fill="none" stroke="${MFACE.lampOn}"
       stroke-width="3" opacity="0.85"/>` : ""}
     <title>${label} — ${running ? "running" : "stopped"} (click to ${
       running ? "stop" : "start"})</title></g>`;
 }
 
-/* A vertical tank: black cylinder, white lettering, the level as a band of
-   mud. `lines` are [text, size, dy] rows drawn down the shell. */
-function tankCylinder(cx, top, w, h, frac, lines) {
+/* A vertical tank as the reference draws one: dark shell, a *light* top
+   ellipse carrying the capacity in black, the body lettering in white, and
+   the mud as a brown band at the level the volume puts it. */
+function tankCylinder(cx, top, w, h, frac, capLines, bodyLines) {
   const ry = w * 0.13, x = cx - w / 2;
   const level = Math.max(0, Math.min(1, frac || 0));
   const ly = top + h - h * level;
@@ -2670,39 +2741,32 @@ function tankCylinder(cx, top, w, h, frac, lines) {
     fill="#07090b"/>`);
   if (level > 0.005) {
     b.push(`<rect x="${x}" y="${ly}" width="${w}" height="${top + h - ly}"
-      fill="#7a5a17" opacity="0.55"/>`);
-    b.push(`<ellipse cx="${cx}" cy="${ly}" rx="${w / 2}" ry="${ry * 0.9}"
-      fill="#c98a12" opacity="0.8"/>`);
+      fill="#5a3d13"/>`);
+    b.push(`<rect x="${x}" y="${ly}" width="${w * 0.16}" height="${top + h - ly}"
+      fill="#6d4b1a"/>`);
+    b.push(`<ellipse cx="${cx}" cy="${ly}" rx="${w / 2}" ry="${ry * 0.85}"
+      fill="#7a5a1e"/>`);
   }
   b.push(`<ellipse cx="${cx}" cy="${top + h}" rx="${w / 2}" ry="${ry}"
     fill="#0b0e11"/>`);
   b.push(`<ellipse cx="${cx}" cy="${top}" rx="${w / 2}" ry="${ry}"
-    fill="#31383f" stroke="#0b0e11" stroke-width="2"/>`);
-  let y = top + h * 0.30;
-  lines.forEach(([text, size, dy]) => {
-    y += dy || 0;
+    fill="#e8ebed" stroke="#9aa2a8" stroke-width="1.5"/>`);
+  capLines.forEach(([text, size], i) => {
+    b.push(`<text x="${cx}" y="${top - ry * 0.2 + i * (size + 3) - (capLines.length - 1) * (size + 3) / 2 + size * 0.4}"
+      text-anchor="middle" fill="#14181c" font-size="${size}" font-weight="700"
+      font-family="system-ui, sans-serif">${text}</text>`);
+  });
+  let y = top + h * 0.42;
+  bodyLines.forEach(([text, size]) => {
     b.push(`<text x="${cx}" y="${y}" text-anchor="middle" fill="#f2f4f5"
       font-size="${size}" font-weight="700"
       font-family="system-ui, sans-serif">${text}</text>`);
-    y += size * 1.5;
+    y += size * 1.6;
   });
   return b.join("");
 }
 
-/* A square stepper button for the set point boxes -- small, so it carries a
-   hit disc well past its own edge. */
-function mfStep(x, y, glyph, act) {
-  return `<g transform="translate(${x} ${y})" data-face="${act}"
-      style="cursor:pointer">
-    <circle r="17" fill="transparent"/>
-    <rect x="-11" y="-11" width="22" height="22" rx="4" fill="#3a424a"
-      stroke="#14181c" stroke-width="1.5"/>
-    <text x="0" y="5" text-anchor="middle" fill="#e8ebee" font-size="15"
-      font-weight="700" font-family="system-ui">${glyph}</text></g>`;
-}
-
-/* A lamp with a fixed legend, same shape as the BOP face's ARMED lamp: the
-   word stays put and the light behind it comes on. */
+/* A lamp with a fixed legend: the word stays put, the light comes on. */
 function mfLamp(cx, cy, on, legend, colour) {
   return `<circle cx="${cx}" cy="${cy}" r="9" fill="${on ? colour : "#20262c"}"
       stroke="#14181c" stroke-width="2"/>
@@ -2713,316 +2777,370 @@ function mfLamp(cx, cy, on, legend, colour) {
 }
 
 /* ------------------------- SP manifold face ----------------------------- */
-/* IMG_1195: the standpipe gauge over two manifold runs, the standpipe riser
-   top left, and the branches along the bottom run -- both mud pumps, the two
-   cement lines, and the kill line tie-in. Everything is a real valve; the
-   cement lines run to equipment this rig does not have, which is exactly
-   what opening them teaches. */
+/* Verbatim to IMG_1195, coordinates measured off the photograph and scaled
+   into the viewBox (x by 0.859 + 40, y by 0.648 from the panel's top).
+
+   Two standpipe risers on two columns -- mud pump 1 up the west column to
+   standpipe 1, mud pump 2 up the east to standpipe 2 -- an upper header
+   with a section wheel either side of the gauge, a lower run with its own
+   pair, and the cement head, cement pump and kill line branches hanging
+   from it. Twelve wheels, every one a real valve. */
 function drawSpManifoldFace(g) {
   const host = $("spface");
   if (!host || !lineupCache.length || !g) return;
-  const PW = 18;
+  const PW = 16, UPPER = 259, LOWER = 337;
   const b = [mfBase()];
 
-  const UPPER = 430, LOWER = 550;
-
-  // Runs first, controls on top.
-  b.push(pipeRun([[90, UPPER], [1510, UPPER]], PW));
-  b.push(pipeRun([[200, UPPER], [200, LOWER], [1400, LOWER], [1400, UPPER]], PW));
-  b.push(pipeRun([[280, UPPER], [280, 130]], PW));            // standpipe riser
-  [[340, "pump_discharge", "MUD PUMP 1"],
-   [620, "cement_head_valve", "CEMENT HEAD"],
-   [850, "cement_pump_valve", "CEMENT PUMP"],
-   [1080, "pump_to_kill_line", "TO KILL LINE"],
-   [1330, "pump_2_discharge", "MUD PUMP 2"]].forEach(([x]) => {
-    b.push(pipeRun([[x, LOWER], [x, 645]], PW));
+  // Runs and columns first, controls on top.
+  b.push(pipeRun([[79, UPPER], [1492, UPPER]], PW));
+  b.push(pipeRun([[293, 6], [293, 528]], PW));                // west column
+  b.push(pipeRun([[1492, 91], [1492, 505]], PW));             // east column
+  b.push(pipeRun([[293, LOWER], [1492, LOWER]], PW));
+  [[590, 505], [899, 505], [1204, 505]].forEach(([x, bottom]) => {
+    b.push(pipeRun([[x, LOWER], [x, bottom]], PW));
   });
 
-  b.push(pipeTee(200, UPPER, PW)); b.push(pipeTee(1400, UPPER, PW));
-  b.push(pipeTee(280, UPPER, PW));
-  b.push(pipeFlange(280, 150, PW, true));
-  b.push(pipeFlange(120, UPPER, PW, false));
-  b.push(pipeFlange(1480, UPPER, PW, false));
-  [340, 620, 850, 1080, 1330].forEach(x => {
-    b.push(pipeTee(x, LOWER, PW));
-    b.push(pipeFlange(x, 632, PW, true));
+  [[293, UPPER], [1492, UPPER], [293, LOWER], [590, LOWER],
+   [899, LOWER], [1204, LOWER], [1492, LOWER]].forEach(([x, y]) => {
+    b.push(pipeBlock(x, y, PW));
   });
+  b.push(pipeFlange(293, 40, PW, true));
+  b.push(pipeFlange(1492, 120, PW, true));
 
-  // The gauge dominates the face, as it does the photograph.
-  b.push(manifoldGauge(800, 200, 165, "STAND PIPE PRESSURE",
-    g.drill_pipe_psi));
+  // The gauge sits on the header, its stem touching the run.
+  b.push(gaugeStem([[886, 250], [886, UPPER]]));
+  b.push(manifoldGauge(886, 128, 120, "", g.drill_pipe_psi));
 
-  b.push(mfLabel(280, 108, "STAND PIPE 1", 15));
-  b.push(mfLabel(96, UPPER - 60, "TO CHOKE MANIFOLD", 12, "start"));
-  b.push(handwheel(280, 300, "standpipe_valve", "Standpipe valve"));
-  b.push(handwheel(150, UPPER, "standpipe_to_manifold",
+  b.push(mfLabel(272, 100, "Stand Pipe 1", 13, "end"));
+  b.push(mfLabel(1470, 95, "Stand Pipe 2", 13, "end"));
+  b.push(mfLabel(156, 218, "To Choke Manifold", 11));
+
+  // The twelve wheels, at the photograph's positions.
+  b.push(handwheel(293, 188, "standpipe_valve", "Standpipe valve"));
+  b.push(handwheel(1492, 175, "standpipe_2_valve", "Standpipe 2 valve"));
+  b.push(handwheel(156, UPPER, "standpipe_to_manifold",
     "Standpipe to choke manifold"));
+  b.push(handwheel(624, UPPER, "header_west_valve", "SP header west valve"));
+  b.push(handwheel(1157, UPPER, "header_east_valve", "SP header east valve"));
+  b.push(handwheel(444, LOWER, "lower_west_valve", "SP lower run west valve"));
+  b.push(handwheel(1320, LOWER, "lower_east_valve", "SP lower run east valve"));
+  b.push(handwheel(590, 415, "cement_head_valve", "Cement head isolation"));
+  b.push(handwheel(899, 415, "cement_pump_valve", "Cement pump isolation"));
+  b.push(handwheel(1204, 415, "pump_to_kill_line", "Pump to kill line"));
+  b.push(handwheel(293, 454, "pump_discharge", "Mud pump discharge"));
+  b.push(handwheel(1492, 424, "pump_2_discharge", "Mud pump 2 discharge"));
 
-  [[340, "pump_discharge", "Mud pump discharge", "MUD PUMP 1"],
-   [620, "cement_head_valve", "Cement head isolation", "CEMENT HEAD"],
-   [850, "cement_pump_valve", "Cement pump isolation", "CEMENT PUMP"],
-   [1080, "pump_to_kill_line", "Pump to kill line", "TO KILL LINE"],
-   [1330, "pump_2_discharge", "Mud pump 2 discharge", "MUD PUMP 2"]]
-    .forEach(([x, name, label, tag]) => {
-      b.push(handwheel(x, 597, name, label));
-      b.push(mfLabel(x, 668, tag, 13));
-    });
+  b.push(mfLabel(293, 560, "Mud Pump 1", 13));
+  b.push(mfLabel(1492, 537, "Mud Pump 2", 13));
+  b.push(mfLabel(590, 540, "Cement Head", 13));
+  b.push(mfLabel(899, 540, "Cement Pump", 13));
+  b.push(mfLabel(1204, 540, "Choke line / Kill Line", 13));
 
   host.innerHTML = b.join("");
   wireFace(host, g);
 }
 
 /* ------------------------ choke manifold face --------------------------- */
-/* IMG_1196: the choke line in from bottom left, the kill line bottom right,
-   the feed from the SP manifold between them, four chokes across the top --
-   remote outboard, manual inboard -- and the riser to the pits between them.
-   Each choke carries its own position window with steppers; the one the
-   remote panel is driving is ringed green. */
+/* Verbatim to IMG_1196. Four choke risers off the header -- remote 1,
+   manual 1, manual 2, remote 2 -- each with its isolation wheel on the
+   riser and the choke itself at the top with its position spinner. The To
+   Pits riser taps the header middle between two section wheels, with a
+   gauge hung either side; the choke line and kill line come up from below
+   through their entry wheels, and a lower run joins them underneath with
+   the feed from the SP manifold in its middle and a section wheel each
+   side. The kill line carries its own gauge.
+
+   Two departures from the photograph, both deliberate: the To Pits riser
+   carries the bypass wheel (the engine's choke_bypass -- an uncontrolled
+   route a student must be able to shut), and each gauge takes a small
+   caption, because unlabelled duplicate gauges tell a student nothing. */
 function drawChokeManifoldFace(g) {
   const host = $("ckface");
   if (!host || !lineupCache.length || !g) return;
-  const PW = 18;
+  const PW = 16, HEADER = 425, LOWER = 572;
   const b = [mfBase()];
 
-  const COLLECT = 120, HEADER = 430, FOOT = 590;
   const CHOKES = [
-    [320, "choke_1", "REMOTE CHOKE 1", true],
-    [560, "manual_choke_1", "MANUAL CHOKE 1", false],
-    [1040, "manual_choke_2", "MANUAL CHOKE 2", false],
-    [1280, "choke_2", "REMOTE CHOKE 2", true],
+    [100, "choke_1", "Remote Choke 1", true, 300],
+    [435, "manual_choke_1", "Manual Choke 1", false, 297],
+    [1200, "manual_choke_2", "Manual Choke 2", false, 297],
+    [1520, "choke_2", "Remote Choke 2", true, 287],
   ];
 
-  // Pipework: collection line to the pits, the header, the three entries.
-  b.push(pipeRun([[180, COLLECT], [1400, COLLECT]], PW));
-  b.push(pipeRun([[800, COLLECT], [800, 34]], PW));           // to pits
-  b.push(pipeRun([[180, HEADER], [180, COLLECT]], PW));       // bypass
-  CHOKES.forEach(([x]) => b.push(pipeRun([[x, HEADER], [x, COLLECT]], PW)));
-  b.push(pipeRun([[110, HEADER], [1490, HEADER]], PW));
-  b.push(pipeRun([[60, FOOT], [250, FOOT], [250, HEADER]], PW));    // choke line
-  b.push(pipeRun([[1540, FOOT], [1350, FOOT], [1350, HEADER]], PW)); // kill line
-  b.push(pipeRun([[700, FOOT + 55], [700, HEADER]], PW));     // from SP manifold
+  // Pipework: the header with its end corners up to the remote chokes, the
+  // manual choke risers, To Pits, the entries and the lower run.
+  b.push(pipeRun([[100, 131], [100, HEADER], [1520, HEADER], [1520, 131]], PW));
+  b.push(pipeRun([[435, 120], [435, HEADER]], PW));
+  b.push(pipeRun([[1200, 120], [1200, HEADER]], PW));
+  b.push(pipeRun([[817, HEADER], [817, 40]], PW));            // to pits
+  b.push(pipeRun([[311, HEADER], [311, 669]], PW));           // choke line
+  b.push(pipeRun([[1303, HEADER], [1303, 669]], PW));         // kill line
+  b.push(pipeRun([[311, LOWER], [1303, LOWER]], PW));
+  b.push(pipeRun([[839, LOWER], [839, 669]], PW));            // from SP
 
-  b.push(pipeTee(800, COLLECT, PW)); b.push(pipeTee(180, COLLECT, PW));
-  CHOKES.forEach(([x]) => { b.push(pipeTee(x, COLLECT, PW)); b.push(pipeTee(x, HEADER, PW)); });
-  b.push(pipeTee(250, HEADER, PW)); b.push(pipeTee(1350, HEADER, PW));
-  b.push(pipeTee(700, HEADER, PW)); b.push(pipeTee(180, HEADER, PW));
-  b.push(pipeFlange(800, 48, PW, true));
-  b.push(pipeFlange(75, FOOT, PW, false)); b.push(pipeFlange(1525, FOOT, PW, false));
-  b.push(pipeFlange(700, FOOT + 42, PW, true));
+  [[817, HEADER], [311, HEADER], [1303, HEADER], [435, HEADER],
+   [1200, HEADER], [311, LOWER], [1303, LOWER], [839, LOWER]]
+    .forEach(([x, y]) => b.push(pipeBlock(x, y, PW)));
+  b.push(pipeFlange(817, 60, PW, true));
+  b.push(pipeFlange(311, 650, PW, true));
+  b.push(pipeFlange(1303, 650, PW, true));
+  b.push(pipeFlange(839, 655, PW, true));
 
-  b.push(mfLabel(800, 24, "TO PITS — via the separator", 14));
-  b.push(handwheel(800, 75, "separator_to_pits", "Separator to pits", 24));
-  b.push(mfLabel(180, HEADER - 190, "BY-PASS", 12));
-  b.push(handwheel(180, 275, "choke_bypass", "Choke manifold bypass", 26));
+  b.push(mfLabel(817, 26, "To Pits", 13));
+  b.push(handwheel(817, 110, "separator_to_pits", "Separator to pits", 26));
+  b.push(handwheel(817, 230, "choke_bypass", "Choke manifold bypass", 28));
 
-  // The chokes. A remote is its actuator on a body; a manual is a handwheel.
-  // Both carry the position window, because the position is the one thing
-  // about a choke that is not simply open or shut.
-  CHOKES.forEach(([x, name, tag, remote]) => {
+  // The chokes: isolation wheel on the riser, the choke at the top --
+  // an actuator body for a remote, the handwheel itself for a manual --
+  // and the position spinner beside it. The choke in service is ringed.
+  CHOKES.forEach(([x, name, tag, remote, wheelY]) => {
     const c = (g.chokes || {})[name] || {position: 0, commanded: 0};
     const live = g.choke_in_service === name;
-    b.push(mfLabel(x, 165, tag, 13));
+    const open = valveState(name);
+    // A remote's spinner sits outboard of its body, as the photograph has
+    // them at the panel edges; a manual's sits to its right.
+    const spinW = remote ? 52 : 64;
+    const spinX = remote ? (x === 100 ? 6 : 1392) : x + 62;
+    b.push(mfLabel(remote ? x + 8 : x, remote ? 66 : 52, tag, 13,
+      x === 100 ? "start" : "middle"));
     if (remote) {
-      b.push(`<g transform="translate(${x} 265)" data-face="valve:${name}"
+      b.push(`<g transform="translate(${x} 131)" data-face="valve:${name}"
           style="cursor:pointer">
-        <circle r="52" fill="transparent"/>
-        <rect x="-26" y="-38" width="52" height="76" rx="9" fill="#a8332d"
+        <circle r="56" fill="transparent"/>
+        <rect x="-52" y="-26" width="104" height="52" rx="8" fill="#a8332d"
           stroke="#14181c" stroke-width="2.5"/>
-        <rect x="-26" y="-38" width="12" height="76" rx="6" fill="#c05a54"
+        <rect x="-52" y="-26" width="104" height="12" rx="6" fill="#c05a54"
           opacity="0.7"/>
-        <rect x="-14" y="-54" width="28" height="18" rx="4" fill="#3a424a"
+        <rect x="-52" y="-30" width="14" height="60" rx="3" fill="#701d18"/>
+        <rect x="38" y="-30" width="14" height="60" rx="3" fill="#701d18"/>
+        <circle r="9" fill="${open ? MFACE.lampOn : MFACE.lampOff}"
           stroke="#14181c" stroke-width="2"/>
-        <circle cy="0" r="9" fill="${valveState(name) ? MFACE.lampOn : MFACE.lampOff}"
-          stroke="#14181c" stroke-width="2"/>
-        <title>${tag} — ${valveState(name) ? "lined up" : "isolated"}
-          (click to ${valveState(name) ? "isolate" : "line up"})</title></g>`);
+        <title>${tag} — ${open ? "lined up" : "isolated"}
+          (click to ${open ? "isolate" : "line up"})</title></g>`);
     } else {
-      b.push(handwheel(x, 265, name, tag, 34));
+      b.push(handwheel(x, 152, name, tag, 40));
     }
+    b.push(spinBox(spinX, 118, spinW, c.position.toFixed(0),
+      `ckpos-:${name}`, `ckpos+:${name}`, remote ? "" : "%"));
+    if (remote) b.push(mfLabel(spinX + spinW / 2, 162, "%", 12));
     if (live) {
-      b.push(`<rect x="${x - 62}" y="332" width="124" height="36" rx="6"
-        fill="none" stroke="${MFACE.lampOn}" stroke-width="3"/>`);
+      b.push(`<rect x="${spinX - 5}" y="113" width="${spinW + 10}" height="36"
+        rx="5" fill="none" stroke="${MFACE.lampOn}" stroke-width="3"/>`);
     }
-    b.push(mfWindow(x - 52, 336, 104, 28, `${c.position.toFixed(0)} %`, 15));
-    b.push(mfStep(x - 76, 350, "−", `ckpos-:${name}`));
-    b.push(mfStep(x + 76, 350, "+", `ckpos+:${name}`));
-    if (live) b.push(mfLabel(x, 390, "IN SERVICE", 10));
+    b.push(handwheel(x, wheelY, name, `${tag} isolation`, 30));
   });
 
-  // Gauges: the choke side on the header, the kill line on its own riser.
-  b.push(manifoldGauge(850, HEADER, 100, "CHOKE LINE PRESSURE", g.casing_psi));
-  b.push(manifoldGauge(1465, 470, 78, "KILL LINE PRESSURE", g.kill_line_psi));
+  // Header section wheels either side of To Pits, with a gauge each.
+  b.push(handwheel(697, HEADER, "ck_header_west",
+    "Choke manifold header west", 30));
+  b.push(handwheel(946, HEADER, "ck_header_east",
+    "Choke manifold header east", 30));
+  b.push(gaugeStem([[581, 418], [581, HEADER]]));
+  b.push(manifoldGauge(581, 325, 95, "", g.casing_psi));
+  b.push(mfLabel(581, 218, "Choke Line", 12));
+  b.push(gaugeStem([[1058, 418], [1058, HEADER]]));
+  b.push(manifoldGauge(1058, 325, 95, "", g.casing_psi));
+  b.push(mfLabel(1058, 218, "Manifold", 12));
 
-  b.push(handwheel(250, 510, "choke_line_to_manifold", "Choke line to manifold"));
-  b.push(mfLabel(140, FOOT + 45, "CHOKE LINE", 14));
-  b.push(handwheel(1350, 510, "kill_line_to_manifold", "Kill line to manifold"));
-  b.push(mfLabel(1450, FOOT + 45, "KILL LINE", 14));
-  b.push(handwheel(700, 510, "standpipe_to_manifold", "Standpipe to choke manifold"));
-  b.push(mfLabel(700, FOOT + 78, "FROM SP MANIFOLD", 13));
+  // The entries, the lower run and the kill line gauge.
+  b.push(handwheel(311, 500, "choke_line_to_manifold",
+    "Choke line to manifold", 30));
+  b.push(mfLabel(280, 645, "Choke Line", 13, "end"));
+  b.push(handwheel(1303, 488, "kill_line_to_manifold",
+    "Kill line to manifold", 30));
+  b.push(mfLabel(1264, 645, "Kill Line", 13, "end"));
+  b.push(handwheel(435, LOWER, "ck_lower_west",
+    "Choke manifold lower run west", 30));
+  b.push(handwheel(1196, LOWER, "ck_lower_east",
+    "Choke manifold lower run east", 30));
+  b.push(mfLabel(770, 640, "From SP Manifold", 13, "end"));
+  b.push(gaugeStem([[1470, 608], [1470, 625], [1310, 625]]));
+  b.push(manifoldGauge(1470, 525, 80, "", g.kill_line_psi));
+  b.push(mfLabel(1470, 645, "Kill Line Pressure", 11));
 
   host.innerHTML = b.join("");
   wireFace(host, g);
 }
 
 /* -------------------------- trip tank face ------------------------------ */
-/* IMG_1197: the stack in elevation on the left, the flow line across the top
-   to the shakers, the return and fill-up lines to the trip tank, the tank
-   with its alarms beside it, and the active mud volume on the right. The
-   tank is in service only with the valve open *and* the fill-up pump
-   running -- lined up half way, the hole is being filled from the active
-   system, where a barrel and a half does not show against eight hundred. */
+/* Verbatim to IMG_1197, which draws its valves as P&ID bowties rather than
+   handwheels -- so this face does too. The stack in elevation on the left;
+   the standpipe manifold line across the top turning down to the shakers;
+   the flow line below it with the return line tapping off through the trip
+   tank valve; the fill-up line back to the well through its pump; the tank
+   with its alarm spinners; the fill and drain lines with their pumps and
+   isolation bowties; the shakers over the active mud volume.
+
+   Kept although the photograph lacks them, small and out of the way: the
+   in-service lamp with the mark window and ZERO (the instrument the trip is
+   worked to), the shakers-to-pits bowtie, and the reserve pit with its
+   transfer pump (the false-gain lesson needs a control). */
 function drawTripTankFace(g) {
   const host = $("ttface");
   if (!host || !lineupCache.length || !g || !g.trip_tank) return;
   const tt = g.trip_tank, pits = g.pits;
-  const PW = 14;
+  const PW = 10;
   const b = [mfBase()];
 
-  // -- the stack, in elevation, as context rather than control -------------
-  // Read-only: the BOP screen is where it is worked. Drawn from the lineup,
-  // so a closed element shows its rams met across the bore.
+  // -- the stack, in elevation, read-only ----------------------------------
   const elements = lineupCache.filter(v => v.is_bop);
-  const SX = 170, STOP = 150, SBOT = 560;
-  const eh = Math.min(58, (SBOT - STOP) / elements.length);
-  b.push(`<rect x="${SX - 16}" y="80" width="32" height="${STOP - 80}"
-    fill="#b04a44" stroke="#6e2b25" stroke-width="2"/>`);
+  const SX = 243, STOP = 150, SBOT = 530;
+  const eh = Math.min(64, (SBOT - STOP) / elements.length);
+  b.push(pipeRun([[SX, 27], [SX, STOP + 8]], PW * 2));
+  b.push(pipeFlange(SX, STOP - 40, PW * 2, true));
   elements.forEach((v, i) => {
     const y = STOP + i * eh, shut = v.state !== "open";
     if (v.bop_kind === "annular") {
-      b.push(`<path d="M ${SX - 52} ${y + eh - 4} L ${SX - 52} ${y + eh * 0.45}
-        Q ${SX - 52} ${y + 2} ${SX - 20} ${y + 2} L ${SX + 20} ${y + 2}
-        Q ${SX + 52} ${y + 2} ${SX + 52} ${y + eh * 0.45}
-        L ${SX + 52} ${y + eh - 4} Z"
+      b.push(`<path d="M ${SX - 56} ${y + eh - 4} L ${SX - 56} ${y + eh * 0.45}
+        Q ${SX - 56} ${y + 2} ${SX - 22} ${y + 2} L ${SX + 22} ${y + 2}
+        Q ${SX + 56} ${y + 2} ${SX + 56} ${y + eh * 0.45}
+        L ${SX + 56} ${y + eh - 4} Z"
         fill="#b04a44" stroke="#6e2b25" stroke-width="2"/>`);
     } else if (v.bop_kind === "connector") {
-      b.push(`<rect x="${SX - 58}" y="${y + eh * 0.25}" width="116"
+      b.push(`<rect x="${SX - 62}" y="${y + eh * 0.25}" width="124"
         height="${eh * 0.5}" fill="#8f3a34" stroke="#6e2b25" stroke-width="2"/>`);
     } else {
-      b.push(`<rect x="${SX - 46}" y="${y + 2}" width="92" height="${eh - 6}"
+      b.push(`<rect x="${SX - 50}" y="${y + 2}" width="100" height="${eh - 6}"
         rx="4" fill="#b04a44" stroke="#6e2b25" stroke-width="2"/>`);
-      b.push(`<rect x="${SX - 74}" y="${y + eh * 0.28}" width="28"
+      b.push(`<rect x="${SX - 80}" y="${y + eh * 0.28}" width="30"
         height="${eh * 0.42}" rx="4" fill="#9c423c" stroke="#6e2b25"
         stroke-width="2"/>`);
-      b.push(`<rect x="${SX + 46}" y="${y + eh * 0.28}" width="28"
+      b.push(`<rect x="${SX + 50}" y="${y + eh * 0.28}" width="30"
         height="${eh * 0.42}" rx="4" fill="#9c423c" stroke="#6e2b25"
         stroke-width="2"/>`);
     }
-    if (shut) b.push(`<rect x="${SX - 14}" y="${y + eh * 0.38}" width="28"
+    if (shut) b.push(`<rect x="${SX - 15}" y="${y + eh * 0.38}" width="30"
       height="${eh * 0.24}" fill="#f2d8d6" stroke="#6e2b25"/>`);
   });
-  b.push(`<rect x="${SX - 30}" y="${SBOT}" width="60" height="18"
-    fill="#8f3a34" stroke="#6e2b25" stroke-width="2"/>`);
-  b.push(mfLabel(SX, SBOT + 44, "BOP", 15));
+  b.push(mfLabel(SX, STOP + elements.length * eh + 40, "BOP", 14));
 
   // -- the alarm box, top left ---------------------------------------------
-  b.push(`<rect x="46" y="34" width="150" height="86" rx="6" fill="#cdd3d8"
+  b.push(`<rect x="93" y="20" width="106" height="140" rx="4" fill="#cdd3d8"
     stroke="#8f989f" stroke-width="2"/>`);
-  b.push(mfLabel(121, 54, "ALARM", 13));
+  b.push(mfLabel(146, 40, "Alarm", 13));
   b.push(`<g data-face="ttarm" style="cursor:pointer">
-    <rect x="56" y="62" width="130" height="50" fill="transparent"/>
-    <path d="M 76 96 q 0 -18 12 -18 q 12 0 12 18 z" fill="${
-      tt.alarm.armed ? "#c98a12" : "#5a6167"}" stroke="#14181c" stroke-width="2"/>
-    <circle cx="88" cy="100" r="3" fill="#14181c"/>
-    <text x="112" y="86" fill="${MFACE.ink}" font-size="13" font-weight="700"
-      font-family="system-ui">${tt.alarm.armed ? "ON" : "OFF"}</text>
+    <rect x="99" y="46" width="94" height="108" fill="transparent"/>
+    <path d="M 132 76 q 0 -16 14 -16 q 14 0 14 16 l 4 6 l -36 0 z"
+      fill="${tt.alarm.armed ? "#c98a12" : "#5a6167"}" stroke="#14181c"
+      stroke-width="2"/>
+    <circle cx="146" cy="86" r="3" fill="#14181c"/>
+    <path d="M 118 66 q -7 8 0 18 M 174 66 q 7 8 0 18" fill="none"
+      stroke="#14181c" stroke-width="2"/>
+    <rect x="128" y="98" width="36" height="52" rx="3" fill="#e8ebed"
+      stroke="#8f989f"/>
+    <text x="146" y="110" text-anchor="middle" fill="#14181c" font-size="9"
+      font-weight="700" font-family="system-ui">ON</text>
+    <circle cx="146" cy="124" r="8" fill="#3a424a" stroke="#14181c"/>
+    <rect x="143" y="${tt.alarm.armed ? 112 : 124}" width="6" height="12"
+      rx="3" fill="#14181c"/>
+    <text x="146" y="146" text-anchor="middle" fill="#14181c" font-size="9"
+      font-weight="700" font-family="system-ui">OFF</text>
     <title>Trip tank level alarm — ${tt.alarm.armed ? "armed" : "off"}</title></g>`);
 
-  // -- lines: flow line to the shakers, return and fill-up to the tank -----
-  const TANKX = 700, TANKTOP = 330, TANKH = 200, TANKW = 190;
-  b.push(pipeRun([[SX, 140], [1270, 140], [1270, 205]], PW));      // flow line
-  b.push(pipeRun([[SX + 16, 270], [TANKX, 270], [TANKX, TANKTOP]], PW)); // return
-  b.push(pipeRun([[TANKX - 60, TANKTOP + TANKH - 12], [400, TANKTOP + TANKH - 12],
-    [400, 500], [SX + 16, 500]], PW));                             // fill-up
-  b.push(pipeRun([[TANKX + 60, 380], [1200, 380], [1200, 205]], PW)); // drain
-  b.push(pipeRun([[1350, 600], [TANKX, 600], [TANKX, TANKTOP + TANKH]], PW)); // fill
-  b.push(pipeRun([[1010, 640], [1240, 640]], PW));                 // transfer
+  // -- the lines -----------------------------------------------------------
+  const TX = 922, TTOP = 248, TH = 140, TW = 176;
+  b.push(pipeRun([[230, 27], [1379, 27], [1379, 352]], PW));  // sp manifold
+  b.push(pipeRun([[255, 136], [1379, 136]], PW));             // flow line
+  b.push(pipeRun([[626, 136], [626, 282], [842, 282]], PW));  // return
+  b.push(pipeRun([[288, 197], [442, 197], [442, 360], [842, 360]], PW)); // fill-up
+  b.push(pipeRun([[1006, 343], [1379, 343]], PW));            // drain
+  b.push(pipeRun([[922, 388], [922, 503], [1303, 503]], PW)); // tank fill
+  b.push(pipeBlock(626, 136, PW));
+  b.push(pipeBlock(1379, 136, PW));
+  b.push(flowArrow(900, 27)); b.push(flowArrow(600, 136));
+  b.push(flowArrow(1150, 136)); b.push(flowArrow(790, 282));
+  b.push(flowArrow(700, 360, 180)); b.push(flowArrow(1100, 343));
 
-  b.push(pipeTee(1270, 140, PW)); b.push(pipeTee(TANKX, 270, PW));
-  b.push(pipeFlange(870, 140, PW, false));
-  b.push(pipeFlange(600, 270, PW, false));
+  b.push(mfLabel(921, 51, "Standpipe Manifold", 13));
+  b.push(mfLabel(833, 158, "Flow Line", 13));
+  b.push(bowtie(917, 136, "flowline", "Flowline to shakers"));
+  b.push(mfLabel(741, 262, "Return Line", 13));
+  b.push(bowtie(626, 214, "trip_tank_valve", "Trip tank to annulus", true));
+  b.push(mfLabel(746, 338, "Fillup Line", 13));
+  b.push(pumpSymbol(566, 360, "trip_tank_fillup", "Fill-up line pump",
+    tt.fillup_pump, 26));
+  b.push(mfLabel(566, 400, "Fillup Line Pump", 12));
 
-  b.push(mfLabel(650, 118, "FLOW LINE", 13));
-  b.push(handwheel(500, 140, "flowline", "Flowline to shakers", 26));
-  b.push(mfLabel(560, 248, "RETURN LINE", 13));
-  b.push(handwheel(430, 270, "trip_tank_valve", "Trip tank to annulus", 26));
-  b.push(mfLabel(560, 480, "FILL-UP LINE", 13));
-  b.push(pumpSymbol(430, 500, "trip_tank_fillup", "Fill-up line pump",
-    tt.fillup_pump, 27));
-  b.push(mfLabel(950, 358, "DRAIN PUMP", 12));
-  b.push(pumpSymbol(1000, 380, "trip_tank_drain", "Trip tank drain pump",
-    tt.drain_pump, 25));
-  b.push(mfLabel(950, 578, "TRIP TANK FILL PUMP", 12));
-  b.push(pumpSymbol(1000, 600, "trip_tank_fill", "Trip tank fill pump",
-    tt.fill_pump, 25));
-  b.push(mfLabel(1300, 628, "RESERVE TRANSFER", 11));
-  b.push(pumpSymbol(1125, 640, "pit_transfer", "Reserve to active transfer",
-    pits.transfer_pump, 22));
-
-  // -- the trip tank, its alarms and its mark ------------------------------
-  b.push(tankCylinder(TANKX, TANKTOP, TANKW, TANKH, tt.level_fraction, [
-    [`${tt.capacity_bbl.toFixed(1)} bbls`, 14, -24],
-    ["Capacity Max", 11, -6],
-    ["TRIP TANK", 13, 8],
-    [`${tt.volume_bbl.toFixed(1)} BBLS`, 17, 2],
-  ]));
-  [[tt.alarm.low, "#e0a020"], [tt.alarm.high, "#e2453d"]].forEach(([level, colour]) => {
+  // -- the trip tank and its alarms ----------------------------------------
+  b.push(tankCylinder(TX, TTOP, TW, TH, tt.level_fraction,
+    [[`${tt.capacity_bbl.toFixed(1)} bbls`, 13], ["Capacity Max", 11]],
+    [["Trip Tank", 13], [`${tt.volume_bbl.toFixed(1)} BBLS`, 15]]));
+  [[tt.alarm.high, "#d8352c"], [tt.alarm.low, "#d8352c"]].forEach(([level]) => {
     if (level === null || level === undefined) return;
-    const y = TANKTOP + TANKH * (1 - level / tt.capacity_bbl);
-    b.push(`<path d="M ${TANKX + TANKW / 2 + 24} ${y - 8}
-      L ${TANKX + TANKW / 2 + 24} ${y + 8} L ${TANKX + TANKW / 2 + 6} ${y} Z"
-      fill="${colour}" stroke="#14181c"/>`);
+    const y = TTOP + TH * (1 - level / tt.capacity_bbl);
+    b.push(`<path d="M ${TX + TW / 2 + 22} ${y - 8}
+      L ${TX + TW / 2 + 22} ${y + 8} L ${TX + TW / 2 + 4} ${y} Z"
+      fill="#d8352c" stroke="#14181c"/>`);
   });
+  b.push(mfLamp(1029, 272, tt.alarm.high_active, "High Alarm", "#e2453d"));
+  b.push(spinBox(1042, 291, 64, Math.round(tt.alarm.high || 0),
+    "tthigh-", "tthigh+", "bbls"));
+  b.push(mfLamp(1034, 367, tt.alarm.low_active, "Low Alarm", "#e0a020"));
+  b.push(spinBox(1044, 388, 64, Math.round(tt.alarm.low || 0),
+    "ttlow-", "ttlow+", "bbls"));
 
-  const spBox = (y, legend, val, active, colour, minus, plus) => {
-    b.push(mfLamp(920, y - 22, active, legend, colour));
-    b.push(mfStep(905, y + 4, "−", minus));
-    b.push(mfWindow(925, y - 10, 74, 28, `${Math.round(val || 0)}`, 15));
-    b.push(mfStep(1019, y + 4, "+", plus));
-    b.push(mfLabel(1046, y + 9, "bbls", 11, "start"));
-  };
-  spBox(240, "HIGH ALARM", tt.alarm.high, tt.alarm.high_active, "#e2453d",
-    "tthigh-", "tthigh+");
-  spBox(310, "LOW ALARM", tt.alarm.low, tt.alarm.low_active, "#e0a020",
-    "ttlow-", "ttlow+");
+  // -- fill and drain lines, their pumps and isolation bowties -------------
+  b.push(bowtie(922, 442, "tank_fill_discharge", "Tank fill pump discharge",
+    true));
+  b.push(pumpSymbol(1058, 503, "trip_tank_fill", "Trip tank fill pump",
+    tt.fill_pump, 25));
+  b.push(bowtie(1146, 503, "tank_fill_suction", "Tank fill pump suction"));
+  b.push(mfLabel(1058, 550, "Trip Tank Fill Pump", 12));
+  b.push(bowtie(1159, 343, "trip_tank_drain_valve", "Trip tank drain valve"));
+  b.push(pumpSymbol(1282, 343, "trip_tank_drain", "Trip tank drain pump",
+    tt.drain_pump, 25));
+  b.push(mfLabel(1282, 308, "Drain Pump", 12));
+
+  // -- shakers and the active system ---------------------------------------
+  // The tank first, so the shakers, their stub and its bowtie sit on top of
+  // the tank's ellipse rather than under it.
+  b.push(tankCylinder(1418, 438, 238, 130,
+    pits.active_bbl / pits.active_capacity_bbl,
+    [[`${pits.active_capacity_bbl.toFixed(1)} bbls`, 12], ["Capacity Max", 10]],
+    [["Active Mud Volume", 13], [`${pits.active_bbl.toFixed(1)} BBLS`, 15]]));
+  // The stub drops off the shakers' left end, clear of the capacity text
+  // printed on the tank's top ellipse.
+  b.push(pipeRun([[1348, 393], [1348, 445]], PW));
+  b.push(`<rect x="1330" y="352" width="146" height="41" rx="4" fill="#14181c"
+    stroke="#3c4650" stroke-width="2"/>`);
+  b.push(`<rect x="1330" y="352" width="146" height="9" rx="4" fill="#2b3138"/>`);
+  b.push(`<text x="1403" y="378" text-anchor="middle" fill="#f2f4f5"
+    font-size="13" font-weight="700" font-family="system-ui">Shale Shakers</text>`);
+  b.push(bowtie(1348, 417, "shakers_to_pits", "Shakers to pits"));
+
+  // -- the legend, and the instruments the photograph leaves out -----------
+  const check = (x, y, text) => `
+    <rect x="${x}" y="${y - 11}" width="15" height="15" rx="2" fill="#b02620"
+      stroke="#14181c"/>
+    <path d="M ${x + 3} ${y - 4} l 4 4 l 6 -8" fill="none" stroke="#ffffff"
+      stroke-width="2"/>
+    ${mfLabel(x + 24, y + 1, text, 12, "start", 700)}`;
+  b.push(check(361, 550,
+    `Active Mud Pit (Capacity Max: ${pits.active_capacity_bbl} bbls)`));
+  b.push(check(361, 584,
+    `Reserve Mud Pit (Capacity Max: ${pits.reserve_capacity_bbl} bbls)`));
 
   const inService = g.trip_tank_in_service;
-  b.push(mfLamp(620, 620, inService, inService
-    ? "IN SERVICE — the trip is being measured"
-    : "NOT IN SERVICE — valve and fill-up pump both needed",
-    MFACE.lampOn));
-  b.push(mfWindow(615, 634, 120, 26,
+  b.push(mfLamp(500, 630, inService, inService
+    ? "In service — the trip is being measured"
+    : "Not in service — valve and fill-up pump both needed", MFACE.lampOn));
+  b.push(mfWindow(495, 642, 116, 26,
     `${tt.change_bbl >= 0 ? "+" : ""}${tt.change_bbl.toFixed(2)} bbl`, 13));
   b.push(`<g data-face="ttzero" style="cursor:pointer">
-    <rect x="745" y="630" width="76" height="34" fill="transparent"/>
-    <rect x="749" y="634" width="68" height="26" rx="4" fill="#3a424a"
+    <rect x="621" y="638" width="76" height="34" fill="transparent"/>
+    <rect x="625" y="642" width="68" height="26" rx="4" fill="#3a424a"
       stroke="#14181c" stroke-width="1.5"/>
-    <text x="783" y="651" text-anchor="middle" fill="#e8ebee" font-size="12"
+    <text x="659" y="659" text-anchor="middle" fill="#e8ebee" font-size="12"
       font-weight="700" font-family="system-ui">ZERO</text>
     <title>Mark the trip tank level here</title></g>`);
 
-  // -- shakers and the active system, right --------------------------------
-  b.push(`<rect x="1160" y="180" width="220" height="52" rx="5" fill="#14181c"
-    stroke="#3c4650" stroke-width="2"/>`);
-  b.push(`<text x="1270" y="212" text-anchor="middle" fill="#f2f4f5"
-    font-size="15" font-weight="700" font-family="system-ui">SHALE SHAKERS</text>`);
-  b.push(pipeRun([[1270, 232], [1270, 268]], PW));
-  b.push(handwheel(1270, 252, "shakers_to_pits", "Shakers to pits", 22));
-
-  b.push(tankCylinder(1350, 285, 260, 260,
-    pits.active_bbl / pits.active_capacity_bbl, [
-      [`${pits.active_capacity_bbl.toFixed(1)} bbls Capacity Max`, 12, -22],
-      ["ACTIVE MUD VOLUME", 13, 14],
-      [`${pits.active_bbl.toFixed(1)} BBLS`, 17, 2],
-    ]));
-  b.push(tankCylinder(1470, 570, 150, 84,
-    pits.reserve_bbl / pits.reserve_capacity_bbl, [
-      ["RESERVE", 12, -14],
-      [`${pits.reserve_bbl.toFixed(0)} / ${pits.reserve_capacity_bbl} bbl`, 11, -4],
-    ]));
-  b.push(pipeRun([[1240, 640], [1470, 640]], PW));
-
-  b.push(mfLabel(60, 640, `Active pit capacity ${pits.active_capacity_bbl} bbl
-    · Reserve ${pits.reserve_capacity_bbl} bbl`, 12, "start", 600));
+  b.push(pipeRun([[1180, 634], [1410, 634]], PW));
+  b.push(pumpSymbol(1270, 634, "pit_transfer", "Reserve to active transfer",
+    pits.transfer_pump, 21));
+  b.push(mfLabel(1270, 672, "Reserve Transfer", 11));
+  b.push(tankCylinder(1455, 606, 130, 54,
+    pits.reserve_bbl / pits.reserve_capacity_bbl,
+    [[`Reserve · ${pits.reserve_bbl.toFixed(0)} bbl`, 11]], []));
 
   host.innerHTML = b.join("");
   wireFace(host, g);

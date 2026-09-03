@@ -55,6 +55,26 @@ class Node(str, Enum):
     CEMENT_HEAD = "cement head"
     CEMENT_PUMP = "cement pump"
 
+    # The standpipe manifold's own plumbing, from IMG_1195: two standpipe
+    # risers on two columns, an upper header, and a lower run carrying the
+    # cement branches and the kill line feed. Segmented like the stack bore,
+    # so the section wheels on the face are real valves with real
+    # consequences -- reverse circulation shuts the lower run's west valve so
+    # the kill line feed and the string returns cannot mix, which is what
+    # those wheels are for on a rig. STANDPIPE is the west column (mud pump 1
+    # up to standpipe 1); SPM_EAST the east (mud pump 2 up to standpipe 2).
+    SPM_UPPER = "sp manifold header"
+    SPM_LOWER = "sp manifold lower run"
+    SPM_EAST = "sp manifold east column"
+
+    # The choke manifold likewise, from IMG_1196: the two header halves meet
+    # at the To Pits riser (CHOKE_MANIFOLD is the middle), and a lower run
+    # joins the choke and kill lines below with the standpipe feed tapping
+    # its middle -- the reverse-circulation return route.
+    CKM_WEST = "choke manifold west"
+    CKM_EAST = "choke manifold east"
+    CKM_LOWER = "choke manifold lower run"
+
     # The spool between an outlet's two isolation valves. It exists so the
     # pair reads as **in series** rather than in parallel: two valves both
     # joining the annulus straight to the choke line would mean either one
@@ -136,6 +156,12 @@ class Valve:
             without knowing any valve names.
         outlet: ``upper`` or ``lower`` for a subsea stack's two outlets a
             side; blank on a surface stack, which has one flow cross.
+        off_graph: True for a valve on a line the equipment moves mud
+            through rather than the flow graph -- the trip tank's fill and
+            drain lines, whose volume the transfer pumps shift in the
+            balance. The valve is real and the equipment consults it; the
+            graph does not see it, so it cannot invent circulation routes
+            through the pit room.
     """
 
     name: str
@@ -151,6 +177,7 @@ class Valve:
     shears: bool = False
     side: str = ""
     outlet: str = ""
+    off_graph: bool = False
 
     @property
     def is_open(self) -> bool:
@@ -414,25 +441,38 @@ def default_valves(subsea: bool = False) -> list[Valve]:
     `surface_stack` and `subsea_stack`.
     """
     return (subsea_stack() if subsea else surface_stack()) + [
+        # -- the standpipe manifold, to IMG_1195 --------------------------
+        # Two columns: mud pump 1 up the west column (the STANDPIPE node) to
+        # standpipe 1, mud pump 2 up the east column to standpipe 2. An upper
+        # header joins them through two section valves with the gauge between;
+        # a lower run joins them through two more, carrying the cement
+        # branches and the kill line feed. The section valves are what let a
+        # lineup keep two flows apart -- reverse circulation shuts the lower
+        # west valve so the kill line feed cannot mix with the string returns.
         Valve("pump_discharge", "Mud pump discharge", Node.PUMP, Node.STANDPIPE),
-        # The second pump's discharge line. The graph has one PUMP node for
-        # both pumps, so the two lines are parallel edges and either one open
-        # gives the pumps their route -- an approximation (the graph cannot
-        # tell which pump is turning), and why this one starts closed: every
-        # scenario that blocks the pump closes `pump_discharge`, and a second
-        # line open by default would quietly defeat it.
         Valve("pump_2_discharge", "Mud pump 2 discharge", Node.PUMP,
-              Node.STANDPIPE),
-        # The manifold's blanked branches -- see Node.CEMENT_HEAD. Real
-        # valves on lines to equipment the simulator does not model, because
-        # the manifold face draws them and a control that is only a picture
-        # is worse than none.
-        Valve("cement_head_valve", "Cement head isolation", Node.STANDPIPE,
-              Node.CEMENT_HEAD),
-        Valve("cement_pump_valve", "Cement pump isolation", Node.CEMENT_PUMP,
-              Node.STANDPIPE),
+              Node.SPM_EAST),
         Valve("standpipe_valve", "Standpipe valve", Node.STANDPIPE, Node.STRING,
               bidirectional=True),
+        Valve("standpipe_2_valve", "Standpipe 2 valve", Node.SPM_EAST,
+              Node.STRING, bidirectional=True),
+        Valve("header_west_valve", "SP header west valve", Node.STANDPIPE,
+              Node.SPM_UPPER, state=ValveState.OPEN, bidirectional=True),
+        Valve("header_east_valve", "SP header east valve", Node.SPM_UPPER,
+              Node.SPM_EAST, state=ValveState.OPEN, bidirectional=True),
+        # The lower west valve starts open so the kill line feed is live from
+        # the west column, which is what lubricating uses.
+        Valve("lower_west_valve", "SP lower run west valve", Node.STANDPIPE,
+              Node.SPM_LOWER, state=ValveState.OPEN, bidirectional=True),
+        Valve("lower_east_valve", "SP lower run east valve", Node.SPM_LOWER,
+              Node.SPM_EAST, bidirectional=True),
+        # The blanked branches -- see Node.CEMENT_HEAD. Real valves on lines
+        # to equipment the simulator does not model, because the face draws
+        # them and a control that is only a picture is worse than none.
+        Valve("cement_head_valve", "Cement head isolation", Node.SPM_LOWER,
+              Node.CEMENT_HEAD),
+        Valve("cement_pump_valve", "Cement pump isolation", Node.CEMENT_PUMP,
+              Node.SPM_LOWER),
         # Deliberately one-way. Making this bidirectional would hand reverse
         # flow a route back into the string that bypasses the float, which is
         # the one thing actually standing in the way.
@@ -455,26 +495,43 @@ def default_valves(subsea: bool = False) -> list[Valve]:
         Valve("shakers_to_pits", "Shakers to pits", Node.FLOWLINE, Node.PITS,
               state=ValveState.OPEN),
 
-        # Returns with the stack closed. The stack's own isolation valves are
-        # above; these are the lines from the stack up to the manifold.
+        # -- the choke manifold, to IMG_1196 ------------------------------
+        # The choke and kill lines enter the two ends of a segmented header:
+        # remote choke 1 and manual choke 1 on the west half, manual choke 2
+        # and remote choke 2 on the east, the To Pits riser (the bypass)
+        # tapping the middle between two header section valves. A lower run
+        # joins the choke line to the kill line beneath, with the feed from
+        # the SP manifold in its middle -- which is how reverse-circulation
+        # returns reach a choke: down from the standpipe, along the lower
+        # run, and up through the choke line entry.
         Valve("choke_line_to_manifold", "Choke line to manifold",
-              Node.CHOKE_LINE, Node.CHOKE_MANIFOLD),
+              Node.CHOKE_LINE, Node.CKM_WEST),
         Valve("kill_line_to_manifold", "Kill line to manifold",
-              Node.KILL_LINE, Node.CHOKE_MANIFOLD),
+              Node.KILL_LINE, Node.CKM_EAST),
+        Valve("ck_header_west", "Choke manifold header west", Node.CKM_WEST,
+              Node.CHOKE_MANIFOLD, state=ValveState.OPEN, bidirectional=True),
+        Valve("ck_header_east", "Choke manifold header east",
+              Node.CHOKE_MANIFOLD, Node.CKM_EAST, state=ValveState.OPEN,
+              bidirectional=True),
+        Valve("ck_lower_west", "Choke manifold lower run west",
+              Node.CHOKE_LINE, Node.CKM_LOWER, bidirectional=True),
+        Valve("ck_lower_east", "Choke manifold lower run east",
+              Node.CKM_LOWER, Node.KILL_LINE, bidirectional=True),
 
         # Four throttling routes across the manifold, as a real one has: two
         # remote chokes worked from the panel and two handwheels on the
         # manifold itself. The pair is not decoration -- a choke that plugs
         # mid-kill is a fault this simulator can throw, and changing over to
         # the other one is the answer. Each has its own opening; see
-        # Simulator.chokes.
-        Valve("choke_1", "Remote choke 1", Node.CHOKE_MANIFOLD,
+        # Simulator.chokes. Changing over across the manifold needs the
+        # header section valves open, which they are unless somebody shut one.
+        Valve("choke_1", "Remote choke 1", Node.CKM_WEST,
               Node.SEPARATOR, throttling=True),
-        Valve("choke_2", "Remote choke 2", Node.CHOKE_MANIFOLD,
+        Valve("manual_choke_1", "Manual choke 1", Node.CKM_WEST,
               Node.SEPARATOR, throttling=True),
-        Valve("manual_choke_1", "Manual choke 1", Node.CHOKE_MANIFOLD,
+        Valve("manual_choke_2", "Manual choke 2", Node.CKM_EAST,
               Node.SEPARATOR, throttling=True),
-        Valve("manual_choke_2", "Manual choke 2", Node.CHOKE_MANIFOLD,
+        Valve("choke_2", "Remote choke 2", Node.CKM_EAST,
               Node.SEPARATOR, throttling=True),
         Valve("choke_bypass", "Choke manifold bypass", Node.CHOKE_MANIFOLD,
               Node.SEPARATOR),
@@ -484,17 +541,31 @@ def default_valves(subsea: bool = False) -> list[Valve]:
         Valve("trip_tank_valve", "Trip tank to annulus", Node.TRIP_TANK,
               Node.ANNULUS),
 
-        # Lubricating: the pump lined up to the kill line rather than the
-        # standpipe, to put mud into the annulus on top of a gas cap. Shut
-        # during any circulating kill, where mud goes down the string.
-        Valve("pump_to_kill_line", "Pump to kill line", Node.PUMP,
+        # The trip tank's fill and drain lines, to IMG_1197: real valves the
+        # equipment consults when the transfer pumps move volume, off the
+        # graph -- see Valve.off_graph. Open by default, because a pit room
+        # is normally lined up and the pumps are what you start.
+        Valve("tank_fill_suction", "Tank fill pump suction", Node.PITS,
+              Node.TRIP_TANK, state=ValveState.OPEN, off_graph=True),
+        Valve("tank_fill_discharge", "Tank fill pump discharge", Node.PITS,
+              Node.TRIP_TANK, state=ValveState.OPEN, off_graph=True),
+        Valve("trip_tank_drain_valve", "Trip tank drain valve",
+              Node.TRIP_TANK, Node.FLOWLINE, state=ValveState.OPEN,
+              off_graph=True),
+
+        # Lubricating: the kill line fed from the SP manifold's lower run, to
+        # put mud into the annulus on top of a gas cap. The pump reaches it
+        # through its own discharge and the lower run, so lubricating closes
+        # the *standpipe* valve rather than the pump discharge -- mud must
+        # not also have the string to fall down.
+        Valve("pump_to_kill_line", "Pump to kill line", Node.SPM_LOWER,
               Node.KILL_LINE),
 
         # Reverse circulation takes returns up the drill pipe, so they leave
-        # through the standpipe rather than the annulus and have to be routed
-        # to the choke manifold to be controlled at all.
+        # through the standpipe and run down to the choke manifold's lower
+        # run to be taken up through the choke line entry to a choke.
         Valve("standpipe_to_manifold", "Standpipe to choke manifold",
-              Node.STANDPIPE, Node.CHOKE_MANIFOLD),
+              Node.STANDPIPE, Node.CKM_LOWER),
     ]
 
 
@@ -674,6 +745,8 @@ class FlowPath:
         edges: dict[Node, list[Node]] = {}
         severed = {Node.STRING, Node.BIT}
         for valve in self.valves:
+            if valve.off_graph:
+                continue
             if valve.is_bop:
                 if not valve.is_open and valve.seals:
                     continue

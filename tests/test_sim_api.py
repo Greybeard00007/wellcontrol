@@ -431,16 +431,26 @@ class TestScreens:
             assert helper in text, helper
 
     def test_the_sp_manifold_carries_its_branches(self, client):
-        """Every branch the reference photograph labels, as a working valve."""
+        """Every wheel the reference photograph shows, as a working valve.
+
+        Twelve of them: two standpipes, two mud pumps, two header and two
+        lower-run section valves, the two cement lines, the kill line feed
+        and the line to the choke manifold.
+        """
         text = client.get("/").text
-        for name in ("standpipe_valve", "standpipe_to_manifold",
+        face = text.split("function drawSpManifoldFace(")[1].split("\nfunction ")[0]
+        for name in ("standpipe_valve", "standpipe_2_valve",
+                     "standpipe_to_manifold",
                      "pump_discharge", "pump_2_discharge",
+                     "header_west_valve", "header_east_valve",
+                     "lower_west_valve", "lower_east_valve",
                      "cement_head_valve", "cement_pump_valve",
                      "pump_to_kill_line"):
-            assert name in text, name
-        for label in ("STAND PIPE 1", "MUD PUMP 1", "MUD PUMP 2",
-                      "CEMENT HEAD", "CEMENT PUMP", "TO KILL LINE"):
-            assert label in text, label
+            assert name in face, name
+        for label in ("Stand Pipe 1", "Stand Pipe 2", "Mud Pump 1",
+                      "Mud Pump 2", "Cement Head", "Cement Pump",
+                      "Choke line / Kill Line"):
+            assert label in face, label
 
     def test_the_dcu_is_one_instrument_face(self, client):
         """The reference is a single dense console, not rows of cards."""
@@ -670,13 +680,15 @@ class TestScreens:
         assert 'name: "trip_tank_level"' in text
 
     def test_the_choke_manifold_offers_all_four(self, client):
-        """Four chokes, each with its own position window and steppers."""
+        """Four chokes, each with an isolation wheel on its riser and its
+        own position spinner, plus the section wheels and both entries."""
         text = client.get("/").text
         face = text.split("function drawChokeManifoldFace(")[1].split("\nfunction ")[0]
         for name in ("choke_1", "choke_2", "manual_choke_1", "manual_choke_2",
                      "choke_line_to_manifold", "kill_line_to_manifold",
-                     "choke_bypass", "separator_to_pits",
-                     "standpipe_to_manifold"):
+                     "ck_header_west", "ck_header_east",
+                     "ck_lower_west", "ck_lower_east",
+                     "choke_bypass", "separator_to_pits"):
             assert name in face, name
         assert "ckpos-:" in face and "ckpos+:" in face
         # Each choke's steppers drive that choke, not the one in service.

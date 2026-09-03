@@ -992,14 +992,24 @@ class Simulator:
         """
         tank, pits = self.trip_tank, self.pits
 
+        # The line valves gate the pumps: a pump running against a closed
+        # valve moves nothing, consistent with everything else on this rig.
+        # These are `off_graph` valves -- the volume moves here in the
+        # balance, not through the flow graph.
+        fill_line_open = (
+            self.flow_path.valve("tank_fill_suction").is_open
+            and self.flow_path.valve("tank_fill_discharge").is_open
+        )
+        drain_line_open = self.flow_path.valve("trip_tank_drain_valve").is_open
+
         # Active pits -> trip tank, to top it back up.
         wanted = min(tank.fill_pump.demand_bbl(dt), max(0.0, pits.active_bbl))
-        if wanted > 0:
+        if wanted > 0 and fill_line_open:
             pits.add(-tank.add(wanted))
 
         # Trip tank -> active pits, to empty it after a trip.
         wanted = min(tank.drain_pump.demand_bbl(dt), max(0.0, tank.volume_bbl))
-        if wanted > 0:
+        if wanted > 0 and drain_line_open:
             pits.add(-tank.add(-wanted))
 
         # Reserve -> active. Deliberately shows up as a gain; see PitSystem.

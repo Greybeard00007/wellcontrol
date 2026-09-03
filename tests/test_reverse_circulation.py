@@ -21,9 +21,19 @@ from wellcontrol.wellconfig import BOPLocation, Trajectory, WellConfiguration
 
 SV = WellConfiguration(BOPLocation.SURFACE, Trajectory.VERTICAL)
 
+#: The kill line feed comes off the SP manifold's lower run, fed from mud
+#: pump 2 through the east column; the string returns run down to the choke
+#: manifold's lower run and up through the choke line entry to remote choke
+#: 1. The closed section valves are what keep the two flows in separate
+#: halves of each manifold. Mirrors scenario._REVERSE.
 REVERSE_LINEUP = (
     "pump_to_kill_line", "kill_line",
     "float_valve", "standpipe_valve", "standpipe_to_manifold", "choke_1",
+    "pump_2_discharge", "lower_east_valve",
+    "ck_lower_west", "choke_line_to_manifold",
+)
+REVERSE_CLOSED = (
+    "pump_discharge", "choke_line", "lower_west_valve", "header_east_valve",
 )
 
 
@@ -33,7 +43,7 @@ def reverse_rig(**kwargs) -> Simulator:
     )
     sim.flow_path.close("annular")
     sim.flow_path.open(*REVERSE_LINEUP)
-    sim.flow_path.close("pump_discharge")
+    sim.flow_path.close(*REVERSE_CLOSED)
     return sim
 
 
@@ -61,7 +71,7 @@ class TestTheLineup:
         """That is lubricating. The difference is where the returns go."""
         path = FlowPath()
         path.close("annular")
-        path.open("pump_to_kill_line", "kill_line",
+        path.open("pump_discharge", "pump_to_kill_line", "kill_line",
                   "choke_line", "choke_line_to_manifold", "choke_1")
         assert path.injecting_into_the_annulus
         assert not path.is_reverse_circulating

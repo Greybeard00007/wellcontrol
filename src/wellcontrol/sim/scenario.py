@@ -186,11 +186,28 @@ class Scenario:
 #: how many valves that side has depends on the stack -- two HCRs on a surface
 #: flow cross, two fail-safes per outlet subsea. A scenario file should be able
 #: to say "open the kill line" without knowing which rig it will run on.
+#: Reverse circulation feeds the kill line from the SP manifold's east side
+#: (mud pump 2 through the lower run) and takes the string returns down to
+#: the choke manifold's lower run and up through the choke line entry to
+#: remote choke 1. The *closed* valves matter as much: the lower west and
+#: header east section valves are what keep the kill line feed and the
+#: string returns in separate halves of the manifold -- which is exactly
+#: what section valves are for.
 _REVERSE = (
     "pump_to_kill_line", "kill_line",
     "float_valve", "standpipe_valve", "standpipe_to_manifold", "choke_1",
+    "pump_2_discharge", "lower_east_valve",
+    "ck_lower_west", "choke_line_to_manifold",
 )
+_REVERSE_CLOSED = (
+    "pump_discharge", "choke_line", "lower_west_valve", "header_east_valve",
+)
+#: Lubricating feeds the kill line from the SP manifold's lower run, so the
+#: standpipe valve is what gets closed -- mud must not also have the string
+#: to fall down. The pump discharge stays open; it is how the mud reaches
+#: the lower run at all.
 _LUBRICATE = ("pump_to_kill_line", "kill_line")
+_LUBRICATE_CLOSED = ("standpipe_valve",)
 
 
 SCENARIOS: tuple[Scenario, ...] = (
@@ -246,6 +263,7 @@ SCENARIOS: tuple[Scenario, ...] = (
             "it fall through, then bleed the gas off. Repeat."
         ),
         open_valves=_LUBRICATE,
+        closed_valves=_LUBRICATE_CLOSED,
     ),
     Scenario(
         key="stripping",
@@ -268,7 +286,7 @@ SCENARIOS: tuple[Scenario, ...] = (
             "the pipe to the choke. The influx never passes the shoe."
         ),
         open_valves=_REVERSE,
-        closed_valves=("pump_discharge", "choke_line"),
+        closed_valves=_REVERSE_CLOSED,
     ),
     Scenario(
         key="choke_plugs",

@@ -33,16 +33,18 @@ class TestTheKillLineRunsBothWays:
         assert path.return_route().through_choke
 
     def test_the_pump_can_go_in_through_the_kill_line(self):
+        """Through its own discharge and the SP manifold's lower run: the
+        kill line feed comes off the manifold, not off a magic tee."""
         path = FlowPath()
         path.close("annular")
-        path.open("pump_to_kill_line", "kill_line")
+        path.open("pump_discharge", "pump_to_kill_line", "kill_line")
         assert not path.pump_is_deadheaded
         assert Node.KILL_LINE in path.injection_path()
 
     def test_that_route_does_not_go_through_the_string(self):
         path = FlowPath()
         path.close("annular")
-        path.open("pump_to_kill_line", "kill_line")
+        path.open("pump_discharge", "pump_to_kill_line", "kill_line")
         assert path.injecting_into_the_annulus
 
     def test_pumping_down_the_string_is_not_lubricating(self):
@@ -55,7 +57,7 @@ class TestTheKillLineRunsBothWays:
         """Bidirectional does not mean always open."""
         path = FlowPath()
         path.close("annular")
-        path.open("pump_to_kill_line")
+        path.open("pump_discharge", "pump_to_kill_line")
         assert path.pump_is_deadheaded
 
 
@@ -82,8 +84,14 @@ def gas_at_surface() -> Simulator:
 
 
 def line_up_to_lubricate(sim: Simulator) -> None:
-    sim.flow_path.close("pump_discharge", "standpipe_valve")
-    sim.flow_path.open("pump_to_kill_line", "kill_line")
+    """Close the standpipe, feed the kill line off the manifold's lower run.
+
+    The pump discharge stays open -- it is how the mud reaches the lower run
+    at all. What gets isolated is the string, or the lubricated mud would
+    just as happily fall down the pipe.
+    """
+    sim.flow_path.close("standpipe_valve")
+    sim.flow_path.open("pump_discharge", "pump_to_kill_line", "kill_line")
 
 
 @pytest.fixture(scope="module")
