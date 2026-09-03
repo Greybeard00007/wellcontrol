@@ -112,10 +112,14 @@ class Valve:
             elements all called what they are; it does not survive a stack with
             variable bore rams and two kinds of shear ram on it.
         seals: Whether closing this element shuts the annulus in.
-            **Casing shear rams do not.** They cut the string and leave a hole
-            for the well to come through, so a student who reaches for them
-            expecting a barrier has not shut the well in -- which is exactly
-            what the stack would do and is worth finding out here.
+            A casing shear ram would not -- it cuts the string and leaves a
+            hole for the well to come through, so a student who reached for
+            one expecting a barrier would have a sheared string in a live
+            well. Neither stack currently carries one (the lower subsea
+            shears became blind shears on Kirk's call), but the flag and
+            the graph behaviour stay: a closed non-sealing element still
+            passes flow. The riser connector carries it today, because
+            unlatching is walking away from the hole, not securing it.
         shears: Whether closing it cuts whatever is through it. Closed on pipe,
             a shear ram severs the string: the well may be sealed but nothing
             can be circulated afterwards.
@@ -291,7 +295,7 @@ def subsea_stack() -> list[Valve]:
         middle choke
         lower pipe rams
         lower kill
-        casing shear rams
+        lower blind shear rams
         lower choke
 
     **Four lines to the choke side and three to the kill side.** The gas relief
@@ -306,23 +310,28 @@ def subsea_stack() -> list[Valve]:
     shut and opened deliberately, and is the real difference between one of
     these and a surface HCR.
 
-    Two elements are not interchangeable with the rest and the names say so.
-    The **blind shear rams** cut and seal. The **casing shear rams** cut and
-    do *not* -- ``seals=False`` -- so closing them on a live well shears the
-    string and leaves the well flowing, which is the thing about them worth
-    knowing before it matters. The **riser connector** is `seals=False` too,
-    for a different reason: unlatching it does not shut anything in, and a
-    connector drawn as a barrier would be a lie about the one control on the
-    stack that ends the well rather than securing it.
+    **Both shear rams are blind shears -- they cut *and* seal.** The lower
+    set was a casing shear (cut, do not seal) until Kirk configured the stack
+    with two blind shears; the ``seals`` flag and its does-not-seal graph
+    behaviour stay in the model for the riser connector and for any stack
+    that does carry a casing shear. One height consequence worth knowing:
+    the lower blind shears sit **beneath the lower kill line's tap**, so
+    closing them isolates that line -- the lower choke, tapping the wellhead
+    below the whole stack, is the one line they cannot take.
 
-    The pipe rams keep the keys ``upper_rams`` and ``lower_rams``: everything
-    that operates a stack element addresses those keys on both stacks, and
-    what a student reads is the label.
+    The **riser connector** is `seals=False`: unlatching it does not shut
+    anything in, and a connector drawn as a barrier would be a lie about the
+    one control on the stack that ends the well rather than securing it.
+
+    The pipe rams keep the keys ``upper_rams`` and ``lower_rams``, and the
+    upper shears keep ``blind_shear_rams``: everything that operates a stack
+    element addresses the same keys on both stacks, and what a student reads
+    is the label.
     """
     return [
         # Eight elements, so seven bore segments between them, numbered from
-        # the bottom: ANNULUS below the casing shears, BOP (the riser) above
-        # the upper annular. Each outlet taps the segment at its listed
+        # the bottom: ANNULUS below the lower blind shears, BOP (the riser)
+        # above the upper annular. Each outlet taps the segment at its listed
         # height, which is what makes the interleaving real rather than
         # decorative: whichever ram is closed, the lines below it still reach
         # the well and the lines above it do not.
@@ -344,7 +353,7 @@ def subsea_stack() -> list[Valve]:
         *_failsafes("upper_kill", "upper kill", "kill", "upper",
                     Node.STACK_BORE_5, Node.KILL_OUTLET, Node.KILL_LINE),
 
-        Valve("blind_shear_rams", "Blind shear rams", Node.STACK_BORE_4,
+        Valve("blind_shear_rams", "Upper blind shear rams", Node.STACK_BORE_4,
               Node.STACK_BORE_5,
               state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
 
@@ -375,11 +384,12 @@ def subsea_stack() -> list[Valve]:
                     Node.STACK_BORE_1, Node.KILL_OUTLET_LOWER,
                     Node.KILL_LINE),
 
-        # Cuts the string and leaves the bore open. Not a barrier.
-        Valve("casing_shear_rams", "Casing shear rams", Node.ANNULUS,
+        # Blind, like the upper set: cuts and seals. Sits beneath the lower
+        # kill line's tap, so closing it isolates that line -- only the
+        # lower choke, on the wellhead below it, survives.
+        Valve("lower_blind_shear_rams", "Lower blind shear rams", Node.ANNULUS,
               Node.STACK_BORE_1,
-              state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True,
-              seals=False),
+              state=ValveState.OPEN, is_bop=True, bop_kind="ram", shears=True),
 
         *_failsafes("lower_choke", "lower choke", "choke", "lower",
                     Node.ANNULUS, Node.CHOKE_OUTLET_LOWER, Node.CHOKE_LINE),
@@ -541,10 +551,13 @@ class FlowPath:
         still names it exactly.
 
         On either stack this opens the **lower** outlet, the lowest line on
-        the stack -- below every sealing element, or above only the casing
-        shears, which never seal -- so it keeps its route to the well
-        whatever else has been closed. Now that the outlet heights are real,
-        that is a property of the graph rather than a promise.
+        its side of the stack, so it keeps its route to the well through
+        everything except an element even lower down. On the surface stack
+        that is nothing at all; subsea, the lower *choke* taps the wellhead
+        below the whole stack, while the lower *kill* sits one element up
+        and can be taken by the lower blind shears. Now that the outlet
+        heights are real, this is a property of the graph rather than a
+        promise.
         """
         if name not in ("choke_line", "kill_line"):
             return None
@@ -583,9 +596,10 @@ class FlowPath:
     def bop_is_closed(self) -> bool:
         """True when a *sealing* element is closed, shutting the annulus in.
 
-        Casing shear rams are the exception the `seals` flag exists for: they
-        cut the string and leave the bore open, so closing them is not shutting
-        the well in however final it feels.
+        The `seals` flag is what a non-sealing element opts out with: the
+        riser connector today, a casing shear ram on any stack that carries
+        one. Closing such an element is not shutting the well in however
+        final it feels.
         """
         return any(not v.is_open and v.seals for v in self.bop_elements)
 
@@ -618,9 +632,10 @@ class FlowPath:
         A BOP element is an edge between the bore segments either side of it,
         and its sense is inverted -- *closing* one removes the route. An open
         element passes both ways, because fluid in an open bore does. A closed
-        element that does not seal still passes: casing shear rams cut and
-        leave the bore open, and an unlatched riser connector has not shut
-        anything in. The well reaches the bell nipple, and so the flowline,
+        element that does not seal still passes: an unlatched riser connector
+        has not shut anything in, and a casing shear ram -- were a stack to
+        carry one -- would cut and leave the bore open. The well reaches the
+        bell nipple, and so the flowline,
         only through the whole chain of open elements; an outlet taps its own
         segment, so it reaches the well only while every element *below* it is
         open. That is what makes "take returns from a cross below the ram you

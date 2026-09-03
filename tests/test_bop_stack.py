@@ -3,11 +3,11 @@
 Two stacks, because a rig has one or the other and they are not the same
 equipment: a surface stack is an annular over two pipe rams and a blind shear
 ram, with a flow cross between the rams and another below them; a subsea stack
-is two annulars, two shear rams and two variable bore rams with an outlet pair
-above and below. Both carry **two valves in series on every outlet**. What is
-tested here is that the *differences* are real ones -- a casing shear ram that
-does not seal, a double barrier that needs both valves, a control pod that can
-stop answering -- rather than four extra labels on a drawing.
+is two annulars, two blind shear rams, three pipe rams and seven outlet
+lines. Both carry **two valves in series on every outlet**. What is tested
+here is that the *differences* are real ones -- a riser connector that is not
+a barrier, a double barrier that needs both valves, a control pod that can
+stop answering -- rather than extra labels on a drawing.
 """
 
 import pytest
@@ -71,7 +71,7 @@ class TestTheStackFollowsTheWell:
         assert kinds.count("annular") == 2
         assert kinds.count("ram") == 5, "three pipe rams and two shear rams"
         assert kinds.count("connector") == 1, "riser connector"
-        assert sum(v.shears for v in elements) == 2, "blind shear and casing shear"
+        assert sum(v.shears for v in elements) == 2, "two sets of blind shears"
         assert len(elements) == 8
 
     def test_the_subsea_stack_is_listed_top_to_bottom(self):
@@ -90,7 +90,7 @@ class TestTheStackFollowsTheWell:
             "annular", "riser_connector", "gas_relief choke", "lower_annular",
             "upper kill", "blind_shear_rams", "upper choke", "upper_rams",
             "middle kill", "middle_rams", "middle choke", "lower_rams",
-            "lower kill", "casing_shear_rams", "lower choke",
+            "lower kill", "lower_blind_shear_rams", "lower choke",
         ]
 
     def test_seven_lines_come_off_the_subsea_stack(self):
@@ -186,17 +186,19 @@ class TestTheOutletHeightsAreReal:
         assert path.return_route().through_choke, \
             "the middle choke line taps below them"
 
-    def test_a_cut_is_not_a_seal(self):
-        """Closed casing shears still pass flow to the lines above them.
+    def test_the_lower_blind_shears_take_the_lower_kill_line(self):
+        """The lowest sealing element sits beneath the lower kill line's tap.
 
-        `seals=False` has to mean the bore stays open through the element,
-        or shearing the casing would quietly isolate the lower kill line --
-        a barrier the rams explicitly do not provide.
+        Closing it isolates that line; the one line it cannot take is the
+        lower choke, which taps the wellhead below the whole stack.
         """
         path = make(SUBSEA).flow_path
-        path.close("casing_shear_rams")
+        path.close("lower_blind_shear_rams")
         path.open("lower_kill_inner", "lower_kill_outer")
-        assert path.kill_line_is_open
+        assert not path.kill_line_is_open
+        path.open("lower_choke_inner", "lower_choke_outer",
+                  "choke_line_to_manifold", "choke_1")
+        assert path.return_route().through_choke
 
     def test_lubricating_into_an_isolated_segment_deadheads_the_pump(self):
         """Mud pumped in above a closed ram has nowhere to go.
@@ -311,18 +313,35 @@ class TestNamingASide:
             path.set_valve("choke_line", ValveState.OPEN)
 
 
-class TestCasingShearRams:
-    """They cut, and they do not seal. That is the whole point of the flag."""
+class TestTheShearRams:
+    """Two sets of blind shears, and both of them are barriers.
 
-    def test_closing_them_does_not_shut_the_well_in(self):
-        sim = make(SUBSEA)
-        shift(sim, "casing_shear_rams", ValveState.CLOSED)
-        assert not sim.flow_path.bop_is_closed
+    The lower set was a casing shear -- cut, do not seal -- until Kirk
+    configured the stack with two blind shears. The `seals=False` machinery
+    stays in the model (the riser connector still carries it), but nothing
+    on either stack now shears without sealing.
+    """
 
-    def test_a_blind_shear_ram_does_shut_it_in(self):
+    @pytest.mark.parametrize(
+        "name", ["blind_shear_rams", "lower_blind_shear_rams"]
+    )
+    def test_closing_either_set_shuts_the_well_in(self, name):
         sim = make(SUBSEA)
-        shift(sim, "blind_shear_rams", ValveState.CLOSED)
+        shift(sim, name, ValveState.CLOSED)
         assert sim.flow_path.bop_is_closed
+
+    def test_the_lower_set_shears_the_string_too(self):
+        sim = make(SUBSEA)
+        shift(sim, "lower_blind_shear_rams", ValveState.CLOSED)
+        assert sim.flow_path.pipe_sheared
+
+    def test_the_lower_set_is_two_handed_like_everything_else(self):
+        """New element, same interlock: an unarmed press does nothing."""
+        sim = make(SUBSEA)
+        assert not sim.operate_stack_valve(
+            "lower_blind_shear_rams", ValveState.CLOSED
+        )
+        assert sim.flow_path.valve("lower_blind_shear_rams").is_open
 
 
 class TestShearingTheString:
@@ -648,8 +667,10 @@ class TestThroughTheSession:
         assert all(
             r["bop_kind"] in ("annular", "ram", "connector") for r in elements
         )
-        assert any(r["shears"] and not r["seals"] for r in elements), \
-            "casing shear rams"
+        assert not any(r["shears"] and not r["seals"] for r in elements), \
+            "both shear rams are blind shears — they cut and seal"
+        assert any(not r["seals"] and not r["shears"] for r in elements), \
+            "riser connector"
         outlets = [r for r in rows if r["side"]]
         assert {r["outlet"] for r in outlets} == {
             "gas_relief", "upper", "middle", "lower"

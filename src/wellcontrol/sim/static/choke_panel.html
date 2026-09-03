@@ -3461,8 +3461,10 @@ function drawSurfaceBopFace(g, host) {
       b.push(bopPlate(cx - 52, y + 22, 104, 25, v.label, "#17120c", true));
       b.push(bopButton(cx + INNER - BW / 2, y, BW, BH, "Close",
         `bop-close:${v.name}`, shut, "shut"));
-      // Casing shear rams cut and do *not* seal, so the panel says so rather
-      // than letting a lit Close button be read as a barrier.
+      // A non-sealing element (a casing shear ram, on a stack that carries
+      // one) cuts and does *not* seal, so the panel would say so rather
+      // than let a lit Close button be read as a barrier. Neither current
+      // stack has one; the caption keys off the engine's flags, not a name.
       if (!v.seals) {
         b.push(`<text x="${cx}" y="${y + 70}" text-anchor="middle"
           fill="${BOPF.ink}" font-size="10.5"
@@ -3726,11 +3728,13 @@ function drawSubseaBopFace(g, host) {
     if (row.element) {
       const v = row.element;
       b.push(block(bore - 140, y + 2, v, true));
-      // The name goes underneath, as the reference screen has it. Casing
-      // shear rams cut and leave the bore open, and the plate says so rather
-      // than a note beside it: on a schematic this tight there is no free
-      // line under a row, and a warning drawn into the next row's controls is
-      // a warning nobody reads.
+      // The name goes underneath, as the reference screen has it. A casing
+      // shear ram cuts and leaves the bore open, and the plate would say so
+      // rather than a note beside it: on a schematic this tight there is no
+      // free line under a row, and a warning drawn into the next row's
+      // controls is a warning nobody reads. (Both shear rams on the current
+      // stack are blind shears, so no plate carries the warning today; the
+      // logic keys off the engine's flags, not a name.)
       // Only a *shear ram* gets the warning. The riser connector is
       // `seals=False` as well and for a quite different reason -- unlatching
       // it walks away from the hole rather than failing to shut it in -- so

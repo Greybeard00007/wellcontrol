@@ -520,8 +520,9 @@ edge between the segments either side of it, and each outlet taps the segment
 at its own height. So closing a ram isolates every outlet above it from the
 well, "take returns from a cross below the ram you closed" is a real decision,
 and mud pumped into a line above a closed ram deadheads instead of reaching
-the well. A closed element that does not seal still passes flow — casing
-shears cut and leave the bore open. Two approximations remain, deliberately:
+the well. A closed element that does not seal still passes flow — the riser
+connector today, a casing shear ram on any stack that carried one. Two
+approximations remain, deliberately:
 the few barrels **trapped between two closed elements are not their own
 pressure vessel** (no trapped-pressure-between-rams exercises), and the few
 feet between outlet taps are **hydrostatically invisible** — `FluidColumn`
@@ -557,7 +558,7 @@ subsea stack runs, top to bottom:
 | middle choke | |
 | lower pipe rams | |
 | lower kill | |
-| casing shear rams | `seals=False` |
+| lower blind shear rams | |
 | lower choke | |
 
 **Seven outlet lines: four to the choke side and three to the kill**, each
@@ -572,12 +573,17 @@ Interleaving the outlets between the rams is the whole point of a stack this
 size: whichever ram is closed, there is a line below it — and since the bore
 is segmented, that is now true in the flow model as well as on the drawing.
 
-Two elements carry `seals=False` for quite different reasons, and the face
-must not caption them alike. **Casing shear rams** cut and do not seal, and
-that warning belongs on the plate. The **riser connector** does not seal
-either, but unlatching it walks away from the hole rather than failing to shut
-it in; captioning it "does not seal" says the same thing about two controls
-that do nothing alike, so only `shears && !seals` gets the warning.
+**Both shear rams are blind shears now — they cut *and* seal.** The lower set
+was a casing shear (`seals=False`) until 3 Sep 2026, when Kirk made it blind.
+The only non-sealing element left is the **riser connector**, and it is
+non-sealing for its own reason: unlatching it walks away from the hole rather
+than failing to shut it in. The face's warning logic is unchanged — only
+`shears && !seals` gets a "does not seal" caption, so today no plate carries
+one, and the machinery keys off the engine's flags rather than a name in case
+a future stack carries a casing shear. One height consequence: the lower
+blind shears sit **beneath the lower kill line's tap**, so closing them
+isolates that line — only the lower choke, on the wellhead below the whole
+stack, survives them.
 
 What the two stacks share is the *outlet naming* (`upper_kill_inner` and
 friends), because an outlet is the same idea on both and nothing driving them
@@ -604,11 +610,13 @@ Four things in that are load-bearing rather than cosmetic:
   path that does not exist on the stack. `_RETURN_ENTRIES` lists the spools
   rather than the lines for the same reason: looking for the line is a way to
   have a well that is closed in whatever the student does with the HCRs.
-- **Casing shear rams cut and do not seal** (`Valve.seals`). Closing them is
-  not shutting the well in, however final it feels, and a student who reaches
-  for them expecting a barrier has a sheared string in a live well. That is
-  one flag in the model and it is the entire difference between the two shear
-  rams on the drawing.
+- **`Valve.seals` is one flag and it is the entire difference between a blind
+  shear and a casing shear.** A casing shear ram cuts and does not seal —
+  closing one is not shutting the well in, however final it feels, and a
+  student who reached for one expecting a barrier would have a sheared string
+  in a live well. Neither stack currently carries one (both subsea shear rams
+  are blind), but the flag and its graph behaviour stay, carried today by the
+  riser connector.
 - **A shear ram closed on pipe severs it** (`FlowPath.pipe_sheared`). Every
   edge through the string and the bit goes, so the pump deadheads and nothing
   can be circulated out again — re-opening the ram does not mend it. The well
@@ -620,8 +628,10 @@ Four things in that are load-bearing rather than cosmetic:
   resolves the group and everything that *operates* one valve still names it
   exactly. Setup code and scenario files stay stack-agnostic; `set_valve`
   still raises on a group, so the panel cannot accidentally work four valves
-  with one press. Subsea it opens the **lower** outlet, which is below every
-  ram and so survives whatever else is closed.
+  with one press. Subsea it opens the **lower** outlet — the lowest line on
+  its side, so it survives everything closed above it. For the choke side
+  that is the whole stack; the lower *kill* line sits one element up and can
+  be taken by the lower blind shears beneath its tap.
 
 **The closing unit is most of what a BOP panel is**, and none of it existed.
 `Accumulator` gained the two regulators and their readbacks, the bypass, the
@@ -873,12 +883,15 @@ Layout notes worth keeping if either face is touched again:
   a bevel and four corner studs — because a nameplate is a piece of steel
   screwed to the body, and without them it is a white label pasted over the
   drawing. Plate lettering is sized to the plate rather than the other way
-  about, because the labels come from the engine and "Casing shear rams — does
-  not seal" is four times the length of "Annular".
+  about, because the labels come from the engine and "Lower blind shear rams"
+  is three times the length of "Annular" — and a warning suffix, when an
+  element earns one, makes it longer still.
 - **On the subsea face the "does not seal" warning is *in* the plate**, not
   beside it. There is no free line under a row on a schematic that tight, and
-  the note drawn under the casing shear rams landed inside the next row's
-  controls and was invisible. Red lettering on its own only says "different".
+  the note drawn under what was then the casing shear rams landed inside the
+  next row's controls and was invisible. Red lettering on its own only says
+  "different". (No element earns the warning on the current stack; the logic
+  stays, keyed off the flags.)
 - **Surface is an elevation and subsea is a schematic**, which is what the two
   references are. A surface stack is one cabinet you stand at; a subsea one is
   a control system you read, and which outlet is still usable depends on what
@@ -902,8 +915,9 @@ One thing about the subsea face that looks like spare room and is not: the
 band between an outlet's controls and the bore is empty except on outlet rows,
 because that is where the outlets actually tap the stack — filling it would say
 there are taps that do not exist. And **the name goes under the control block
-rather than on the element**, unlike the surface face: "Casing shear rams —
-does not seal" would not fit between the buttons at any size worth reading.
+rather than on the element**, unlike the surface face: a long label with a
+warning suffix — "Casing shear rams — does not seal", when the stack carried
+one — would not fit between the buttons at any size worth reading.
 
 ### Controls, and the trap under them
 
