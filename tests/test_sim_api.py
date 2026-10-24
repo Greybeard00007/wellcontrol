@@ -228,6 +228,12 @@ class TestTheRigScreenEndpoints:
         assert body["visible"] is False
         assert "annulus_zones" not in body
 
+        # Test toggle reveal
+        toggle = client.post(f"/api/sessions/{created['session_id']}/toggle-downhole").json()
+        assert toggle["force_reveal_downhole"] is True
+        assert toggle["schematic"]["visible"] is True
+        assert "annulus_zones" in toggle["schematic"]
+
     def test_the_kill_sheet_is_the_librarys_own(self, client, session_id):
         body = client.get(f"/api/sessions/{session_id}/killsheet").json()
         for key in ("kill_mud_weight_ppg", "icp_psi", "fcp_psi",

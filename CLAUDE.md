@@ -238,7 +238,7 @@ Nothing about the kick is scripted. Raising pore pressure is the only thing `tri
 
 Three things that fell out of building it:
 
-- **The downhole truth is hidden until the well is shut in** (`Session.downhole_visible`). A rig has no bottomhole gauge and no pore pressure readout; showing them turns kick detection, which is the skill, into reading a number. The trace withholds the same fields, or a chart would leak what the gauges do not. It comes back once they have shut in, where it is a teaching aid rather than a giveaway.
+- **The downhole truth is hidden until the well is shut in** (`Session.downhole_visible`). A rig has no bottomhole gauge and no pore pressure readout; showing them turns kick detection, which is the skill, into reading a number. The trace withholds the same fields, or a chart would leak what the gauges do not. It comes back once they have shut in, where it is a teaching aid rather than a giveaway. **Crucially, the physical wellbore is never hidden**: casing, guide shoe, cement sheath, open hole, stratigraphy lithology, drill string, and bit are always rendered, circulating normal mud with an indicator badge. For training mode or instructor demonstration, `Session.force_reveal_downhole` and `/api/sessions/{session_id}/toggle-downhole` allow toggling the influx on demand.
 - **An undetected kick accelerates**, because gas replacing mud lightens the annulus, which deepens the underbalance. At 60× it is over between two glances. `Session._should_slow_down()` drops the clock to 1× once the flow line shows something wrong — once only, or the student could never speed back up to circulate out. This does not make the well easier; it gives back the seconds a driller at the panel would have had.
 - **The productivity index has to be higher for a drilling start** (`LIVE_PRODUCTIVITY_INDEX`). A tight zone bleeding in at a fraction of a barrel a minute is realistic and useless as an exercise — the pit gain takes an hour to become visible.
 
@@ -270,7 +270,7 @@ One page, six tabs, one poll loop; only the visible screen redraws. Everything i
 | **Choke** | Dials, lamps, the choke, both pressure charts, the event log. |
 | **BOP** | The control panel — red remote panel for a surface stack, monitoring screen for a subsea one. |
 | **Manifolds** | Standpipe manifold, choke and kill manifold, and the whole circulating system. |
-| **Well** | Cross-section with live fluid zones, plus the column as a table. |
+| **Well** | CAD cross-section: always-visible 9-5/8" casing, guide shoe, cement sheath, open hole, 4-tier lithology, satin chrome drill string with hollow inner circulating bore, bit with nozzles, Taylor gas bubble, live downhole pressures HUD, and annular fluid table. |
 | **Kill sheet** | Built from the student's own readings; plan against actual. |
 | **Debrief** | Verdict, measures against their limits, and what happened. |
 
@@ -285,9 +285,7 @@ Two engine additions exist because a screen would otherwise be decoration:
 
 **The kill sheet is built from what the student read**, not from the figures the scenario was designed around. On a drilling exercise those differ: a slow shut-in takes more influx and reads higher, so a sheet computed from the designer's values answers a question nobody asked — and answers it wrongly for the kick actually taken. `state.measured_sidpp_psi` and friends latch when the pressures settle. Before that the sheet is *withheld* rather than guessed at, which is also the honest answer on a rig.
 
-**The page is an instrument face, not a dashboard.** A choke panel is an orange console carrying white dials, black digital windows with green lettering, and grey switchgear, and the CSS variables say so: `--bg` is the console, `--sunk` is a window cut into it, `--metal` is switchgear, `--readout` is the green of a seven-segment display. Labels are silkscreened on the console *above* their window, which is why `.g .k` sits outside the black.
-
-Two things follow that are easy to get wrong when repainting from dark to orange. **Mid-tone accents vanish.** The gold used for the briefing objective read perfectly on the old dark page and was invisible on orange; anything on the console needs to be near-black. And **prose does not belong on orange** — the event log, the tables and the charts all get their own black window, which is where the reference panel puts its readouts anyway.
+**The page is an instrument face, not a dashboard.** Enclosures and cards are styled in authentic brushed stainless steel and machined satin aluminum (`--steel-grain` micro-striations, `--metal-plate` anisotropic specular sheen, 3D CNC-milled beveled chamfers, corner allen socket-cap screws, concentric dual-metal brass & chrome dial bezels, tubular chrome grab handles, and high-contrast stamped enamel placards). The SWACO choke panel retains its authentic physical orange console face with recessed dark instrument bays.
 
 **The panels are drawn the way a rig draws them**, from the references in `simulator_screens/`: round dials with needles for the pressures, the BOP stack in elevation with each element showing its own state, and gate-valve bowties on the P&ID that go green when open. A digital tile tells you the number; a needle tells you the *rate* and which way it is going without being read, and working a choke is a scan rather than a series of readings. The dial's label and unit sit in the gap at the bottom where the 270° sweep does not reach — the upper half has no clear band, since the number ring runs right across it, so a label placed there collides whatever the font size. One thing deliberately **not** copied from the reference app: its trend chart puts pit volume on a second y-axis, which the `dataviz` rules forbid and which the separate panels here avoid.
 

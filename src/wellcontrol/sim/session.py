@@ -87,6 +87,7 @@ class Session:
     scenario: object | None = None
     #: Drop to real time once, when the well first flows. See _should_slow_down.
     auto_slow: bool = True
+    force_reveal_downhole: bool = False
     #: Wall-clock reading at the last advance.
     _last_tick: float | None = field(default=None, repr=False)
     _auto_slowed: bool = field(default=False, repr=False)
@@ -518,7 +519,7 @@ class Session:
         """
         state = self.simulator.state
         route = self.simulator.flow_path.return_route()
-        visible = self.downhole_visible
+        visible = self.downhole_visible or self.force_reveal_downhole
 
         def downhole(value):
             """None while the student is meant to be detecting, not reading."""
@@ -613,7 +614,7 @@ class Session:
             for valve in self.simulator.flow_path.valves
         ]
 
-    def schematic(self) -> dict:
+    def schematic(self, force_visible: bool = False) -> dict:
         """Everything the well cross-section draws.
 
         Depths and the fluids currently occupying them. Withheld along with the
@@ -623,15 +624,17 @@ class Session:
         """
         sim = self.simulator
         state = sim.state
+        is_visible = self.downhole_visible or self.force_reveal_downhole or force_visible
         picture = {
             "hole_md_ft": round(sim.hole_md),
             "bit_md_ft": round(state.bit_md_ft),
             "shoe_md_ft": None if sim.shoe_md is None else round(sim.shoe_md),
             "casing_id_in": sim.well.annulus.wellbore.sections[0].id_in,
             "hole_id_in": sim.well.annulus.wellbore.sections[-1].id_in,
-            "visible": self.downhole_visible,
+            "visible": is_visible,
+            "force_reveal_downhole": self.force_reveal_downhole,
         }
-        if not self.downhole_visible:
+        if not is_visible:
             return picture
 
         zones = [
@@ -657,6 +660,14 @@ class Session:
             "influx_bbl": round(state.influx_volume_bbl, 1),
         })
         return picture
+
+    def toggle_downhole_reveal(self, reveal: bool | None = None) -> bool:
+        """Toggle or set instructor downhole override."""
+        if reveal is None:
+            self.force_reveal_downhole = not self.force_reveal_downhole
+        else:
+            self.force_reveal_downhole = bool(reveal)
+        return self.force_reveal_downhole
 
     def kill_sheet(self) -> dict:
         """The kill sheet, built from what the student read off the gauges.

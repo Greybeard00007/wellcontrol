@@ -6,18 +6,23 @@
 <title>Well Control Simulator — Teacher Master Console</title>
 <style>
   :root {
-    --bg: #101418;
-    --panel: #181e24;
-    --panel-header: #212932;
-    --card: #1c232a;
-    --card-border: #2d3844;
-    --sunk: #0b0f13;
-    --edge: #333f4d;
-    --ink: #e2e8f0;
-    --ink-dim: #94a3b8;
-    --readout: #4bf07e;
-    --accent: #e8760f;
-    --accent-glow: rgba(232, 118, 15, 0.25);
+    --bg: radial-gradient(circle at 50% 25%, #242c38 0%, #131922 60%, #080b0f 100%);
+    --panel: #9ca6b1;
+    --panel-header: linear-gradient(180deg, #38424f 0%, #1e252e 100%);
+    --steel-grain: repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 3px),
+                   repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 2px);
+    --metal-brushed: var(--steel-grain),
+                     linear-gradient(120deg, #7c8691 0%, #a2adb9 14%, #757f8a 27%, #c3ceda 42%, #8a94a0 56%, #d0dbe6 72%, #79838e 86%, #9ba5b1 100%);
+    --card: var(--metal-brushed);
+    --card-border: #5a6675;
+    --sunk: #06090d;
+    --edge: #475466;
+    --ink: #0f172a;
+    --ink-light: #f8fafc;
+    --ink-dim: #334155;
+    --readout: #38f87b;
+    --accent: #0284c7;
+    --accent-glow: rgba(2, 132, 199, 0.3);
     --good: #22c55e;
     --good-bg: rgba(34, 197, 94, 0.15);
     --warning: #f59e0b;
@@ -38,18 +43,18 @@
   /* Header */
   header {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-    padding: 10px 20px; background: var(--panel-header);
-    border-bottom: 2px solid var(--accent);
+    padding: 10px 20px; background: linear-gradient(180deg, #242e3b 0%, #161d26 100%);
+    border-bottom: 2px solid #38bdf8; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
     position: sticky; top: 0; z-index: 100;
   }
   header h1 {
-    font-size: 15px; margin: 0; font-weight: 700; letter-spacing: .06em;
-    text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 8px;
+    font-size: 15px; margin: 0; font-weight: 800; letter-spacing: .08em;
+    text-transform: uppercase; color: #fff; display: flex; align-items: center; gap: 8px;
   }
   .grow { flex: 1 1 auto; }
   .badge {
-    font-size: 11px; padding: 3px 8px; border-radius: 999px;
-    font-weight: 600; white-space: nowrap; border: 1px solid var(--edge);
+    font-size: 11px; padding: 3px 8px; border-radius: 4px;
+    font-weight: 700; white-space: nowrap; border: 1px solid var(--edge);
   }
   .badge.good { background: var(--good-bg); color: var(--good); border-color: var(--good); }
   .badge.warning { background: var(--warning-bg); color: var(--warning); border-color: var(--warning); }
@@ -59,9 +64,11 @@
 
   /* Controls */
   button, select, input {
-    background: #252e37; color: var(--ink); border: 1px solid var(--edge);
-    border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer;
-    font-family: inherit; font-weight: 600; transition: all .15s ease;
+    background: linear-gradient(180deg, #2b3646 0%, #1a222d 100%);
+    color: var(--ink); border: 1px solid #475569;
+    border-radius: 4px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+    font-family: inherit; font-weight: 700; transition: all .15s ease;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 2px 4px rgba(0,0,0,0.4);
   }
   button:hover, select:hover { filter: brightness(1.15); border-color: var(--ink-dim); }
   button:active { transform: translateY(1px); }
@@ -86,24 +93,34 @@
     gap: 16px;
   }
 
-  /* Student Card */
+  /* Student Card (Brushed Stainless Steel Chassis) */
   .card {
-    background: var(--card); border: 1px solid var(--card-border);
+    background: var(--card); border: 1px solid #5a6675;
     border-radius: 8px; overflow: hidden; display: flex; flex-direction: column;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: border-color .15s ease;
+    box-shadow: 
+      inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.85),
+      inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.45),
+      inset -1.5px -1.5px 0 rgba(0, 0, 0, 0.8),
+      inset -3px -3px 6px rgba(0, 0, 0, 0.45),
+      0 8px 24px rgba(0,0,0,0.65);
+    transition: border-color .15s ease;
+    color: #0f172a;
+    position: relative;
   }
-  .card:hover { border-color: var(--edge); }
-  .card.has-critical { border-color: var(--critical); box-shadow: 0 0 14px rgba(239,68,68,0.25); }
-  .card.is-frozen { border-color: #3b82f6; box-shadow: 0 0 14px rgba(59,130,246,0.2); }
+  .card:hover { border-color: #94a3b8; }
+  .card.has-critical { border-color: var(--critical); box-shadow: 0 0 16px rgba(239,68,68,0.4); }
+  .card.is-frozen { border-color: #3b82f6; box-shadow: 0 0 16px rgba(59,130,246,0.35); }
   .card.is-dead { border-color: var(--good); }
 
   .card-header {
     background: var(--panel-header); padding: 10px 14px;
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    border-bottom: 1px solid var(--card-border);
+    border-bottom: 1.5px solid #5a6675;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.3);
   }
   .card-title {
-    font-weight: 700; font-size: 14px; color: #fff; display: flex; align-items: center; gap: 6px;
+    font-weight: 800; font-size: 14px; color: #f8fafc; display: flex; align-items: center; gap: 6px;
+    letter-spacing: 0.06em;
   }
   .card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
 
@@ -112,20 +129,23 @@
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
   }
   .gauge-box {
-    background: var(--sunk); border: 1px solid #1f2730; border-radius: 6px;
+    background: var(--sunk); border: 2px solid #2d3748; border-radius: 6px;
     padding: 8px 10px; display: flex; flex-direction: column; justify-content: space-between;
+    box-shadow: inset 2px 2px 6px #000, 0 1px 0 rgba(255,255,255,0.8);
   }
-  .gauge-box .lbl { font-size: 10px; text-transform: uppercase; color: var(--ink-dim); font-weight: 700; letter-spacing: .05em; }
-  .gauge-box .val { font-size: 18px; font-weight: 700; color: var(--readout); margin: 2px 0; }
-  .gauge-box .sub { font-size: 10px; color: var(--ink-dim); }
+  .gauge-box .lbl { font-size: 10px; text-transform: uppercase; color: #94a3b8; font-weight: 800; letter-spacing: .06em; }
+  .gauge-box .val { font-size: 18px; font-weight: 800; color: var(--readout); margin: 2px 0; text-shadow: 0 0 8px rgba(56,248,123,0.45); }
+  .gauge-box .sub { font-size: 10px; color: #64748b; font-weight: 700; }
 
   .mini-stats {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
-    background: rgba(0,0,0,0.2); padding: 6px 8px; border-radius: 6px;
+    background: #080c10; padding: 6px 8px; border-radius: 6px;
+    border: 1px solid #2d3748;
+    box-shadow: inset 1px 1px 3px #000;
   }
   .mini-stat { display: flex; flex-direction: column; text-align: center; }
-  .mini-stat .k { font-size: 9px; color: var(--ink-dim); text-transform: uppercase; }
-  .mini-stat .v { font-size: 12px; font-weight: 700; color: #fff; margin-top: 1px; }
+  .mini-stat .k { font-size: 9px; color: #94a3b8; text-transform: uppercase; font-weight: 700; }
+  .mini-stat .v { font-size: 12px; font-weight: 800; color: #f8fafc; margin-top: 1px; }
 
   /* Alarms Area */
   .alarms-list {
@@ -208,6 +228,29 @@
     background: #121820; border: 1px solid #253342; border-radius: 6px; padding: 10px 12px;
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
   }
+
+  /* Tactical Fault Breakdown Switchboard */
+  .fault-tactical-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px;
+  }
+  @media (max-width: 750px) {
+    .fault-tactical-grid { grid-template-columns: 1fr; }
+  }
+  .fault-switch-card {
+    background: #0f1620; border: 2px solid #283648; border-radius: 6px; padding: 12px;
+    cursor: pointer; transition: all 0.15s ease; user-select: none;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .fault-switch-card:hover {
+    border-color: #f59e0b; background: #141e2b;
+  }
+  .fault-switch-card.selected {
+    border-color: #ef4444; background: #241215;
+    box-shadow: 0 0 12px rgba(239,68,68,0.5), inset 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .fault-sw-icon { font-size: 20px; margin-bottom: 6px; }
+  .fault-sw-title { font-size: 11px; font-weight: 800; color: #fff; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .fault-sw-desc { font-size: 10px; color: #94a3b8; line-height: 1.35; }
 </style>
 </head>
 <body>
@@ -259,36 +302,71 @@
 
 <!-- ========================= FAULT INJECTOR MODAL ========================= -->
 <div class="modal-overlay" id="modal-fault">
-  <div class="modal">
-    <div class="modal-header">
-      <h2 id="fault-modal-title">⚡ Live Fault Injector</h2>
+  <div class="modal large" style="background:var(--metal-brushed);border:3px solid #3d4a5c">
+    <div class="modal-header" style="border-bottom:2px solid #3d4a5c">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="screw-dot"></span>
+        <h2 id="fault-modal-title" style="margin:0;font-size:15px;letter-spacing:0.08em;text-transform:uppercase">⚠️ TACTICAL RIG BREAKDOWN INJECTOR</h2>
+      </div>
       <button class="badge dim" onclick="closeModal('modal-fault')">✕</button>
     </div>
     <div class="modal-body">
-      <div style="font-size:12px;color:var(--ink-dim)">
-        Trigger an unscripted real-time equipment breakdown on <b id="fault-target-student" style="color:#fff">Student</b>. The well physics will dynamically react to the failure immediately.
+      <div style="font-size:12px;color:#cbd5e1;margin-bottom:12px">
+        Target Session: <b id="fault-target-student" style="color:#38bdf8;font-family:monospace">Student</b>. Select a tactical equipment breakdown below to trigger live downhole reactions:
       </div>
 
-      <div>
-        <label style="font-weight:700;display:block;margin-bottom:6px">Select Equipment Fault</label>
-        <select id="fault-kind-select" style="width:100%;padding:8px">
-          <option value="pump_failure">💥 Mud Pump Failure (Fluid End Breakdown, Max SPM = 0)</option>
-          <option value="choke_plugged">🚫 Choke Plugged (Nozzle Blockage, Choke Flow = 0)</option>
-          <option value="choke_washout">🌊 Choke Washout (Orifice 4x Area, Pressure Loss)</option>
-          <option value="accumulator_leak">📉 Accumulator Leak (BOP Pressure Drops to 0 psi)</option>
-          <option value="weak_shoe">⚠️ Weak Casing Shoe (Formation Breakdown / Degradation)</option>
-          <option value="mud_weight_drop">💧 Pit Mud Dilution (Active Mud Weight Drops -2.0 ppg)</option>
-        </select>
+      <!-- Tactical Breakdown Buttons Grid -->
+      <div class="fault-tactical-grid" id="fault-tactical-buttons">
+        <div class="fault-switch-card selected" data-fault="pump_failure">
+          <div class="fault-sw-icon">💥</div>
+          <div class="fault-sw-title">MUD PUMP FAILURE</div>
+          <div class="fault-sw-desc">Fluid end cylinder failure. SPM drops to 0 immediately.</div>
+        </div>
+        <div class="fault-switch-card" data-fault="choke_plugged">
+          <div class="fault-sw-icon">🚫</div>
+          <div class="fault-sw-title">CHOKE PLUGGED</div>
+          <div class="fault-sw-desc">Nozzle plugged with cutting solids. Annular backpressure surges.</div>
+        </div>
+        <div class="fault-switch-card" data-fault="choke_washout">
+          <div class="fault-sw-icon">🌊</div>
+          <div class="fault-sw-title">CHOKE WASHOUT</div>
+          <div class="fault-sw-desc">Tungsten carb nozzle eroded (4x flow area). Backpressure collapses.</div>
+        </div>
+        <div class="fault-switch-card" data-fault="accumulator_leak">
+          <div class="fault-sw-icon">📉</div>
+          <div class="fault-sw-title">ACCUMULATOR BLOWOUT</div>
+          <div class="fault-sw-desc">BOP hydraulic manifold pressure drops to 0 psi.</div>
+        </div>
+        <div class="fault-switch-card" data-fault="weak_shoe">
+          <div class="fault-sw-icon">⚠️</div>
+          <div class="fault-sw-title">CASING SHOE FAILURE</div>
+          <div class="fault-sw-desc">Formation fracture breakdown at casing shoe. Mud loss to formation.</div>
+        </div>
+        <div class="fault-switch-card" data-fault="mud_weight_drop">
+          <div class="fault-sw-icon">💧</div>
+          <div class="fault-sw-title">PIT MUD DILUTION</div>
+          <div class="fault-sw-desc">Water dump into suction pit reduces active mud weight by -2.0 ppg.</div>
+        </div>
       </div>
 
-      <div>
-        <label style="font-weight:700;display:block;margin-bottom:6px">Custom Rig Report / Alert Message (Optional)</label>
-        <input type="text" id="fault-msg-input" placeholder="Leave empty for standard rig report message..." style="width:100%;padding:8px">
+      <!-- Hidden select for programmatic compatibility -->
+      <select id="fault-kind-select" style="display:none">
+        <option value="pump_failure" selected>pump_failure</option>
+        <option value="choke_plugged">choke_plugged</option>
+        <option value="choke_washout">choke_washout</option>
+        <option value="accumulator_leak">accumulator_leak</option>
+        <option value="weak_shoe">weak_shoe</option>
+        <option value="mud_weight_drop">mud_weight_drop</option>
+      </select>
+
+      <div style="margin-top:14px">
+        <label style="font-weight:700;display:block;margin-bottom:6px;font-size:11px;color:#cbd5e1;letter-spacing:0.06em">CUSTOM RIG REPORT MESSAGE (OPTIONAL)</label>
+        <input type="text" id="fault-msg-input" placeholder="e.g. Pump #1 liner seal blown! Orifice wash detected on choke manifold..." style="width:100%;padding:8px 12px;background:#090d13;border:1px solid #334155;border-radius:4px;color:#fff;font-size:12px">
       </div>
     </div>
-    <div class="modal-footer">
-      <button onclick="closeModal('modal-fault')">Cancel</button>
-      <button class="danger" id="btn-submit-fault">⚡ Inject Fault Now</button>
+    <div class="modal-footer" style="border-top:2px solid #3d4a5c">
+      <button onclick="closeModal('modal-fault')" style="background:#1e293b;border-color:#334155;color:#cbd5e1">Cancel</button>
+      <button class="danger" id="btn-submit-fault" style="background:radial-gradient(circle, #dc2626 0%, #991b1b 100%);border-color:#ef4444;font-weight:800;letter-spacing:0.06em">⚡ EXECUTE RIG BREAKDOWN</button>
     </div>
   </div>
 </div>
@@ -860,10 +938,34 @@ async function renamePrompt(sessionId, current) {
   }
 }
 
+function playFaultAlarmSound() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
+  } catch (e) {}
+}
+
 function openFaultModal(sessionId, studentName) {
   activeFaultSessionId = sessionId;
   $("fault-target-student").textContent = `${studentName} (${sessionId.slice(0, 6)})`;
   $("fault-msg-input").value = "";
+  const cards = document.querySelectorAll(".fault-switch-card");
+  if (cards.length) {
+    cards.forEach((c, idx) => c.classList.toggle("selected", idx === 0));
+    $("fault-kind-select").value = cards[0].dataset.fault || "pump_failure";
+  }
   openModal("modal-fault");
 }
 
@@ -872,6 +974,7 @@ async function submitFault() {
   const kind = $("fault-kind-select").value;
   const msg = $("fault-msg-input").value.trim();
   try {
+    playFaultAlarmSound();
     await api(`/api/teacher/sessions/${activeFaultSessionId}/fault`, {
       method: "POST",
       body: JSON.stringify({ kind: kind, message: msg })
@@ -985,50 +1088,94 @@ function drawWhiteboardSchematic(sch) {
   const maxMd = Math.max(sch.hole_md_ft || 10000, 1000);
   const scaleY = (md) => (md / maxMd) * (h - 40) + 20;
 
-  // Background hole
-  ctx.fillStyle = "#14191f";
-  ctx.fillRect(w * 0.25, 20, w * 0.5, h - 40);
+  // Background hole cavity
+  ctx.fillStyle = "#070b10";
+  ctx.fillRect(0, 0, w, h);
 
-  // Casing
-  const shoeY = scaleY(sch.shoe_md_ft || 4000);
-  ctx.fillStyle = "#2d3748";
-  ctx.fillRect(w * 0.22, 20, 6, shoeY - 20);
-  ctx.fillRect(w * 0.78 - 6, 20, 6, shoeY - 20);
+  // Geological strata cues
+  ctx.fillStyle = "rgba(217, 119, 6, 0.15)";
+  ctx.fillRect(w * 0.15, 20, w * 0.7, (h - 40) * 0.25);
+  ctx.fillStyle = "rgba(56, 189, 248, 0.1)";
+  ctx.fillRect(w * 0.15, 20 + (h - 40) * 0.25, w * 0.7, (h - 40) * 0.35);
+  ctx.fillStyle = "rgba(245, 158, 11, 0.2)";
+  ctx.fillRect(w * 0.15, 20 + (h - 40) * 0.8, w * 0.7, (h - 40) * 0.2);
+
+  // Wellbore hole
+  ctx.fillStyle = "#0b111a";
+  ctx.fillRect(w * 0.24, 20, w * 0.52, h - 40);
+
+  // Open hole boundary lines
+  ctx.strokeStyle = "#f59e0b";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 2]);
+  ctx.beginPath();
+  ctx.moveTo(w * 0.24, 20); ctx.lineTo(w * 0.24, h - 20);
+  ctx.moveTo(w * 0.76, 20); ctx.lineTo(w * 0.76, h - 20);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Casing & Shoe
+  const shoeY = scaleY(sch.shoe_md_ft || (maxMd * 0.7));
+  ctx.fillStyle = "#64748b";
+  ctx.fillRect(w * 0.24, 20, 6, shoeY - 20);
+  ctx.fillRect(w * 0.76 - 6, 20, 6, shoeY - 20);
 
   // Casing Shoe marker
-  ctx.fillStyle = "#a78bfa";
+  ctx.fillStyle = "#facc15";
   ctx.beginPath();
-  ctx.moveTo(w * 0.22, shoeY); ctx.lineTo(w * 0.26, shoeY); ctx.lineTo(w * 0.24, shoeY + 6); ctx.fill();
+  ctx.moveTo(w * 0.24, shoeY); ctx.lineTo(w * 0.29, shoeY); ctx.lineTo(w * 0.24, shoeY + 7); ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(w * 0.78, shoeY); ctx.lineTo(w * 0.74, shoeY); ctx.lineTo(w * 0.76, shoeY + 6); ctx.fill();
+  ctx.moveTo(w * 0.76, shoeY); ctx.lineTo(w * 0.71, shoeY); ctx.lineTo(w * 0.76, shoeY + 7); ctx.fill();
 
   // Fluid zones in annulus
-  if (sch.zones && sch.zones.length) {
-    sch.zones.forEach(z => {
+  const zones = sch.annulus_zones || sch.zones || [];
+  if (zones && zones.length) {
+    zones.forEach(z => {
       const topY = scaleY(z.top_md_ft);
       const botY = scaleY(z.bottom_md_ft);
-      if (z.kind === "influx") ctx.fillStyle = "#ea580c";
-      else if (z.kind === "kill_mud") ctx.fillStyle = "#16a34a";
-      else ctx.fillStyle = "#2563eb";
-      ctx.fillRect(w * 0.25, topY, w * 0.5, botY - topY);
+      const isGas = (z.label || z.kind || "").includes("influx") || (z.label || z.kind || "").includes("gas");
+      const isKill = (z.label || z.kind || "").includes("kill");
+      if (isGas) {
+        ctx.fillStyle = "#f59e0b";
+      } else if (isKill) {
+        ctx.fillStyle = "#10b981";
+      } else {
+        ctx.fillStyle = "#2563eb";
+      }
+      ctx.fillRect(w * 0.26, topY, w * 0.48, Math.max(2, botY - topY));
     });
+  } else {
+    // Normal mud column
+    ctx.fillStyle = "#2563eb";
+    ctx.fillRect(w * 0.26, 20, w * 0.48, h - 40);
   }
 
   // Drill pipe & bit
-  const bitY = scaleY(sch.bit_md_ft || sch.hole_md_ft);
-  ctx.fillStyle = "#cbd5e1";
+  const bitY = scaleY(sch.bit_md_ft || maxMd);
+  ctx.fillStyle = "#f8fafc";
   ctx.fillRect(w * 0.46, 20, w * 0.08, bitY - 20);
+  // Pipe inner bore
+  ctx.fillStyle = "#1d4ed8";
+  ctx.fillRect(w * 0.48, 20, w * 0.04, bitY - 24);
+
   // Bit
   ctx.fillStyle = "#f59e0b";
   ctx.beginPath();
   ctx.moveTo(w * 0.42, bitY); ctx.lineTo(w * 0.58, bitY); ctx.lineTo(w * 0.5, bitY + 8); ctx.fill();
 
-  // Labels
+  // Depth Labels with background badge
+  ctx.font = "bold 9px Consolas, monospace";
+  ctx.fillStyle = "rgba(15,23,42,0.85)";
+  ctx.fillRect(2, 6, 80, 14);
+  ctx.fillRect(2, shoeY - 8, 90, 14);
+  ctx.fillRect(2, h - 18, 90, 14);
+
   ctx.fillStyle = "#94a3b8";
-  ctx.font = "9px Consolas";
-  ctx.fillText("0 ft (Surface)", 4, 16);
-  ctx.fillText(`Shoe: ${Math.round(sch.shoe_md_ft || 0)}'`, 4, shoeY);
-  ctx.fillText(`TD: ${Math.round(sch.hole_md_ft || 0)}'`, 4, h - 8);
+  ctx.fillText("0' Surface", 4, 16);
+  ctx.fillStyle = "#facc15";
+  ctx.fillText(`Shoe: ${Math.round(sch.shoe_md_ft || (maxMd * 0.7)).toLocaleString()}'`, 4, shoeY + 2);
+  ctx.fillStyle = "#38bdf8";
+  ctx.fillText(`Bit: ${Math.round(sch.bit_md_ft || maxMd).toLocaleString()}'`, 4, h - 8);
 }
 
 /* New Student Modal */
@@ -1360,6 +1507,15 @@ $("btn-refresh").onclick = fetchTeacherSessions;
 $("btn-new-student").onclick = openNewStudentModal;
 $("btn-create-student").onclick = createNewStudent;
 $("btn-submit-fault").onclick = submitFault;
+
+document.querySelectorAll(".fault-switch-card").forEach(c => {
+  c.onclick = () => {
+    document.querySelectorAll(".fault-switch-card").forEach(x => x.classList.remove("selected"));
+    c.classList.add("selected");
+    const sel = $("fault-kind-select");
+    if (sel && c.dataset.fault) sel.value = c.dataset.fault;
+  };
+});
 
 $("sb-btn-apply-template").onclick = () => {
   const key = $("sb-template-select").value;

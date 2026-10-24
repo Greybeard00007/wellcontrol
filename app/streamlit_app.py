@@ -21,12 +21,15 @@ tested on its own. Shared helpers live in ``shared.py``.
 from __future__ import annotations
 
 import streamlit as st
+import shared
 
 st.set_page_config(
     page_title="Well Control Kill Planner",
     page_icon="🛢",
     layout="wide",
 )
+
+shared.inject_industrial_theme()
 
 st.navigation([
     st.Page("views/planner.py", title="Kill Planner", icon="🛢", default=True),

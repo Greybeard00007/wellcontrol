@@ -395,8 +395,15 @@ def zero_pits(session_id: str) -> dict:
 
 
 @app.get("/api/sessions/{session_id}/schematic")
-def schematic(session_id: str) -> dict:
-    return _session(session_id).schematic()
+def schematic(session_id: str, reveal: bool = False) -> dict:
+    return _session(session_id).schematic(force_visible=reveal)
+
+
+@app.post("/api/sessions/{session_id}/toggle-downhole")
+def toggle_downhole(session_id: str, reveal: bool | None = None) -> dict:
+    sess = _session(session_id)
+    state = sess.toggle_downhole_reveal(reveal)
+    return {"force_reveal_downhole": state, "schematic": sess.schematic()}
 
 
 @app.get("/api/sessions/{session_id}/killsheet")

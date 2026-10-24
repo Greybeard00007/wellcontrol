@@ -106,6 +106,85 @@ def detect_theme() -> str:
     return "light"
 
 
+def inject_industrial_theme() -> None:
+    """Inject the Cyberbase & Heavy Industrial rig console theme into Streamlit."""
+    st.markdown(
+        """
+        <style>
+        /* Cyberbase & Heavy Industrial Rig Console Theme (Images 1 - 4) */
+        .stApp {
+            background: radial-gradient(circle at 50% 10%, #151c24 0%, #090c10 100%);
+            color: #f1f5f9;
+        }
+        /* Metal panel card styling in authentic brushed stainless steel */
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            background: 
+                repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 3px),
+                repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 2px),
+                linear-gradient(120deg, #7c8691 0%, #a2adb9 14%, #757f8a 27%, #c3ceda 42%, #8a94a0 56%, #d0dbe6 72%, #79838e 86%, #9ba5b1 100%) !important;
+            border: 1px solid #5a6675 !important;
+            border-radius: 6px !important;
+            box-shadow: 
+                inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.85),
+                inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.45),
+                inset -1.5px -1.5px 0 rgba(0, 0, 0, 0.8),
+                inset -3px -3px 6px rgba(0, 0, 0, 0.45),
+                0 8px 24px rgba(0,0,0,0.65) !important;
+            color: #0f172a !important;
+        }
+        div[data-testid="stMetric"] {
+            background: #06090d !important;
+            border: 2px solid #2d3748 !important;
+            border-radius: 6px !important;
+            padding: 8px 12px !important;
+            box-shadow: inset 2.5px 2.5px 6px #000, 0 1.5px 0 rgba(255,255,255,0.85) !important;
+        }
+        div[data-testid="stMetricLabel"] {
+            color: #94a3b8 !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.06em !important;
+        }
+        /* Buttons styled like industrial switchgear */
+        .stButton > button, div[data-testid="stLinkButton"] > a {
+            background: linear-gradient(180deg, #475466 0%, #262e38 100%) !important;
+            color: #f8fafc !important;
+            border: 1.5px solid #64748b !important;
+            border-radius: 4px !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.04em !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 2px 4px rgba(0,0,0,0.5) !important;
+        }
+        .stButton > button:hover, div[data-testid="stLinkButton"] > a:hover {
+            filter: brightness(1.2) !important;
+            border-color: #38bdf8 !important;
+        }
+        /* Primary buttons */
+        .stButton > button[kind="primary"], div[data-testid="stLinkButton"] > a[kind="primary"] {
+            background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%) !important;
+            border-color: #38bdf8 !important;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.4), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+        }
+        /* Metrics / digital readouts */
+        div[data-testid="stMetricValue"] {
+            font-family: Consolas, "Liberation Mono", monospace !important;
+            color: #38f87b !important;
+            font-weight: 800 !important;
+            text-shadow: 0 0 8px rgba(56, 248, 123, 0.4) !important;
+        }
+        /* Headers with industrial stamped look */
+        h1, h2, h3 {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.05em !important;
+            text-transform: uppercase !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # --------------------------------------------------------------------------
 # Well construction
 # --------------------------------------------------------------------------

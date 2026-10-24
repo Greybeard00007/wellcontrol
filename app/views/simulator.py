@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import streamlit as st
 import streamlit.components.v1 as components
 
+_APP = Path(__file__).resolve().parent.parent
+if str(_APP) not in sys.path:
+    sys.path.insert(0, str(_APP))
+
+import shared
 from wellcontrol.sim.scenario import SCENARIOS
 
-st.title("🎮 Well Control Simulator & Teacher Station")
+shared.inject_industrial_theme()
+
+st.title("🎮 Well Control Simulator & Cyberbase Console")
 
 st.markdown(
     """

@@ -6,15 +6,20 @@
 <title>Crew CRM — Collaborative Well Control Simulator</title>
 <style>
   :root {
-    --bg: #0d1217;
-    --panel: #161e27;
-    --panel-header: #1f2a36;
-    --border: #283645;
-    --ink: #f1f5f9;
-    --dim: #94a3b8;
+    --bg: radial-gradient(circle at 50% 25%, #242c38 0%, #131922 60%, #080b0f 100%);
+    --panel: #9ca6b1;
+    --panel-header: linear-gradient(180deg, #38424f 0%, #1e252e 100%);
+    --steel-grain: repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 3px),
+                   repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 2px);
+    --metal-brushed: var(--steel-grain),
+                     linear-gradient(120deg, #7c8691 0%, #a2adb9 14%, #757f8a 27%, #c3ceda 42%, #8a94a0 56%, #d0dbe6 72%, #79838e 86%, #9ba5b1 100%);
+    --border: #5a6675;
+    --ink: #0f172a;
+    --ink-light: #f8fafc;
+    --dim: #334155;
     --faint: #64748b;
-    --sunk: #070a0d;
-    --readout: #5df08a;
+    --sunk: #06090d;
+    --readout: #38f87b;
     --dp: #38bdf8;
     --csg: #fbbf24;
     --bhp: #34d399;
@@ -35,12 +40,13 @@
   /* Header */
   header {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 10px 16px; background: var(--panel); border-bottom: 2px solid var(--border);
+    padding: 10px 16px; background: linear-gradient(180deg, #242e3b 0%, #161d26 100%);
+    border-bottom: 2px solid #3d4a5c; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
   }
-  .title { font-weight: 800; font-size: 15px; letter-spacing: 0.05em; color: #fff; display: flex; align-items: center; gap: 8px; }
+  .title { font-weight: 800; font-size: 14.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; display: flex; align-items: center; gap: 8px; }
   .pill {
     padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 700;
-    background: #0f172a; border: 1px solid var(--border); color: var(--dim);
+    background: #090d13; border: 1px solid var(--border); color: var(--dim);
   }
   .pill.online { border-color: var(--good); color: var(--good); }
   .pill.role { color: #fff; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -49,12 +55,12 @@
   /* Roster Bar */
   .roster-bar {
     display: flex; align-items: center; gap: 8px; overflow-x: auto;
-    padding: 6px 16px; background: #0a0e13; border-bottom: 1px solid var(--border);
+    padding: 6px 16px; background: #0b0f16; border-bottom: 1px solid var(--border);
     font-size: 11px;
   }
   .roster-chip {
-    display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px;
-    border-radius: 12px; background: #131b24; border: 1px solid #23303e; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+    border-radius: 4px; background: #131b26; border: 1px solid #28374a; white-space: nowrap; font-weight: 700;
   }
   .dot { width: 7px; height: 7px; border-radius: 50%; }
 
@@ -71,11 +77,23 @@
     padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
   }
   .card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px;
+    background: var(--metal-brushed);
+    border: 1px solid #5a6675;
+    border-radius: 6px; padding: 14px;
+    box-shadow: 
+      inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.85),
+      inset 2.5px 2.5px 5px rgba(255, 255, 255, 0.45),
+      inset -1.5px -1.5px 0 rgba(0, 0, 0, 0.8),
+      inset -3px -3px 6px rgba(0, 0, 0, 0.45),
+      0 8px 24px rgba(0,0,0,0.65);
+    color: #0f172a;
+    position: relative;
   }
   .card-title {
-    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--dim); margin: 0 0 10px; display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em;
+    color: #0f172a; margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 2px solid rgba(15,23,42,0.18); padding-bottom: 5px;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.85);
   }
 
   /* Gauges Grid */
@@ -84,17 +102,22 @@
   }
   @media (max-width: 768px) { .gauges-grid { grid-template-columns: repeat(2, 1fr); } }
   .gbox {
-    text-align: center; background: #0f1724; border: 1px solid var(--border); border-radius: 4px; padding: 8px 6px;
+    text-align: center; background: transparent; padding: 4px;
   }
-  .gbox .lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--dim); margin-bottom: 3px; }
+  .gbox .lbl {
+    font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: #0f172a; margin-bottom: 4px;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.85); letter-spacing: 0.06em;
+  }
   .gbox .val {
-    background: var(--sunk); border: 1px solid #1e293b; border-radius: 3px; padding: 6px 4px;
+    background: #06090d; border: 2px solid #2d3748; border-radius: 4px; padding: 6px 4px;
     font: 700 24px/1.1 Consolas, monospace; color: var(--readout);
+    box-shadow: inset 2.5px 2.5px 7px #000, 0 1.5px 0 rgba(255,255,255,0.85);
+    text-shadow: 0 0 10px rgba(56, 248, 123, 0.45);
   }
   .gbox.dp .val { color: var(--dp); }
   .gbox.csg .val { color: var(--csg); }
-  .gbox.alarm .val { color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
-  .gbox .unit { font-size: 9.5px; color: var(--faint); margin-top: 3px; }
+  .gbox.alarm .val { color: var(--danger); box-shadow: inset 2px 2px 5px #000, 0 0 0 2px var(--danger); }
+  .gbox .unit { font-size: 9.5px; color: #334155; margin-top: 3px; font-weight: 700; text-shadow: 0 1px 0 rgba(255,255,255,0.6); }
 
   /* Right Sidebar: Tactical Intercom & Event Log */
   .intercom-panel {
@@ -182,6 +205,83 @@
   .role-card.selected { border-color: #3b82f6; background: #162433; }
   .role-card-title { font-weight: 800; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
   .role-card-desc { font-size: 11px; color: var(--dim); line-height: 1.35; }
+
+  /* Two-Handed API 53 Master Interlock */
+  .master-interlock-station {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    background: #0b0f14; border: 2px solid #334155; border-radius: 6px; padding: 10px 14px;
+    margin-bottom: 12px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.8);
+  }
+  .master-interlock-station.lockout {
+    border-color: #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.5), inset 0 2px 6px rgba(0,0,0,0.8);
+    animation: lockoutPulse 0.5s ease-in-out;
+  }
+  @keyframes lockoutPulse {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  .interlock-lamp {
+    width: 14px; height: 14px; border-radius: 50%; background: #334155;
+    border: 2px solid #1e293b; display: inline-block; transition: all 0.15s;
+  }
+  .interlock-lamp.engaged {
+    background: #22c55e; border-color: #86efac; box-shadow: 0 0 10px #22c55e;
+  }
+  .btn-master-operate {
+    background: radial-gradient(circle, #0284c7 0%, #0369a1 60%, #075985 100%);
+    color: #fff; border: 2px solid #38bdf8; border-radius: 30px;
+    padding: 7px 16px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; user-select: none;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+  }
+  .btn-master-operate.engaged, .btn-master-operate:active {
+    background: radial-gradient(circle, #22c55e 0%, #16a34a 60%, #15803d 100%);
+    border-color: #86efac; box-shadow: 0 0 12px rgba(34,197,94,0.7);
+  }
+
+  /* Flip Guard for Blind Ram */
+  .flip-guard-box {
+    position: relative; display: inline-block;
+  }
+  .missile-guard-cover {
+    position: absolute; inset: 0; background: repeating-linear-gradient(45deg, #b91c1c, #b91c1c 8px, #7f1d1d 8px, #7f1d1d 16px);
+    border: 2px solid #ef4444; border-radius: 4px; z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px #000;
+    cursor: pointer; transform-origin: top; transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+  }
+  .missile-guard-cover.open {
+    transform: rotateX(85deg) translateY(-8px);
+    pointer-events: none;
+  }
+
+  /* SWACO 3-Position Lever Assembly */
+  .swaco-lever-assembly {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #090d13; border: 2px solid #334155; border-radius: 24px;
+    padding: 3px; max-width: 300px; margin: 10px 0;
+  }
+  .swaco-lever-btn {
+    flex: 1; padding: 7px 4px; font-size: 10.5px; font-weight: 800; border: none;
+    border-radius: 18px; cursor: pointer; color: #94a3b8; background: transparent;
+    text-transform: uppercase; transition: all 0.1s ease; user-select: none;
+  }
+  .swaco-lever-btn.close:active, .swaco-lever-btn.close.active {
+    background: radial-gradient(circle, #ef4444 0%, #b91c1c 100%); color: #fff; box-shadow: 0 0 10px #ef4444;
+  }
+  .swaco-lever-btn.hold { background: #1e293b; color: #cbd5e1; border: 1px solid #475569; }
+  .swaco-lever-btn.open:active, .swaco-lever-btn.open.active {
+    background: radial-gradient(circle, #22c55e 0%, #15803d 100%); color: #fff; box-shadow: 0 0 10px #22c55e;
+  }
+  .swaco-speed-btn {
+    font-size: 9.5px; font-weight: 700; padding: 3px 8px; border-radius: 3px;
+    background: #1e293b; color: #94a3b8; border: 1px solid #475569; cursor: pointer;
+  }
+  .swaco-speed-btn.active {
+    background: #0284c7; color: #fff; border-color: #38bdf8; box-shadow: 0 0 6px #38bdf8;
+  }
 </style>
 </head>
 <body>
@@ -317,9 +417,13 @@
         <div class="mono" id="pump-val" style="width:55px;font-weight:700">0 SPM</div>
       </div>
       <div class="btn-group">
-        <button class="action-btn" data-act="pump" data-spm="0">Stop Pump</button>
-        <button class="action-btn" data-act="pump" data-spm="30">Kill Rate (30 SPM)</button>
-        <button class="action-btn" data-act="pump" data-spm="60">Drilling (60 SPM)</button>
+        <button class="action-btn active" data-act="pump" data-spm="30">⚡ Kill Rate (30 SPM)</button>
+        <button class="action-btn" id="btn-crew-spm-p5">+5 SPM</button>
+        <button class="action-btn" id="btn-crew-spm-m5">-5 SPM</button>
+        <button class="action-btn" id="btn-crew-spm-p1">+1</button>
+        <button class="action-btn" id="btn-crew-spm-m1">-1</button>
+        <button class="action-btn danger" data-act="pump" data-spm="0">Stop Pump</button>
+        <button class="action-btn" id="btn-crew-rig-horn" style="background:radial-gradient(circle, #f59e0b 0%, #b45309 100%);color:#fff;font-weight:800;border-color:#fcd34d">🕪 Rig Horn</button>
       </div>
 
       <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
@@ -335,19 +439,37 @@
     <!-- CHOKE OPERATOR PANEL -->
     <div class="card" id="panel-choke">
       <div class="card-title" style="color:var(--choke)">
-        <span>🎛️ Choke Operator Station Controls</span>
+        <span>🎛️ Choke Operator & SWACO Console</span>
         <span class="pill" id="lock-choke-tag">Active Station</span>
       </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px;font-weight:700;color:var(--dim)">SPEED:</span>
+          <button class="swaco-speed-btn" id="btn-crew-spd-trim" data-spd="0.2">TRIM (0.2%)</button>
+          <button class="swaco-speed-btn active" id="btn-crew-spd-norm" data-spd="1.5">NORM (1.5%)</button>
+          <button class="swaco-speed-btn" id="btn-crew-spd-fast" data-spd="6.0">FAST (6%)</button>
+        </div>
+        <div class="mono" style="font-size:11px;color:#38bdf8;font-weight:700" id="crew-choke-64ths">0.0 / 64ths</div>
+      </div>
+
+      <div class="swaco-lever-assembly">
+        <button class="swaco-lever-btn close" id="btn-crew-lever-close">◄ CLOSE</button>
+        <button class="swaco-lever-btn hold" id="btn-crew-lever-hold">HOLD</button>
+        <button class="swaco-lever-btn open" id="btn-crew-lever-open">OPEN ►</button>
+      </div>
+
       <div class="control-row">
-        <label style="width:110px;font-weight:700">Hydraulic Choke</label>
+        <label style="width:110px;font-weight:700">Choke Slider</label>
         <input type="range" id="choke-slider" min="0" max="100" step="0.5" value="0">
         <div class="mono" id="choke-val" style="width:55px;font-weight:700">0.0%</div>
       </div>
       <div class="btn-group">
-        <button class="action-btn" data-act="choke" data-pct="0">Fully Shut</button>
-        <button class="action-btn" data-act="choke-step" data-step="-2">&minus;2% (Close)</button>
-        <button class="action-btn" data-act="choke-step" data-step="+2">+2% (Open)</button>
-        <button class="action-btn" data-act="choke" data-pct="100">Fully Open</button>
+        <button class="action-btn danger" data-act="choke" data-pct="0">Fully Shut (0%)</button>
+        <button class="action-btn" data-act="choke-step" data-step="-2">&minus;2%</button>
+        <button class="action-btn" data-act="choke-step" data-step="-0.5">&minus;0.5%</button>
+        <button class="action-btn" data-act="choke-step" data-step="+0.5">+0.5%</button>
+        <button class="action-btn" data-act="choke-step" data-step="+2">+2%</button>
+        <button class="action-btn" data-act="choke" data-pct="100">Fully Open (100%)</button>
       </div>
 
       <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:10px">
@@ -366,10 +488,37 @@
         <span>🛡️ Toolpusher & BOP Control Station</span>
         <span class="pill" id="lock-toolpusher-tag">Active Station</span>
       </div>
-      <div class="btn-group">
+
+      <!-- TWO-HANDED API 53 MASTER INTERLOCK -->
+      <div class="master-interlock-station" id="crew-master-interlock-station">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="interlock-lamp" id="lamp-master-interlock-crew"></span>
+          <div>
+            <div style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.06em">API 53 2-HANDED INTERLOCK</div>
+            <div style="font-size:10px;color:var(--dim)" id="txt-crew-interlock-sub">Depress [MASTER VALVE] or hold SPACEBAR to operate preventers</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button id="btn-master-operate-crew" class="btn-master-operate" title="Hold with mouse or hold SPACEBAR">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#fff"></span>
+            <span>MASTER VALVE (HOLD)</span>
+          </button>
+          <label style="font-size:10.5px;color:var(--dim);display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" id="chk-master-latch-crew"> Latch
+          </label>
+        </div>
+      </div>
+
+      <div class="btn-group" style="align-items:center">
         <button class="action-btn danger" data-act="bop" data-name="annular">Operate Annular Preventer</button>
         <button class="action-btn danger" data-act="bop" data-name="upper_rams">Operate Upper Pipe Rams</button>
         <button class="action-btn danger" data-act="bop" data-name="lower_rams">Operate Lower Pipe Rams</button>
+
+        <!-- Guarded Blind / Shear Rams -->
+        <div class="flip-guard-box">
+          <div class="missile-guard-cover" id="guard-crew-blind" title="Click to lift red missile cover">LIFT TO ARM</div>
+          <button class="action-btn danger" data-act="bop" data-name="blind_rams" style="background:#7f1d1d;border-color:#b91c1c;padding-left:14px;padding-right:14px">Blind/Shear Rams</button>
+        </div>
       </div>
       <div style="display:flex;gap:16px;margin-top:12px;font-size:11px">
         <div>Koomey Accumulator: <b id="tp-acc" class="mono">—</b> psi</div>
@@ -431,22 +580,230 @@ let audioChime = true;
 
 // Web Audio Rig Radio Squelch & Chime
 let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
 function playRadioChime() {
   if (!audioChime) return;
   try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(ctx.destination);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.12);
+    osc.stop(ctx.currentTime + 0.12);
   } catch (e) {}
+}
+
+function playSwitchClick() {
+  try {
+    const ctx = getAudioCtx(); const now = ctx.currentTime;
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.type = "sine"; osc.frequency.setValueAtTime(1400, now);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.04);
+    gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.06);
+  } catch (_) {}
+}
+
+function playGuardSnap() {
+  try {
+    const ctx = getAudioCtx(); const now = ctx.currentTime;
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.type = "triangle"; osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(160, now + 0.08);
+    gain.gain.setValueAtTime(0.4, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.1);
+  } catch (_) {}
+}
+
+function playInterlockBuzz() {
+  try {
+    const ctx = getAudioCtx(); const now = ctx.currentTime;
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.type = "sawtooth"; osc.frequency.setValueAtTime(180, now);
+    gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.24);
+  } catch (_) {}
+}
+
+function playBopClunk() {
+  try {
+    const ctx = getAudioCtx();
+    playHydraulicWhoosh();
+    const now = ctx.currentTime + 0.07;
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    osc1.type = "triangle";
+    osc2.type = "sawtooth";
+    osc1.frequency.setValueAtTime(145, now);
+    osc1.frequency.exponentialRampToValueAtTime(34, now + 0.28);
+    osc2.frequency.setValueAtTime(290, now);
+    osc2.frequency.exponentialRampToValueAtTime(65, now + 0.22);
+
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(340, now);
+
+    gain.gain.setValueAtTime(0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.36);
+    osc2.stop(now + 0.36);
+  } catch (_) {}
+}
+
+function playHydraulicWhoosh() {
+  try {
+    const ctx = getAudioCtx(); const now = ctx.currentTime;
+    const bufferSize = ctx.sampleRate * 0.35;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const out = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) out[i] = Math.random() * 2 - 1;
+    const whiteNoise = ctx.createBufferSource();
+    whiteNoise.buffer = noiseBuffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass"; filter.frequency.setValueAtTime(950, now);
+    filter.frequency.exponentialRampToValueAtTime(260, now + 0.3);
+    const gain = ctx.createGain(); gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+    whiteNoise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    whiteNoise.start(now);
+  } catch (_) {}
+}
+
+function playRigHorn() {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    const freqs = [155, 233, 311];
+    const hornGain = ctx.createGain();
+    hornGain.gain.setValueAtTime(0.001, now);
+    hornGain.gain.linearRampToValueAtTime(0.35, now + 0.05);
+    hornGain.gain.setValueAtTime(0.35, now + 0.7);
+    hornGain.gain.exponentialRampToValueAtTime(0.001, now + 1.25);
+    hornGain.connect(ctx.destination);
+
+    freqs.forEach(f => {
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(f, now);
+      osc.frequency.linearRampToValueAtTime(f * 0.985, now + 1.2);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(950, now);
+      osc.connect(filter);
+      filter.connect(hornGain);
+      osc.start(now);
+      osc.stop(now + 1.25);
+    });
+
+    const bufSize = Math.floor(ctx.sampleRate * 0.35);
+    const noiseBuf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const out = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) out[i] = Math.random() * 2 - 1;
+    const noiseSrc = ctx.createBufferSource();
+    noiseSrc.buffer = noiseBuf;
+    const nFilt = ctx.createBiquadFilter();
+    nFilt.type = "bandpass";
+    nFilt.frequency.setValueAtTime(1400, now);
+    nFilt.Q.value = 1.8;
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.14, now);
+    nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+    noiseSrc.connect(nFilt);
+    nFilt.connect(nGain);
+    nGain.connect(hornGain);
+    noiseSrc.start(now);
+  } catch (_) {}
+}
+
+function playPumpStroke() {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    const filter1 = ctx.createBiquadFilter();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(56, now);
+    osc1.frequency.exponentialRampToValueAtTime(24, now + 0.18);
+    filter1.type = "lowpass";
+    filter1.frequency.setValueAtTime(130, now);
+    gain1.gain.setValueAtTime(0.5, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc1.connect(filter1); filter1.connect(gain1); gain1.connect(ctx.destination);
+    osc1.start(now); osc1.stop(now + 0.24);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    const filter2 = ctx.createBiquadFilter();
+    osc2.type = "triangle";
+    osc2.frequency.setValueAtTime(860, now);
+    osc2.frequency.exponentialRampToValueAtTime(320, now + 0.045);
+    filter2.type = "bandpass";
+    filter2.frequency.setValueAtTime(920, now);
+    filter2.Q.value = 2.8;
+    gain2.gain.setValueAtTime(0.3, now);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+    osc2.connect(filter2); filter2.connect(gain2); gain2.connect(ctx.destination);
+    osc2.start(now); osc2.stop(now + 0.065);
+  } catch (_) {}
+}
+
+let chokeHissNode = null, chokeHissGain = null;
+function startChokeHiss() {
+  try {
+    const ctx = getAudioCtx();
+    if (chokeHissNode) return;
+    const bufferSize = ctx.sampleRate * 2;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const out = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) out[i] = Math.random() * 2 - 1;
+    chokeHissNode = ctx.createBufferSource();
+    chokeHissNode.buffer = noiseBuffer;
+    chokeHissNode.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass"; filter.frequency.setValueAtTime(1100, ctx.currentTime);
+    chokeHissGain = ctx.createGain();
+    chokeHissGain.gain.setValueAtTime(0.01, ctx.currentTime);
+    chokeHissGain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.08);
+    chokeHissNode.connect(filter); filter.connect(chokeHissGain); chokeHissGain.connect(ctx.destination);
+    chokeHissNode.start();
+  } catch (_) {}
+}
+function stopChokeHiss() {
+  if (!chokeHissNode || !chokeHissGain || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  chokeHissGain.gain.linearRampToValueAtTime(0.001, now + 0.08);
+  setTimeout(() => {
+    if (chokeHissNode) {
+      try { chokeHissNode.stop(); chokeHissNode.disconnect(); } catch (_) {}
+      chokeHissNode = null; chokeHissGain = null;
+    }
+  }, 100);
 }
 
 // Role Cards Selection
@@ -658,21 +1015,189 @@ document.getElementById("choke-slider").onchange = (e) => {
   sendAction("choke", {percent: Number(e.target.value)});
 };
 
+// Master Interlock & Guard State (API 53 / 16D)
+let bopMasterEngaged = false;
+let bopGuardOpen = { blind: false };
+
+function isBopInterlockEngaged() {
+  const latch = document.getElementById("chk-master-latch-crew");
+  return bopMasterEngaged || (latch && latch.checked);
+}
+
+function updateMasterInterlockUI() {
+  const engaged = isBopInterlockEngaged();
+  const lamp = document.getElementById("lamp-master-interlock-crew");
+  const btn = document.getElementById("btn-master-operate-crew");
+  const sub = document.getElementById("txt-crew-interlock-sub");
+  if (lamp) lamp.className = "interlock-lamp" + (engaged ? " engaged" : "");
+  if (btn) btn.classList.toggle("engaged", engaged);
+  if (sub) sub.textContent = engaged
+    ? "✓ MASTER INTERLOCK ENGAGED: Ready to command preventers"
+    : "Depress [MASTER VALVE] or hold SPACEBAR to operate preventers";
+}
+
+const masterBtn = document.getElementById("btn-master-operate-crew");
+const latchChk = document.getElementById("chk-master-latch-crew");
+if (masterBtn) {
+  const engage = (e) => {
+    e?.preventDefault();
+    bopMasterEngaged = true;
+    playSwitchClick();
+    updateMasterInterlockUI();
+  };
+  const release = (e) => {
+    e?.preventDefault();
+    bopMasterEngaged = false;
+    updateMasterInterlockUI();
+  };
+  masterBtn.addEventListener("mousedown", engage);
+  window.addEventListener("mouseup", release);
+  masterBtn.addEventListener("touchstart", engage, { passive: false });
+  window.addEventListener("touchend", release);
+}
+if (latchChk) {
+  latchChk.addEventListener("change", () => {
+    playSwitchClick();
+    updateMasterInterlockUI();
+  });
+}
+
+// Spacebar Keybinding for Two-Handed Interlock
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && !["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) {
+    if (!bopMasterEngaged) {
+      bopMasterEngaged = true;
+      playSwitchClick();
+      updateMasterInterlockUI();
+    }
+    e.preventDefault();
+  }
+});
+window.addEventListener("keyup", (e) => {
+  if (e.code === "Space") {
+    bopMasterEngaged = false;
+    updateMasterInterlockUI();
+    e.preventDefault();
+  }
+});
+
+// Guarded Blind / Shear Rams flip cover
+const guardBlind = document.getElementById("guard-crew-blind");
+if (guardBlind) {
+  guardBlind.onclick = () => {
+    bopGuardOpen.blind = !bopGuardOpen.blind;
+    guardBlind.classList.toggle("open", bopGuardOpen.blind);
+    playGuardSnap();
+  };
+}
+
+// SWACO Choke Lever & Speed Selector
+let crewChokeSpeed = 1.5;
+let crewLeverTimer = null;
+document.querySelectorAll(".swaco-speed-btn").forEach(btn => {
+  btn.onclick = () => {
+    crewChokeSpeed = Number(btn.dataset.spd);
+    document.querySelectorAll(".swaco-speed-btn").forEach(x => x.classList.remove("active"));
+    btn.classList.add("active");
+    playSwitchClick();
+  };
+});
+
+const startCrewLever = (dir) => {
+  stopCrewLever();
+  startChokeHiss();
+  const dirSign = dir === "open" ? 1 : -1;
+  const btn = dir === "open" ? document.getElementById("btn-crew-lever-open") : document.getElementById("btn-crew-lever-close");
+  if (btn) btn.classList.add("active");
+  crewLeverTimer = setInterval(() => {
+    const step = (crewChokeSpeed / 20.0) * dirSign;
+    const cur = currentGauges.choke_percent || 0;
+    const nxt = Math.max(0, Math.min(100, cur + step));
+    sendAction("choke", {percent: nxt});
+  }, 50);
+};
+
+const stopCrewLever = () => {
+  if (crewLeverTimer) { clearInterval(crewLeverTimer); crewLeverTimer = null; }
+  stopChokeHiss();
+  const bo = document.getElementById("btn-crew-lever-open");
+  const bc = document.getElementById("btn-crew-lever-close");
+  if (bo) bo.classList.remove("active");
+  if (bc) bc.classList.remove("active");
+};
+
+const leverOpen = document.getElementById("btn-crew-lever-open");
+const leverClose = document.getElementById("btn-crew-lever-close");
+if (leverOpen) {
+  leverOpen.onmousedown = (e) => { e.preventDefault(); startCrewLever("open"); };
+  leverOpen.ontouchstart = (e) => { e.preventDefault(); startCrewLever("open"); };
+}
+if (leverClose) {
+  leverClose.onmousedown = (e) => { e.preventDefault(); startCrewLever("close"); };
+  leverClose.ontouchstart = (e) => { e.preventDefault(); startCrewLever("close"); };
+}
+window.addEventListener("mouseup", stopCrewLever);
+window.addEventListener("touchend", stopCrewLever);
+
+// Driller fine step controls & rig horn
+const spmP5 = document.getElementById("btn-crew-spm-p5");
+const spmM5 = document.getElementById("btn-crew-spm-m5");
+const spmP1 = document.getElementById("btn-crew-spm-p1");
+const spmM1 = document.getElementById("btn-crew-spm-m1");
+const rigHorn = document.getElementById("btn-crew-rig-horn");
+if (spmP5) spmP5.onclick = () => { playSwitchClick(); sendAction("pump", {spm: Math.min(80, (currentGauges.pump_spm || 0) + 5)}); };
+if (spmM5) spmM5.onclick = () => { playSwitchClick(); sendAction("pump", {spm: Math.max(0, (currentGauges.pump_spm || 0) - 5)}); };
+if (spmP1) spmP1.onclick = () => { playSwitchClick(); sendAction("pump", {spm: Math.min(80, (currentGauges.pump_spm || 0) + 1)}); };
+if (spmM1) spmM1.onclick = () => { playSwitchClick(); sendAction("pump", {spm: Math.max(0, (currentGauges.pump_spm || 0) - 1)}); };
+if (rigHorn) rigHorn.onclick = () => playRigHorn();
+
 document.querySelectorAll("button[data-act]").forEach(b => {
   b.onclick = () => {
     const act = b.dataset.act;
-    if (act === "pump") sendAction("pump", {spm: Number(b.dataset.spm)});
-    else if (act === "choke") sendAction("choke", {percent: Number(b.dataset.pct)});
+    if (act === "pump") {
+      playSwitchClick();
+      sendAction("pump", {spm: Number(b.dataset.spm)});
+    }
+    else if (act === "choke") {
+      playSwitchClick();
+      sendAction("choke", {percent: Number(b.dataset.pct)});
+    }
     else if (act === "choke-step") {
+      playSwitchClick();
       const cur = currentGauges.choke_percent || 0;
       const nxt = Math.max(0, Math.min(100, cur + Number(b.dataset.step)));
       sendAction("choke", {percent: nxt});
     }
-    else if (act === "strip") sendAction("strip", {feet_per_min: Number(b.dataset.fpm)});
-    else if (act === "bop") sendAction("bop", {name: b.dataset.name, state: "closed"});
-    else if (act === "valve") sendAction("valve", {name: b.dataset.name, state: "open"});
-    else if (act === "zero_pit") sendAction("zero_pit");
-    else if (act === "zero_tt") sendAction("zero_tt");
+    else if (act === "strip") {
+      playSwitchClick();
+      sendAction("strip", {feet_per_min: Number(b.dataset.fpm)});
+    }
+    else if (act === "bop") {
+      if (!isBopInterlockEngaged()) {
+        playInterlockBuzz();
+        const station = document.getElementById("crew-master-interlock-station");
+        if (station) {
+          station.classList.add("lockout");
+          setTimeout(() => station.classList.remove("lockout"), 600);
+        }
+        alert("API 53 TWO-HANDED INTERLOCK REQUIRED: Depress & hold [MASTER VALVE] button or hold SPACEBAR while operating any BOP element.");
+        return;
+      }
+      if (b.dataset.name === "blind_rams" && !bopGuardOpen.blind) {
+        playInterlockBuzz();
+        alert("BLIND RAM SAFETY GUARD ENGAGED: Lift red missile safety cover before operating blind/shear rams.");
+        return;
+      }
+      playBopClunk();
+      playHydraulicWhoosh();
+      sendAction("bop", {name: b.dataset.name, state: "closed"});
+    }
+    else if (act === "valve") {
+      playSwitchClick();
+      sendAction("valve", {name: b.dataset.name, state: "open"});
+    }
+    else if (act === "zero_pit") { playSwitchClick(); sendAction("zero_pit"); }
+    else if (act === "zero_tt") { playSwitchClick(); sendAction("zero_tt"); }
   };
 });
 
@@ -694,6 +1219,10 @@ function updateGauges(g) {
   document.getElementById("g-csg").textContent = Math.round(g.casing_psi || 0).toLocaleString();
   document.getElementById("g-spm").textContent = Math.round(g.pump_spm || 0);
   document.getElementById("g-chk").textContent = (g.choke_percent || 0).toFixed(1);
+  const c64 = ((g.choke_percent || 0) / 100 * 64).toFixed(1);
+  if (document.getElementById("crew-choke-64ths")) {
+    document.getElementById("crew-choke-64ths").textContent = `${c64} / 64ths`;
+  }
 
   document.getElementById("s-pit").textContent = `${(g.pit_gain_bbl || 0).toFixed(1)} bbl`;
   document.getElementById("s-out").textContent = `${(g.flow_out_bpm || 0).toFixed(1)} bpm`;

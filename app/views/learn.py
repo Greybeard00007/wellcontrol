@@ -20,9 +20,12 @@ from shared import (  # noqa: E402
     chapter_body,
     chapter_files,
     chapter_title,
+    inject_industrial_theme,
     referenced_chapters,
 )
 from wellcontrol import rounding  # noqa: E402
+
+inject_industrial_theme()
 
 st.title("Well control — the theory")
 st.caption(

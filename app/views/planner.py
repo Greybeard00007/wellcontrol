@@ -22,6 +22,7 @@ from shared import (  # noqa: E402
     chapter_exists,
     chapter_title,
     detect_theme,
+    inject_industrial_theme,
     read_upload_as_csv,
     trajectory_from_survey,
 )
@@ -29,6 +30,8 @@ from wellcontrol.importers import import_survey, import_tally  # noqa: E402
 from wellcontrol.methods import METHODS, get_method, strip_then_kill  # noqa: E402
 from wellcontrol.plotting import plot_kill, trace_table  # noqa: E402
 from wellcontrol.wellconfig import WellConfiguration  # noqa: E402
+
+inject_industrial_theme()
 
 st.title("Well Control Kill Planner")
 st.caption(
